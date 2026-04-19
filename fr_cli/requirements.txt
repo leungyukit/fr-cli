@@ -1,0 +1,5 @@
+zhipuai>=2.0.0
+# 以下为可选依赖，按需安装：
+# bypy (百度网盘)
+# aligo (阿里云盘)
+# msal requests (OneDrive)

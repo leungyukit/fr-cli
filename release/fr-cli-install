@@ -1,0 +1,196 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+凡人打字机 (fr-cli) 跨平台安装程序
+支持 Windows / macOS / Linux
+无需手动执行 bat/sh，直接运行本文件即可自动完成安装。
+
+使用方式：
+  macOS / Linux:  ./fr-cli-install
+  Windows:        python fr-cli-install
+"""
+
+import os
+import sys
+import platform
+import subprocess
+import shutil
+
+
+BOLD = "\033[1m"
+GREEN = "\033[32m"
+YELLOW = "\033[33m"
+RED = "\033[31m"
+RESET = "\033[0m"
+
+SYSTEM = platform.system()
+IS_WINDOWS = SYSTEM == "Windows"
+
+
+def print_header():
+    print("")
+    print(f"{BOLD}╔══════════════════════════════════════════╗{RESET}")
+    print(f"{BOLD}║     凡人打字机 (fr-cli) 安装器          ║{RESET}")
+    print(f"{BOLD}╚══════════════════════════════════════════╝{RESET}")
+    print("")
+
+
+def print_success(msg):
+    print(f"{GREEN}✅ {msg}{RESET}")
+
+
+def print_step(msg):
+    print(f"{YELLOW}📦 {msg}{RESET}")
+
+
+def print_error(msg):
+    print(f"{RED}❌ {msg}{RESET}", file=sys.stderr)
+
+
+def run(cmd, capture=False):
+    """执行命令，失败时退出"""
+    try:
+        if capture:
+            result = subprocess.run(
+                cmd, capture_output=True, text=True, check=True, encoding="utf-8"
+            )
+            return result.stdout.strip()
+        else:
+            subprocess.run(cmd, check=True)
+            return ""
+    except subprocess.CalledProcessError as e:
+        print_error(f"命令执行失败: {' '.join(cmd)}")
+        if e.stderr:
+            print(e.stderr, file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        print_error(f"未找到命令: {cmd[0]}")
+        sys.exit(1)
+
+
+def find_python():
+    """查找可用的 Python 3.8+"""
+    candidates = ["python3", "python", "py"]
+    for cmd in candidates:
+        try:
+            out = subprocess.run(
+                [cmd, "-c", "import sys; print(sys.version_info[:2] >= (3,8))"],
+                capture_output=True, text=True, timeout=5
+            )
+            if out.returncode == 0 and out.stdout.strip() == "True":
+                # 验证可正常调用
+                ver = subprocess.run(
+                    [cmd, "--version"], capture_output=True, text=True, timeout=5
+                )
+                return cmd, ver.stdout.strip() or ver.stderr.strip()
+        except (FileNotFoundError, subprocess.TimeoutExpired):
+            continue
+    return None, None
+
+
+def install():
+    # 兼容 PyInstaller 打包环境
+    if getattr(sys, 'frozen', False):
+        # PyInstaller 打包后，可执行文件所在目录
+        script_dir = os.path.dirname(sys.executable)
+        # wheel 通过 --add-data 内嵌，位于 _MEIPASS 临时目录
+        wheel_file = os.path.join(sys._MEIPASS, "fr_cli-2.1.0-py3-none-any.whl")
+    else:
+        script_dir = os.path.dirname(os.path.abspath(__file__))
+        wheel_file = os.path.join(script_dir, "fr_cli-2.1.0-py3-none-any.whl")
+
+    if not os.path.exists(wheel_file):
+        print_error(f"未找到安装包: {wheel_file}")
+        print("请确保 fr-cli-install 文件与 fr_cli-2.1.0-py3-none-any.whl 在同一目录。")
+        sys.exit(1)
+
+    print_header()
+
+    # 1. 检测 Python
+    python_cmd, py_ver = find_python()
+    if python_cmd is None:
+        print_error("未找到 Python 3.8+。")
+        print("请从 https://python.org 下载并安装 Python 3.8 或更高版本。")
+        if IS_WINDOWS:
+            print("Windows 安装时请务必勾选 'Add Python to PATH'")
+        sys.exit(1)
+
+    print_success(f"检测到 {py_ver}")
+
+    # 2. 创建虚拟环境
+    venv_dir = os.path.join(script_dir, ".venv")
+    print_step("步骤 1/3：创建虚拟环境...")
+    if os.path.exists(venv_dir):
+        shutil.rmtree(venv_dir)
+    run([python_cmd, "-m", "venv", venv_dir])
+
+    # 3. 安装
+    print_step("步骤 2/3：安装 fr-cli 及依赖...")
+    if IS_WINDOWS:
+        venv_python = os.path.join(venv_dir, "Scripts", "python.exe")
+    else:
+        venv_python = os.path.join(venv_dir, "bin", "python")
+
+    run([venv_python, "-m", "pip", "install", "--quiet", "--upgrade", "pip"])
+    run([venv_python, "-m", "pip", "install", "--quiet", wheel_file])
+
+    # 4. 创建启动器
+    print_step("步骤 3/3：创建启动器...")
+    if IS_WINDOWS:
+        launcher = os.path.join(script_dir, "fr-cli.bat")
+        with open(launcher, "w", encoding="utf-8") as f:
+            f.write('@echo off\n')
+            f.write(f'call "{venv_dir}\\Scripts\\activate.bat" >nul\n')
+            f.write('fr-cli %*\n')
+    else:
+        launcher = os.path.join(script_dir, "fr-cli")
+        with open(launcher, "w", encoding="utf-8") as f:
+            f.write('#!/bin/bash\n')
+            f.write(f'SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"\n')
+            f.write(f'source "$SCRIPT_DIR/.venv/bin/activate"\n')
+            f.write('exec fr-cli "$@"\n')
+        os.chmod(launcher, 0o755)
+
+    # 5. 验证
+    print_step("验证安装...")
+    if IS_WINDOWS:
+        entry = os.path.join(venv_dir, "Scripts", "fr-cli.exe")
+        if not os.path.exists(entry):
+            entry = os.path.join(venv_dir, "Scripts", "fr-cli")
+    else:
+        entry = os.path.join(venv_dir, "bin", "fr-cli")
+
+    if os.path.exists(entry):
+        print_success("fr-cli 安装验证通过！")
+    else:
+        print_error("安装验证失败，fr-cli 入口未找到。")
+        sys.exit(1)
+
+    # 6. 完成提示
+    print("")
+    print(f"{BOLD}{GREEN}🎉 安装完成！{RESET}")
+    print("")
+    print(f"{BOLD}使用方式：{RESET}")
+    if IS_WINDOWS:
+        print(f'  直接运行: {launcher}')
+        print("")
+        print(f"{BOLD}添加到全局 PATH（推荐）：{RESET}")
+        print(f"  1. 打开 系统属性 > 高级 > 环境变量")
+        print(f"  2. 编辑 Path 变量，添加: {script_dir}")
+        print(f"  3. 新建命令提示符窗口，输入 fr-cli 即可使用")
+    else:
+        print(f'  直接运行: {launcher}')
+        print("")
+        print(f"{BOLD}添加到全局 PATH（推荐）：{RESET}")
+        print(f'  {YELLOW}export PATH="{script_dir}:$PATH"{RESET}')
+        print("")
+        print("添加到 ~/.bashrc 或 ~/.zshrc 可永久生效。")
+    print("")
+
+
+if __name__ == "__main__":
+    try:
+        install()
+    except KeyboardInterrupt:
+        print("\n\n安装已取消。")
+        sys.exit(1)

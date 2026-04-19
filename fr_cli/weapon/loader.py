@@ -1,0 +1,99 @@
+"""
+法宝图谱加载器
+从统一注册表获取工具信息，替代 WEAPON.MD 的文本解析。
+保留 WEAPON.MD 作为人类可读文档，程序逻辑不再依赖其解析。
+"""
+from fr_cli.command.registry import get_registry
+
+
+# 旧类别到注册表工具名的映射（用于兼容旧接口）
+_LEGACY_CATEGORIES = {
+    "file_operations": (["write_file", "read_file", "list_files", "change_dir", "append_file", "delete_file"], "fr_cli/weapon/fs.py"),
+    "image_analysis": (["analyze_image", "generate_image"], "fr_cli/weapon/vision.py"),
+    "email_management": (["mail_inbox", "mail_read", "mail_send"], "fr_cli/weapon/mail.py"),
+    "web_search": (["search_web", "fetch_web"], "fr_cli/weapon/web.py"),
+    "scheduled_tasks": (["cron_add", "cron_list", "cron_del"], "fr_cli/weapon/cron.py"),
+    "cloud_storage": (["disk_ls", "disk_up", "disk_down"], "fr_cli/weapon/disk.py"),
+    "session_management": (["save_session", "list_sessions", "export_session"], "fr_cli/memory/history.py"),
+    "configuration": (["set_model", "set_key", "set_limit", "set_lang"], "fr_cli/conf/config.py"),
+    "launcher_system": (["open_file", "launch_app", "list_apps"], "fr_cli/weapon/launcher.py"),
+    "agent_system": (["agent_create", "agent_run"], "fr_cli/agent/"),
+    "data_scroll": (["read_excel", "read_csv"], "fr_cli/weapon/dataframe.py"),
+}
+
+
+def load_weapon_md():
+    """
+    从统一注册表获取法宝图谱。
+    保持返回格式兼容旧接口：(tools:list, trigger_map:dict)
+    """
+    reg = get_registry()
+    reg_tools = {t["name"]: t for t in reg.get_available_tools(plugins={})}
+
+    tools = []
+    trigger_map = {}
+
+    for cat_name, (tool_names, path) in _LEGACY_CATEGORIES.items():
+        commands = []
+        triggers = []
+        descriptions = []
+        for tn in tool_names:
+            if tn in reg_tools:
+                commands.append(tn)
+                info = reg_tools[tn]
+                if info.get("description"):
+                    descriptions.append(info["description"])
+                if info.get("triggers"):
+                    triggers.extend(info["triggers"])
+        if commands:
+            tools.append({
+                "name": cat_name,
+                "description": ", ".join(descriptions) if descriptions else cat_name,
+                "commands": commands,
+                "path": path,
+            })
+            # 去重 triggers
+            seen = set()
+            unique_triggers = []
+            for t in triggers:
+                if t not in seen:
+                    seen.add(t)
+                    unique_triggers.append(t)
+            trigger_map[cat_name] = unique_triggers
+
+    return tools, trigger_map
+
+
+def get_available_tools(weapon_tools, plugins):
+    """
+    获取当前可用的工具列表（从传入的 weapon_tools 追加插件）
+    保持与旧接口完全兼容。
+    """
+    tools = [t.copy() for t in weapon_tools]
+    if plugins:
+        for plugin_name in plugins.keys():
+            tools.append({
+                "name": f"plugin_{plugin_name}",
+                "description": f"自定义插件: {plugin_name}",
+                "commands": [f"/{plugin_name}"],
+            })
+    return tools
+
+
+def should_inject_tools(user_input, weapon_triggers):
+    """
+    程序层面判定是否需要向AI注入工具信息。
+    根据注册表中的触发关键词，只有在明确需要工具时才返回True。
+    """
+    u = user_input.lower().strip()
+    # 用户直接输入/命令，由主循环直接处理，不需要AI介入
+    if u.startswith('/'):
+        return False
+
+    # 基于注册表中的触发关键词做匹配
+    for tool_id, triggers in weapon_triggers.items():
+        for kw in triggers:
+            if kw.lower() in u:
+                return True
+
+    return False
