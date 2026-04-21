@@ -80,6 +80,7 @@ class TestAgentHTTPHandler(unittest.TestCase):
         conn = http.client.HTTPConnection("127.0.0.1", self.port)
         body = json.dumps(data) if data else None
         headers = {"Content-Type": "application/json"} if body else {}
+        headers["Authorization"] = f"Bearer {self.server._token}"
         conn.request(method, path, body=body, headers=headers)
         resp = conn.getresponse()
         status = resp.status
@@ -102,13 +103,12 @@ class TestAgentHTTPHandler(unittest.TestCase):
         self.assertEqual(status, 404)
         self.assertIn("error", data)
 
-    def test_cors_options(self):
+    def test_unauthorized_without_token(self):
         import http.client
         conn = http.client.HTTPConnection("127.0.0.1", self.port)
-        conn.request("OPTIONS", "/agents")
+        conn.request("GET", "/agents")
         resp = conn.getresponse()
-        self.assertEqual(resp.status, 204)
-        self.assertEqual(resp.getheader("Access-Control-Allow-Origin"), "*")
+        self.assertEqual(resp.status, 401)
         conn.close()
 
 
@@ -135,6 +135,7 @@ class TestAgentHTTPRun(unittest.TestCase):
         conn = http.client.HTTPConnection("127.0.0.1", self.port)
         body = json.dumps(data) if data else None
         headers = {"Content-Type": "application/json"} if body else {}
+        headers["Authorization"] = f"Bearer {self.server._token}"
         conn.request(method, path, body=body, headers=headers)
         resp = conn.getresponse()
         status = resp.status

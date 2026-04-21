@@ -2,7 +2,6 @@
 统一工具注册表
 所有内置命令与AI工具通过装饰器注册，实现单一入口、自动安全确认、参数校验。
 """
-from types import SimpleNamespace
 
 
 # ---- 触发关键词常量（避免同类工具重复定义）----
@@ -253,24 +252,6 @@ def get_registry():
 
 
 # ------------------------------------------------------------------
-# 依赖注入轻量容器（阶段3升级为正式 AppState）
-# ------------------------------------------------------------------
-def build_deps(executor_self):
-    return SimpleNamespace(
-        vfs=executor_self.vfs,
-        mail_c=executor_self.mail_c,
-        web_c=executor_self.web_c,
-        disk_c=executor_self.disk_c,
-        plugins=executor_self.plugins,
-        lang=executor_self.lang,
-        security=executor_self.security,
-        cfg=executor_self.cfg,
-        client=executor_self.client,
-        model_name=executor_self.model_name,
-    )
-
-
-# ------------------------------------------------------------------
 # Helper：确保子系统已配置
 # ------------------------------------------------------------------
 def _ensure_mail(deps):
@@ -391,7 +372,7 @@ def _analyze_image(deps, msgs=None, **kwargs):
     from fr_cli.core.stream import stream_cnt
     if not msgs:
         return None, "No message history available"
-    prep_see_msg(msgs, kwargs["path"], kwargs.get("text", ""))
+    prep_see_msg(msgs, kwargs["path"], kwargs.get("text", ""), vfs=deps.vfs)
     txt, _, response_time = stream_cnt(deps.client, deps.model_name, msgs, deps.lang)
     return f"图片分析结果:\n{txt}\n耗时: {response_time:.2f}秒", None
 

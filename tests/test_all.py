@@ -737,14 +737,18 @@ class TestCommandExecutor(unittest.TestCase):
 
     def setUp(self):
         self.temp_dir = os.path.realpath(tempfile.mkdtemp())
+        from types import SimpleNamespace
         from fr_cli.weapon.fs import VFS
         from fr_cli.command.security import SecurityManager
         from fr_cli.command.executor import CommandExecutor
         vfs = VFS([self.temp_dir])
         security = SecurityManager("zh", {})
-        self.executor = CommandExecutor(
-            vfs, None, None, None, {}, "zh", security, {}, None, "glm-4-flash"
+        mock_state = SimpleNamespace(
+            vfs=vfs, mail_c=None, web_c=None, disk_c=None,
+            plugins={}, lang="zh", security=security, cfg={},
+            client=None, model_name="glm-4-flash"
         )
+        self.executor = CommandExecutor(mock_state)
 
     def tearDown(self):
         import shutil

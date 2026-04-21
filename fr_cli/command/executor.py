@@ -5,13 +5,31 @@
 import re
 import json
 import ast
-from fr_cli.command.registry import get_registry, build_deps
+from types import SimpleNamespace
+from fr_cli.command.registry import get_registry
 from fr_cli.addon.plugin import exec_plugin
+
+
+def _build_deps(state):
+    """根据 AppState 动态构建依赖命名空间（每次调用实时反射，避免快照过时）"""
+    return SimpleNamespace(
+        vfs=state.vfs,
+        mail_c=state.mail_c,
+        web_c=state.web_c,
+        disk_c=state.disk_c,
+        plugins=state.plugins,
+        lang=state.lang,
+        security=state.security,
+        cfg=state.cfg,
+        client=state.client,
+        model_name=state.model_name,
+    )
 
 
 class CommandExecutor:
     """
     命令执行器：解析 AI 回复中的调用标记，并通过注册表统一调度执行。
+    直接持有 AppState，每次调用时动态构建依赖快照，彻底消除状态过时问题。
 
     公共接口（保持向后兼容）：
       - invoke_tool(tool_name, kwargs, msgs=None): 结构化工具调用
@@ -19,26 +37,16 @@ class CommandExecutor:
       - process_ai_commands(ai_response, msgs=None): 解析并执行 AI 回复中的命令标记
     """
 
-    def __init__(self, vfs, mail_c, web_c, disk_c, plugins, lang, security, cfg, client, model_name):
-        self.vfs = vfs
-        self.mail_c = mail_c
-        self.web_c = web_c
-        self.disk_c = disk_c
-        self.plugins = plugins
-        self.lang = lang
-        self.security = security
-        self.cfg = cfg
-        self.client = client
-        self.model_name = model_name
+    def __init__(self, state):
+        self.state = state
         self._reg = get_registry()
-        self._deps = build_deps(self)
 
     # ------------------------------------------------------------------
     # 第一层：结构化工具调用
     # ------------------------------------------------------------------
     def invoke_tool(self, tool_name, kwargs, msgs=None):
         """根据工具名和结构化参数，通过注册表调度执行。返回 (result, error)"""
-        return self._reg.dispatch(self._deps, tool_name, msgs=msgs, **kwargs)
+        return self._reg.dispatch(_build_deps(self.state), tool_name, msgs=msgs, **kwargs)
 
     # ------------------------------------------------------------------
     # 第二层：传统命令解析（用户输入 / 插件调用）
@@ -51,12 +59,12 @@ class CommandExecutor:
             return None, "Empty command"
         cmd = parts[0].lstrip("/")
         # 插件命令优先直接处理（保持 mock 路径兼容）
-        if cmd in self.plugins:
+        if cmd in self.state.plugins:
             p_args = ' '.join(parts[1:]) if len(parts) > 1 else ""
-            exec_plugin(cmd, self.plugins[cmd], p_args, self.lang)
+            exec_plugin(cmd, self.state.plugins[cmd], p_args, self.state.lang)
             return f"Plugin {cmd} executed", None
         # 其余命令通过注册表内部接口直接调度，避免 dispatch_cmd 再次 split
-        return self._reg._dispatch_cmd_parts(self._deps, parts, msgs=msgs)
+        return self._reg._dispatch_cmd_parts(_build_deps(self.state), parts, msgs=msgs)
 
     # ------------------------------------------------------------------
     # 第三层：AI 回复解析

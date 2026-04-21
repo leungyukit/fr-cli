@@ -56,35 +56,39 @@ def delete_host(alias):
 
 
 def _exec_ssh(host_cfg, command):
-    """通过 ssh 命令执行远程操作"""
+    """通过 ssh 命令执行远程操作（使用 paramiko 避免命令注入）"""
     ip = host_cfg["ip"]
     port = host_cfg.get("port", 22)
     user = host_cfg["user"]
     auth_type = host_cfg.get("auth_type", "password")
     auth_value = host_cfg.get("auth_value", "")
 
-    ssh_opts = f"-o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -p {port}"
-
-    if auth_type == "key":
-        if not Path(auth_value).exists():
-            return None, f"密钥文件不存在: {auth_value}"
-        ssh_cmd = f"ssh {ssh_opts} -i {auth_value} {user}@{ip} '{command}'"
-    else:
-        # 使用 sshpass 或 expect 传密码
-        # 先尝试 sshpass，如果没有则尝试 ssh 的 BatchMode
-        import shutil
-        if shutil.which("sshpass"):
-            ssh_cmd = f"sshpass -p '{auth_value}' ssh {ssh_opts} {user}@{ip} '{command}'"
-        else:
-            # 没有 sshpass，使用 ssh 的 ControlMaster 或提示用户
-            return None, "未安装 sshpass，无法自动传密码。建议配置密钥认证，或安装 sshpass: brew install sshpass / apt install sshpass"
-
     try:
-        res = subprocess.run(ssh_cmd, shell=True, capture_output=True, text=True, timeout=30)
-        out = res.stdout + res.stderr
-        return out, None
-    except subprocess.TimeoutExpired:
-        return None, "SSH 命令执行超时（30秒）"
+        import paramiko
+    except ImportError:
+        return None, "缺少 paramiko (pip install paramiko)"
+
+    client = paramiko.SSHClient()
+    client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
+    try:
+        connect_kwargs = {
+            "hostname": ip,
+            "port": int(port),
+            "username": user,
+            "timeout": 30,
+            "look_for_keys": False,
+        }
+        if auth_type == "key":
+            connect_kwargs["key_filename"] = auth_value
+        else:
+            connect_kwargs["password"] = auth_value
+
+        client.connect(**connect_kwargs)
+        stdin, stdout, stderr = client.exec_command(command)
+        out = stdout.read().decode("utf-8", errors="ignore")
+        err = stderr.read().decode("utf-8", errors="ignore")
+        client.close()
+        return out + err, None
     except Exception as e:
         return None, str(e)
 

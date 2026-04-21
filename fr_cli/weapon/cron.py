@@ -5,6 +5,7 @@
 """
 import threading
 import subprocess
+import shlex
 from fr_cli.ui.ui import RED, GREEN, DIM, YELLOW, RESET
 from fr_cli.lang.i18n import T
 
@@ -37,8 +38,12 @@ class CronManager:
                         out = f"Error: {err}"
                     print(f"{DIM}[Cron {job_id}] Agent[{agent_name}]{RESET} {out}")
             else:
-                # 执行 shell 命令
-                res = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+                # 执行 shell 命令（安全：不使用 shell=True）
+                try:
+                    cmd_list = shlex.split(cmd)
+                except ValueError:
+                    cmd_list = [cmd]
+                res = subprocess.run(cmd_list, shell=False, capture_output=True, text=True, timeout=30)
                 out = res.stdout.strip()[:100]  # 截断输出
                 print(f"{DIM}[Cron {job_id}]{RESET} {out}")
         except Exception as e:
@@ -69,6 +74,9 @@ class CronManager:
             interval = float(interval)
         except ValueError:
             return None, f"{RED}Invalid seconds{RESET}"
+
+        if interval < 5:
+            return None, f"{RED}间隔不能小于 5 秒{RESET}"
 
         with self._lock:
             self._job_id_counter += 1

@@ -2,8 +2,14 @@
 Agent HTTP 服务 —— 将分身能力发布为 Web API
 供外部系统通过 REST 接口调用 Agent 的推理与执行能力。
 使用 Python 标准库 http.server，无需额外依赖。
+
+安全特性：
+- 默认仅绑定 127.0.0.1（本地回环）
+- 启动时自动生成随机 Token，所有请求需携带 Authorization: Bearer <token>
+- CORS 限制为同源，不再开放 *
 """
 import json
+import secrets
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
@@ -15,18 +21,25 @@ from fr_cli.agent.workflow import run_workflow as wf_run
 
 
 class _AgentHTTPHandler(BaseHTTPRequestHandler):
-    """HTTP 请求处理器 —— 路由分发"""
+    """HTTP 请求处理器 —— 路由分发 + Token 认证"""
 
     # 关闭默认日志输出（避免污染 CLI 界面）
     def log_message(self, format, *args):
         pass
 
+    def _check_auth(self):
+        """校验请求是否携带正确的 Bearer Token"""
+        expected = getattr(self.server, "_token", None)
+        if not expected:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth.startswith("Bearer ") and auth[7:] == expected:
+            return True
+        return False
+
     def _send_json(self, status, data):
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
 
@@ -40,14 +53,11 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
         except Exception:
             return {}
 
-    def do_OPTIONS(self):
-        self.send_response(204)
-        self.send_header("Access-Control-Allow-Origin", "*")
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type")
-        self.end_headers()
-
     def do_GET(self):
+        if not self._check_auth():
+            self._send_json(401, {"error": "Unauthorized"})
+            return
+
         parsed = urlparse(self.path)
         path = parsed.path
         parts = [p for p in path.split("/") if p]
@@ -83,6 +93,10 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
         self._send_json(404, {"error": "Not found"})
 
     def do_POST(self):
+        if not self._check_auth():
+            self._send_json(401, {"error": "Unauthorized"})
+            return
+
         parsed = urlparse(self.path)
         path = parsed.path
         parts = [p for p in path.split("/") if p]
@@ -126,23 +140,31 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
 class AgentHTTPServer:
     """Agent HTTP 服务守护线程 —— 可启动、停止、查询状态"""
 
-    def __init__(self, state, host="0.0.0.0", port=17890):
+    def __init__(self, state, host="127.0.0.1", port=17890):
         self.state = state
         self.host = host
         self.port = port
         self._server = None
         self._thread = None
+        self._token = None
 
     def start(self):
         """启动 HTTP 服务（后台线程）"""
         if self.is_running():
             return False, f"服务已在运行: http://{self.host}:{self.port}"
 
+        self._token = secrets.token_urlsafe(16)
         self._server = HTTPServer((self.host, self.port), _AgentHTTPHandler)
         self._server._state = self.state
+        self._server._token = self._token
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
-        return True, f"Agent HTTP 服务已启动: http://{self.host}:{self.port}"
+        msg = (
+            f"Agent HTTP 服务已启动: http://{self.host}:{self.port}\n"
+            f"  Token: {self._token}\n"
+            f"  使用示例: curl -H 'Authorization: Bearer {self._token}' http://{self.host}:{self.port}/agents"
+        )
+        return True, msg
 
     def stop(self):
         """停止 HTTP 服务"""
@@ -152,6 +174,7 @@ class AgentHTTPServer:
         self._server.server_close()
         self._server = None
         self._thread = None
+        self._token = None
         return True, "Agent HTTP 服务已停止"
 
     def is_running(self):
@@ -159,5 +182,5 @@ class AgentHTTPServer:
 
     def status(self):
         if self.is_running():
-            return f"运行中: http://{self.host}:{self.port}"
+            return f"运行中: http://{self.host}:{self.port} (Token: {self._token})"
         return "未运行"

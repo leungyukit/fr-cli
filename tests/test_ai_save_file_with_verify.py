@@ -28,7 +28,8 @@ class TestAISaveFileWithVerification(unittest.TestCase):
     def setUp(self):
         self.temp_dir = os.path.realpath(tempfile.mkdtemp())
         self.vfs = VFS([self.temp_dir])
-        self.executor = CommandExecutor(
+        from types import SimpleNamespace
+        mock_state = SimpleNamespace(
             vfs=self.vfs,
             mail_c=None,
             web_c=None,
@@ -40,6 +41,7 @@ class TestAISaveFileWithVerification(unittest.TestCase):
             client=None,
             model_name="glm-4-flash"
         )
+        self.executor = CommandExecutor(mock_state)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)

@@ -44,11 +44,7 @@ class AppState:
         self.auto_session_path = None
 
         # 命令执行引擎
-        self.executor = CommandExecutor(
-            self.vfs, self.mail_c, self.web_c, self.disk_c,
-            self.plugins, self.lang, self.security, self.cfg,
-            self.client, self.model_name
-        )
+        self.executor = CommandExecutor(self)
 
         # Agent HTTP 服务守护
         self.agent_server = None
@@ -73,17 +69,12 @@ class AppState:
         self.model_name = name
         self.save_cfg()
         self.reinit_client()
-        self.executor.model_name = self.model_name
-        self.executor.client = self.client
-        self.executor._deps = build_deps(self.executor)
 
     def update_key(self, key):
         """重铸 API 密钥"""
         self.cfg["key"] = key
         self.save_cfg()
         self.reinit_client()
-        self.executor.client = self.client
-        self.executor._deps = build_deps(self.executor)
 
     def update_limit(self, limit):
         """设置 Token 上限"""
@@ -97,9 +88,6 @@ class AppState:
         self.lang = lang
         self.save_cfg()
         self.security = SecurityManager(self.lang, self.cfg)
-        self.executor.lang = self.lang
-        self.executor.security = self.security
-        self.executor._deps = build_deps(self.executor)
 
     def update_session_name(self, name):
         """更新轮回名"""

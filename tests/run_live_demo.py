@@ -43,9 +43,15 @@ def run_demo():
 
     # 创建临时 VFS 沙盒
     temp_dir = os.path.realpath(tempfile.mkdtemp())
+    from types import SimpleNamespace
     vfs = VFS([temp_dir])
     security = SecurityManager(lang, cfg)
-    executor = CommandExecutor(vfs, None, None, None, {}, lang, security, cfg, client, model_name)
+    mock_state = SimpleNamespace(
+        vfs=vfs, mail_c=None, web_c=None, disk_c=None,
+        plugins={}, lang=lang, security=security, cfg=cfg,
+        client=client, model_name=model_name
+    )
+    executor = CommandExecutor(mock_state)
     weapon_tools, weapon_triggers = load_weapon_md()
 
     print(f"🧪 测试环境就绪")

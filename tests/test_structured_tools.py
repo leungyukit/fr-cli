@@ -30,7 +30,8 @@ class TestStructuredToolInvocation(unittest.TestCase):
         self.cfg = {"session_name": "", "model": "glm-4-flash", "lang": "zh"}
         self.client = MagicMock()
 
-        self.executor = CommandExecutor(
+        from types import SimpleNamespace
+        mock_state = SimpleNamespace(
             vfs=self.vfs,
             mail_c=self.mail_c,
             web_c=self.web_c,
@@ -42,6 +43,7 @@ class TestStructuredToolInvocation(unittest.TestCase):
             client=self.client,
             model_name="glm-4-flash"
         )
+        self.executor = CommandExecutor(mock_state)
 
     def tearDown(self):
         shutil.rmtree(self.temp_dir, ignore_errors=True)

@@ -185,20 +185,28 @@ class MailClient:
             return False, T("mail_no_cfg", lang)
         if not self.smtp_server or not self.email or not self.password:
             return False, T("mail_no_cfg", lang)
-        
+
+        # 安全校验：防止邮件头注入
+        import email.utils
+        if '\n' in to or '\r' in to or '\n' in subject or '\r' in subject:
+            return False, "❌ 邮件地址或主题包含非法字符"
+        parsed = email.utils.parseaddr(to)
+        if not parsed[1] or '@' not in parsed[1]:
+            return False, "❌ 收件人地址格式无效"
+
         try:
             msg = self.mime_multipart()
             msg['From'] = self.email
             msg['To'] = to
             msg['Subject'] = subject
-            
+
             msg.attach(self.mime_text(body, 'plain', 'utf-8'))
-            
+
             server = self.smtp.SMTP_SSL(self.smtp_server, 465)
             server.login(self.email, self.password)
             server.send_message(msg)
             server.quit()
-            
+
             return True, None
         except Exception as e:
             return False, f"{T('mail_err', lang)} {e}"

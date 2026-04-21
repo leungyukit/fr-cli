@@ -3,6 +3,7 @@
 支持原子写入与自动备份，防止写入中断导致配置丢失
 """
 import json
+import os
 import shutil
 from pathlib import Path
 from fr_cli.ui.ui import YELLOW, RED, GREEN, RESET
@@ -73,13 +74,20 @@ def save_config(c):
         if CONFIG_FILE.exists():
             shutil.copy2(CONFIG_FILE, CONFIG_BACKUP)
 
-        # 2. 写入临时文件
-        tmp = CONFIG_FILE.with_suffix(".json.tmp")
-        with open(tmp, "w", encoding="utf-8") as f:
-            json.dump(c, f, indent=4, ensure_ascii=False)
-
-        # 3. 原子替换
-        tmp.replace(CONFIG_FILE)
+        # 2. 使用安全临时文件（随机名称 + 600 权限）
+        import tempfile
+        fd, tmp_path = tempfile.mkstemp(dir=CONFIG_FILE.parent, suffix=".json.tmp")
+        try:
+            os.chmod(tmp_path, 0o600)
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(c, f, indent=4, ensure_ascii=False)
+            Path(tmp_path).replace(CONFIG_FILE)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except Exception:
+                pass
+            raise
         return True
     except Exception as e:
         print(f"{RED}❌ 保存配置失败: {e}{RESET}")

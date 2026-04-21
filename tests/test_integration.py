@@ -25,11 +25,15 @@ class TestAIToolCallingIntegration(unittest.TestCase):
         from fr_cli.command.executor import CommandExecutor
         from fr_cli.weapon.loader import load_weapon_md, should_inject_tools, get_available_tools
 
+        from types import SimpleNamespace
         self.vfs = VFS([self.temp_dir])
         self.security = SecurityManager("zh", {})
-        self.executor = CommandExecutor(
-            self.vfs, None, None, None, {}, "zh", self.security, {}, None, "glm-4-flash"
+        mock_state = SimpleNamespace(
+            vfs=self.vfs, mail_c=None, web_c=None, disk_c=None,
+            plugins={}, lang="zh", security=self.security, cfg={},
+            client=None, model_name="glm-4-flash"
         )
+        self.executor = CommandExecutor(mock_state)
         self.weapon_tools, self.weapon_triggers = load_weapon_md()
 
     def tearDown(self):
