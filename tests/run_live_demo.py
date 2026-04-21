@@ -24,7 +24,7 @@ if project_root not in sys.path:
 from fr_cli.conf.config import load_config
 from fr_cli.lang.i18n import T
 from fr_cli.weapon.fs import VFS
-from fr_cli.weapon.loader import load_weapon_md, should_inject_tools, get_available_tools
+from fr_cli.weapon.loader import load_weapon_md, get_available_tools
 from fr_cli.command.security import SecurityManager
 from fr_cli.command.executor import CommandExecutor
 from fr_cli.core.stream import stream_cnt
@@ -76,16 +76,13 @@ def run_demo():
         sp = T("sys_prompt", lang)
         messages = [{"role": "system", "content": sp}]
 
-        # 判定是否注入工具
-        if should_inject_tools(user_input, weapon_triggers):
-            tools = get_available_tools(weapon_tools, {})
-            tools_info = "\n\n当前可用的工具列表：\n"
-            for i, tool in enumerate(tools, 1):
-                tools_info += f"{i}. {tool['name']}: {tool['description']}\n   可用命令: {', '.join(tool['commands'])}\n"
-            messages[0]["content"] = sp + tools_info
-            print(f"🔧 [系统] 已注入工具信息（判定需要工具）")
-        else:
-            print(f"🔇 [系统] 未注入工具信息（判定直接回答）")
+        # 注入工具列表（MasterAgent 模式下始终注入全部可用工具）
+        tools = get_available_tools(weapon_tools, {})
+        tools_info = "\n\n当前可用的工具列表：\n"
+        for i, tool in enumerate(tools, 1):
+            tools_info += f"{i}. {tool['name']}: {tool['description']}\n   可用命令: {', '.join(tool['commands'])}\n"
+        messages[0]["content"] = sp + tools_info
+        print(f"🔧 [系统] 已注入工具信息（MasterAgent 模式始终注入全部工具）")
 
         # 追加用户输入
         prompt = user_input

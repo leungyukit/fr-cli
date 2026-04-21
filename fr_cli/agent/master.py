@@ -17,6 +17,12 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+# 上下文记忆与会话存档
+from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
+from fr_cli.memory.session import create_session, update_session
+from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
+from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+
 MASTER_DIR = Path.home() / ".fr_cli_master"
 PERSONA_FILE = MASTER_DIR / "persona.md"
 SKILLS_FILE = MASTER_DIR / "skills.md"
@@ -329,14 +335,40 @@ class MasterAgent:
         # 触发反思与进化（异步感，实际同步执行）
         self._reflect_and_evolve(user_input, observations, final_answer)
 
+        # ---------- 后处理：与传统模式对齐体验 ----------
+
+        # 1. 更新上下文摘要（与传统模式共享同一套记忆系统）
+        recent = extract_recent_turns(self.state.messages, 5)
+        self.state.context_summary = build_context_summary(recent, lang)
+        save_context(self.state.sn, self.state.context_summary)
+
+        # 2. 自动按日期存档会话
+        if not self.state.auto_session_path:
+            path = create_session(self.state.messages)
+            if path:
+                self.state.auto_session_path = path
+                print(f"{DIM}📁 自动会话已创建: {Path(path).name}{RESET}")
+        else:
+            update_session(self.state.auto_session_path, self.state.messages)
+
+        # 3. 智能法宝/Agent 检测
+        self._detect_artifacts(final_answer, lang)
+
         return final_answer, True
 
     # ---------- 工具调用解析 ----------
 
     @staticmethod
     def _extract_tool_calls(text):
-        """从 assistant 回复中提取 ```tool 代码块"""
+        """
+        从 assistant 回复中提取工具调用。
+        同时支持两种格式：
+          1. ```tool 代码块（MasterAgent 原生格式）
+          2. 【调用：tool_name({...})】（传统流式对话兼容格式）
+        """
         calls = []
+
+        # 格式 1：```tool 代码块
         pattern = r'```tool\s*\n(.*?)\n```'
         for m in re.finditer(pattern, text, re.DOTALL):
             try:
@@ -345,6 +377,36 @@ class MasterAgent:
                     calls.append(data)
             except Exception:
                 pass
+
+        # 格式 2：【调用：tool_name({...})】（兼容传统模式）
+        i = 0
+        while True:
+            start = text.find('【调用：', i)
+            if start == -1:
+                break
+            paren = text.find('(', start)
+            if paren == -1:
+                break
+            tool_name = text[start + 4:paren].strip()
+            # 匹配嵌套括号
+            depth = 1
+            end = paren + 1
+            while end < len(text) and depth > 0:
+                if text[end] == '(' and (end == 0 or text[end - 1] != '\\'):
+                    depth += 1
+                elif text[end] == ')' and (end == 0 or text[end - 1] != '\\'):
+                    depth -= 1
+                end += 1
+            if depth != 0:
+                break
+            arg_str = text[paren + 1:end - 1]
+            try:
+                params = json.loads(arg_str)
+                calls.append({"tool": tool_name, "params": params})
+            except Exception:
+                pass
+            i = end
+
         return calls
 
     def _execute_tool(self, tool_name, params):
@@ -427,6 +489,64 @@ class MasterAgent:
         # 更新进化计数
         self._status_data["evolution_count"] = self._status_data.get("evolution_count", 0) + 1
         _save_json(STATUS_FILE, self._status_data)
+
+    # ---------- 法宝 / Agent 自动检测 ----------
+
+    def _detect_artifacts(self, txt, lang):
+        """检测 AI 回复中的插件/Agent 代码结构，提示用户保存"""
+        if not txt:
+            return
+
+        # 智能法宝进化检测（插件）
+        if "def run(args='')" in txt and "```python" in txt:
+            code = extract_code(txt)
+            if code and "def run" in code and len(code) > 50:
+                try:
+                    pname = input(f"{YELLOW}{T('artifact_detect', lang)}{RESET}").strip()
+                    if pname:
+                        safe_name = "".join(c for c in pname if c.isalnum() or c == '_')
+                        if not safe_name:
+                            print(f"{RED}名称无效，仅允许字母/数字/下划线{RESET}")
+                        elif self.state.security.check("sec_write", f"/{safe_name}"):
+                            PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
+                            p_path = PLUGIN_DIR / f"{safe_name}.py"
+                            p_path.write_text(code, encoding='utf-8')
+                            self.state.plugins[safe_name] = str(p_path)
+                            print(f"{GREEN}{T('ok_forged', lang, safe_name)}{RESET}")
+                except EOFError:
+                    pass
+
+        # 智能 Agent 分身检测
+        if "def run(context," in txt and "```python" in txt:
+            code = extract_code(txt)
+            if code and "def run(context," in code and len(code) > 50:
+                try:
+                    aname = input(f"{YELLOW}⚡ 检测到 Agent 分身结构，赐名 (回车放弃): {RESET}").strip()
+                    if aname:
+                        safe_name = "".join(c for c in aname if c.isalnum() or c == '_')
+                        if not safe_name:
+                            print(f"{RED}名称无效，仅允许字母/数字/下划线{RESET}")
+                        else:
+                            from fr_cli.agent.manager import create_agent_dir, save_agent_code, save_persona, save_skills, agent_exists
+                            if agent_exists(safe_name):
+                                confirm = input(f"{YELLOW}Agent [{safe_name}] 已存在，是否覆盖? [y/N]: {RESET}").strip().lower()
+                                if confirm not in ("y", "yes"):
+                                    print(f"{DIM}已取消。{RESET}")
+                                else:
+                                    d = create_agent_dir(safe_name)
+                                    save_agent_code(safe_name, code)
+                                    print(f"{GREEN}✅ Agent [{safe_name}] 已覆盖更新。{RESET}")
+                                    print(f"{DIM}  路径: {d}{RESET}")
+                            else:
+                                d = create_agent_dir(safe_name)
+                                save_agent_code(safe_name, code)
+                                save_persona(safe_name, f"#{safe_name}\n\n由 AI 对话铸造的 Agent 分身。")
+                                save_skills(safe_name, "## 技能\n\n- 执行自定义 Python 逻辑\n- 入口: run(context, **kwargs)")
+                                print(f"{GREEN}✅ Agent [{safe_name}] 铸造完成！{RESET}")
+                                print(f"{DIM}  路径: {d}{RESET}")
+                                print(f"{DIM}  运行: /agent_run {safe_name} [参数]{RESET}")
+                except EOFError:
+                    pass
 
     # ---------- 状态管理 ----------
 

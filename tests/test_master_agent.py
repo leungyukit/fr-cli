@@ -111,6 +111,25 @@ class TestMasterAgent(unittest.TestCase):
         calls = MasterAgent._extract_tool_calls("普通文本")
         self.assertEqual(len(calls), 0)
 
+    def test_extract_tool_calls_traditional_format(self):
+        """兼容传统 【调用：...】 格式"""
+        text = '思考中...\n【调用：search_web({"query": "Python"})】\n完成'
+        calls = MasterAgent._extract_tool_calls(text)
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(calls[0]["tool"], "search_web")
+        self.assertEqual(calls[0]["params"], {"query": "Python"})
+
+    def test_extract_tool_calls_mixed_formats(self):
+        """同时支持 ```tool 和 【调用：】 两种格式"""
+        text = ('```tool\n{"tool": "a", "params": {}}\n```\n'
+                '中间文本\n'
+                '【调用：b({"x": 1})】')
+        calls = MasterAgent._extract_tool_calls(text)
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(calls[0]["tool"], "a")
+        self.assertEqual(calls[1]["tool"], "b")
+        self.assertEqual(calls[1]["params"], {"x": 1})
+
     def test_record_interaction(self):
         """记录交互到内存"""
         self.agent._record_interaction("hello", "search_web", True, "ok")

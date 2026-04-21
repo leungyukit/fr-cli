@@ -23,7 +23,7 @@ class TestAIToolCallingIntegration(unittest.TestCase):
         from fr_cli.weapon.fs import VFS
         from fr_cli.command.security import SecurityManager
         from fr_cli.command.executor import CommandExecutor
-        from fr_cli.weapon.loader import load_weapon_md, should_inject_tools, get_available_tools
+        from fr_cli.weapon.loader import load_weapon_md, get_available_tools
 
         from types import SimpleNamespace
         self.vfs = VFS([self.temp_dir])
@@ -40,34 +40,7 @@ class TestAIToolCallingIntegration(unittest.TestCase):
         import shutil
         shutil.rmtree(self.temp_dir, ignore_errors=True)
 
-    # ---------- 1. 工具注入判定测试 ----------
-    def test_inject_tools_for_file_request(self):
-        """用户请求文件操作时应注入工具信息"""
-        from fr_cli.weapon.loader import should_inject_tools
-        self.assertTrue(should_inject_tools("帮我查看当前目录", self.weapon_triggers))
-        self.assertTrue(should_inject_tools("读取文件内容", self.weapon_triggers))
-        self.assertTrue(should_inject_tools("save to file", self.weapon_triggers))
-
-    def test_inject_tools_for_search_request(self):
-        """用户请求搜索时应注入工具信息"""
-        from fr_cli.weapon.loader import should_inject_tools
-        self.assertTrue(should_inject_tools("搜索最新人工智能新闻", self.weapon_triggers))
-        self.assertTrue(should_inject_tools("查一下今天天气", self.weapon_triggers))
-
-    def test_no_inject_for_greeting(self):
-        """问候语不应注入工具信息"""
-        from fr_cli.weapon.loader import should_inject_tools
-        self.assertFalse(should_inject_tools("你好", self.weapon_triggers))
-        self.assertFalse(should_inject_tools("1+1等于几", self.weapon_triggers))
-        self.assertFalse(should_inject_tools("Python怎么写快速排序", self.weapon_triggers))
-
-    def test_no_inject_for_direct_command(self):
-        """用户直接输入 / 命令时不注入工具信息"""
-        from fr_cli.weapon.loader import should_inject_tools
-        self.assertFalse(should_inject_tools("/ls", self.weapon_triggers))
-        self.assertFalse(should_inject_tools("/web hello", self.weapon_triggers))
-
-    # ---------- 2. 系统提示词工具列表测试 ----------
+    # ---------- 1. 工具列表加载测试 ----------
     def test_tools_injected_in_system_prompt(self):
         """验证注入系统提示词后的工具列表结构完整"""
         from fr_cli.weapon.loader import get_available_tools

@@ -684,25 +684,6 @@ class TestWeaponLoader(unittest.TestCase):
         tools = get_available_tools([], None)
         self.assertEqual(tools, [])
 
-    def test_should_inject_tools_hit(self):
-        from fr_cli.weapon.loader import should_inject_tools, load_weapon_md
-        _, triggers = load_weapon_md()
-        self.assertTrue(should_inject_tools("帮我搜索一下", triggers))
-        self.assertTrue(should_inject_tools("查看当前目录文件", triggers))
-        self.assertTrue(should_inject_tools("发邮件给张三", triggers))
-
-    def test_should_inject_tools_miss(self):
-        from fr_cli.weapon.loader import should_inject_tools, load_weapon_md
-        _, triggers = load_weapon_md()
-        self.assertFalse(should_inject_tools("你好", triggers))
-        self.assertFalse(should_inject_tools("1+1等于几", triggers))
-        self.assertFalse(should_inject_tools("/ls", triggers))
-
-    def test_should_inject_tools_empty_triggers(self):
-        from fr_cli.weapon.loader import should_inject_tools
-        self.assertFalse(should_inject_tools("anything", {}))
-
-
 class TestRecommender(unittest.TestCase):
     """测试 core/recommender.py 功能推荐"""
 

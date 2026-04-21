@@ -287,6 +287,12 @@ def _cmd_agent_server(state, parts):
 
 def _cmd_mode(state, parts):
     """切换思维模式：direct / cot / tot / react"""
+    # MasterAgent 模式下思维模式由其内部 ReAct 循环控制，/mode 无效
+    if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
+        print(f"{YELLOW}⚠️ MasterAgent 主控模式下，思维模式由其内部 ReAct 循环自主管理，/mode 命令无效。{RESET}")
+        print(f"{DIM}  提示: 使用 /master off 关闭主控后可切换思维模式。{RESET}")
+        return False
+
     from fr_cli.core.thinking import ThinkingEngine
     arg1 = parts[1] if len(parts) > 1 else ""
     if not arg1:
