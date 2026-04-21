@@ -70,6 +70,7 @@ def _print_help(state, topic):
         print(f"  {T('help_fs', lang)} /ls /cat /cd /write /append /delete")
         print(f"  {T('help_sess', lang)} /save /load /del /undo")
         print(f"  {DIM}  自动存档: /session_list | /session_load <编号> | /session_del <编号>{RESET}")
+        print(f"  {DIM}  主控Agent: /master on|off|status — 启用自我进化型主Agent{RESET}")
         print(f"  {T('help_plugin', lang)} /skills (自动进化)")
         print(f"  {DIM}  思维: /mode <direct|cot|tot|react> — 切换 AI 推理模式{RESET}")
         print(f"  {T('help_extra', lang)} /mail_* /cron_* /web /fetch /disk_* /see")
@@ -421,7 +422,8 @@ from fr_cli.repl.commands import (
     _cmd_rag_watch,
     _cmd_rag_sync,
     _cmd_read_excel,
-    _cmd_read_csv
+    _cmd_read_csv,
+    _cmd_master
 )
 
 
@@ -467,6 +469,7 @@ _COMMAND_ROUTES = {
     "/rag_sync": _cmd_rag_sync,
     "/read_excel": _cmd_read_excel,
     "/read_csv": _cmd_read_csv,
+    "/master": _cmd_master,
 }
 
 
@@ -632,7 +635,11 @@ def main():
 
         # ----------------- AI 正常对话 -----------------
         else:
-            _handle_ai_chat(state, u)
+            if state.master_agent.is_enabled():
+                reply, _ = state.master_agent.handle(u)
+                print(f"\n{CYAN}{reply}{RESET}")
+            else:
+                _handle_ai_chat(state, u)
 
 
 if __name__ == "__main__":

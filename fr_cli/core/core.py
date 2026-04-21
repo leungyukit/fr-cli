@@ -46,6 +46,10 @@ class AppState:
         # 命令执行引擎
         self.executor = CommandExecutor(self)
 
+        # 主控 Agent（自我进化型）
+        from fr_cli.agent.master import MasterAgent
+        self.master_agent = MasterAgent(self)
+
         # Agent HTTP 服务守护
         self.agent_server = None
 

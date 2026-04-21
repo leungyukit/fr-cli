@@ -776,3 +776,27 @@ def _cmd_read_csv(state, parts):
     return False
 
 
+def _cmd_master(state, parts):
+    """切换或查看主控 Agent（MasterAgent）状态"""
+    arg1 = parts[1] if len(parts) > 1 else ""
+    if arg1.lower() in ("on", "enable", "1"):
+        state.master_agent.toggle(True)
+        print(f"{GREEN}✅ 主控 Agent 已启用。所有对话将由 MasterAgent 接管处理。{RESET}")
+    elif arg1.lower() in ("off", "disable", "0"):
+        state.master_agent.toggle(False)
+        print(f"{GREEN}✅ 主控 Agent 已禁用。恢复为普通 AI 对话模式。{RESET}")
+    elif arg1.lower() == "status":
+        st = state.master_agent.status()
+        print(f"{CYAN}🧠 主控 Agent 状态:{RESET}")
+        print(f"  {'启用' if st['enabled'] else '禁用'}")
+        print(f"  总交互: {st['total_interactions']} | 成功: {st['success']} | 失败: {st['failure']}")
+        if st['evolution_addon']:
+            print(f"  进化追加: {st['evolution_addon']}")
+    else:
+        enabled = state.master_agent.toggle()
+        status = "已启用" if enabled else "已禁用"
+        print(f"{GREEN}✅ 主控 Agent {status}。{RESET}")
+        print(f"{DIM}  用法: /master on | /master off | /master status{RESET}")
+    return False
+
+

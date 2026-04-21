@@ -296,6 +296,8 @@ AI自动输出调用标记, 程序解析并执行:
 """,
         "help_detail_agent": """📜 【分身 - Agent 系统】
 
+/master on|off|status          主控 Agent — 自我进化型全能助手（接管所有对话）
+
 /agent_create <名称> <描述>   AI 自动生成完整 Agent（人设/技能/代码）
 /agent_forge <名称>            从最近一次 AI 回复中提取代码，铸造为 Agent
 /agent_list                    列出所有 Agent 分身
@@ -679,6 +681,8 @@ Common app aliases:
   Media:   music, spotify, vlc
 """,
         "help_detail_agent": """📜 [Agent System]
+
+/master on|off|status         Master Agent — self-evolving universal assistant (takes over all chat)
 
 /agent_create <name> <desc>   Auto-generate a complete Agent (persona/skills/code)
 /agent_forge <name>           Extract code from the latest AI reply and forge as Agent
