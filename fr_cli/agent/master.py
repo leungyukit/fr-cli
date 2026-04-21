@@ -1,6 +1,14 @@
 """
 主控 Agent（MasterAgent）—— 自我进化型全能助手
 类似 OpenClaw 的中央控制器，负责理解用户意图、规划执行、调用工具、反思进化。
+
+配置文件体系（~/.fr_cli_master/）：
+  persona.md     — 人设文件（自定义系统人设，覆盖默认 prompt）
+  skills.md      — 技能装备文件（特殊能力、高级用法描述）
+  memory.json    — 交互记忆（成功/失败记录）
+  evolution.json — 进化记录（prompt 追加、成功/失败模式统计）
+  session.json   — 会话状态（当前任务、上下文延续）
+  status.json    — 状态文件（启用状态、统计、时间戳）
 """
 import json
 import os
@@ -10,9 +18,78 @@ from datetime import datetime
 from pathlib import Path
 
 MASTER_DIR = Path.home() / ".fr_cli_master"
-EVOLUTION_FILE = MASTER_DIR / "evolution.json"
+PERSONA_FILE = MASTER_DIR / "persona.md"
+SKILLS_FILE = MASTER_DIR / "skills.md"
 MEMORY_FILE = MASTER_DIR / "memory.json"
+EVOLUTION_FILE = MASTER_DIR / "evolution.json"
+SESSION_FILE = MASTER_DIR / "session.json"
+STATUS_FILE = MASTER_DIR / "status.json"
 
+# ---------- 默认配置内容 ----------
+
+_DEFAULT_PERSONA = """# MasterAgent 人设
+
+你是 凡人打字机 的【主控Agent】——一位全能的AI助手兼系统指挥官。
+
+## 核心职责
+1. 深入理解用户需求，将复杂任务拆解为可执行的步骤
+2. 调用系统工具完成用户的请求（文件、搜索、邮件、画图、定时任务等）
+3. 观察工具执行结果，必要时进行多轮修正
+4. 用中文向用户汇报最终结果
+
+## 执行原则
+- 优先使用已验证成功的工具组合
+- 如果工具调用失败，分析原因并尝试替代方案
+- 禁止执行 rm -rf、格式化磁盘等危险操作
+- 不在 Thought 中编造不存在的信息
+- 每次 Action 后等待 Observation 再继续
+"""
+
+_DEFAULT_SKILLS = """# MasterAgent 技能装备
+
+## 高级规划
+- 可将复杂任务分解为最多8步的ReAct循环
+- 支持多工具串联调用（如：搜索→整理→写入文件）
+- 支持条件分支：根据中间结果调整后续步骤
+
+## 自我进化
+- 自动记录每次工具调用的成功/失败模式
+- 每10次交互自动反思并生成进化提示词
+- 优先使用高频成功工具，规避高频失败路径
+- 进化提示词自动追加到 system prompt 中
+
+## 状态感知
+- 读取当前工作目录、可用工具列表
+- 感知用户语言偏好（zh/en）
+- 跟踪任务执行上下文，支持多轮修正
+- 从 session.json 中恢复未完成的任务上下文
+"""
+
+_DEFAULT_SESSION = {
+    "current_task": None,
+    "task_history": [],
+    "context_notes": "",
+    "last_task_id": 0,
+}
+
+_DEFAULT_STATUS = {
+    "enabled": False,
+    "total_interactions": 0,
+    "evolution_count": 0,
+    "created_at": datetime.now().isoformat(),
+    "last_active": None,
+}
+
+_DEFAULT_MEMORY = {"interactions": []}
+
+_DEFAULT_EVOLUTION = {
+    "success": [],
+    "failure": [],
+    "prompt_addon": "",
+}
+
+
+# ---------- 文件工具 ----------
 
 def _ensure_master_dir():
     MASTER_DIR.mkdir(parents=True, exist_ok=True)
@@ -37,6 +114,42 @@ def _save_json(path, data):
         pass
 
 
+def _load_text(path, default=""):
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                return f.read()
+        except Exception:
+            pass
+    return default
+
+
+def _save_text(path, content):
+    _ensure_master_dir()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(content)
+    except Exception:
+        pass
+
+
+def _ensure_all_master_files():
+    """初始化所有 MasterAgent 配置文件（有漏即补）"""
+    _ensure_master_dir()
+    if not PERSONA_FILE.exists():
+        _save_text(PERSONA_FILE, _DEFAULT_PERSONA)
+    if not SKILLS_FILE.exists():
+        _save_text(SKILLS_FILE, _DEFAULT_SKILLS)
+    if not MEMORY_FILE.exists():
+        _save_json(MEMORY_FILE, _DEFAULT_MEMORY)
+    if not EVOLUTION_FILE.exists():
+        _save_json(EVOLUTION_FILE, _DEFAULT_EVOLUTION)
+    if not SESSION_FILE.exists():
+        _save_json(SESSION_FILE, _DEFAULT_SESSION)
+    if not STATUS_FILE.exists():
+        _save_json(STATUS_FILE, _DEFAULT_STATUS)
+
+
 class MasterAgent:
     """
     主控 Agent —— 统一入口，自我进化
@@ -52,8 +165,14 @@ class MasterAgent:
 
     def __init__(self, state):
         self.state = state
-        self.evolution = _load_json(EVOLUTION_FILE, {"success": [], "failure": [], "prompt_addon": ""})
-        self.memory = _load_json(MEMORY_FILE, {"interactions": []})
+        # 确保所有配置文件存在（有漏即补）
+        _ensure_all_master_files()
+        self.persona = _load_text(PERSONA_FILE, _DEFAULT_PERSONA)
+        self.skills = _load_text(SKILLS_FILE, _DEFAULT_SKILLS)
+        self.evolution = _load_json(EVOLUTION_FILE, _DEFAULT_EVOLUTION)
+        self.memory = _load_json(MEMORY_FILE, _DEFAULT_MEMORY)
+        self.session = _load_json(SESSION_FILE, _DEFAULT_SESSION)
+        self._status_data = _load_json(STATUS_FILE, _DEFAULT_STATUS)
         self._step_count = 0
 
     # ---------- 工具描述生成 ----------
@@ -69,6 +188,35 @@ class MasterAgent:
             lines.append(f"- {t['name']}: {t['description']}  参数: {params_str or '无'}")
         return "\n".join(lines)
 
+    # ---------- System Prompt 组装 ----------
+
+    def _build_system_prompt(self, lang):
+        """组装完整的 system prompt：人设 + 技能 + 工具 + 进化追加"""
+        from fr_cli.agent.master_prompt import MASTER_SYSTEM_PROMPT_ZH, MASTER_SYSTEM_PROMPT_EN
+        base_prompt = MASTER_SYSTEM_PROMPT_ZH if lang == "zh" else MASTER_SYSTEM_PROMPT_EN
+
+        parts = [base_prompt.format(tools_desc=self._build_tools_desc())]
+
+        # 自定义人设（去重：如果 persona.md 内容与默认不同才追加）
+        custom_persona = self.persona.strip()
+        if custom_persona and custom_persona != _DEFAULT_PERSONA.strip():
+            parts.append(f"\n[自定义人设]\n{custom_persona}")
+
+        # 技能装备
+        skills_text = self.skills.strip()
+        if skills_text and skills_text != _DEFAULT_SKILLS.strip():
+            parts.append(f"\n[技能装备]\n{skills_text}")
+
+        # 进化追加
+        if self.evolution.get("prompt_addon"):
+            parts.append(f"\n[进化补充提示]\n{self.evolution['prompt_addon']}")
+
+        # 会话上下文延续
+        if self.session.get("context_notes"):
+            parts.append(f"\n[会话上下文]\n{self.session['context_notes']}")
+
+        return "\n".join(parts)
+
     # ---------- 核心 ReAct 循环 ----------
 
     def handle(self, user_input):
@@ -79,13 +227,20 @@ class MasterAgent:
         self._step_count = 0
         lang = self.state.lang
 
+        # 更新状态
+        self._status_data["last_active"] = datetime.now().isoformat()
+        self._status_data["total_interactions"] = self._status_data.get("total_interactions", 0) + 1
+        _save_json(STATUS_FILE, self._status_data)
+
+        # 更新当前任务
+        self.session["current_task"] = {
+            "input": user_input,
+            "started_at": datetime.now().isoformat(),
+            "steps": [],
+        }
+
         # 组装 system prompt
-        tools_desc = self._build_tools_desc()
-        from fr_cli.agent.master_prompt import MASTER_SYSTEM_PROMPT_ZH, MASTER_SYSTEM_PROMPT_EN
-        base_prompt = MASTER_SYSTEM_PROMPT_ZH if lang == "zh" else MASTER_SYSTEM_PROMPT_EN
-        system_content = base_prompt.format(tools_desc=tools_desc)
-        if self.evolution.get("prompt_addon"):
-            system_content += f"\n\n[进化补充提示]\n{self.evolution['prompt_addon']}"
+        system_content = self._build_system_prompt(lang)
 
         messages = [
             {"role": "system", "content": system_content},
@@ -123,6 +278,13 @@ class MasterAgent:
             observation_lines = []
             for call in tool_calls:
                 result, error = self._execute_tool(call["tool"], call.get("params", {}))
+                step_info = {
+                    "tool": call["tool"],
+                    "params": call.get("params", {}),
+                    "success": error is None,
+                    "time": datetime.now().isoformat(),
+                }
+                self.session["current_task"]["steps"].append(step_info)
                 if error:
                     observation_lines.append(f"❌ 工具 {call['tool']} 失败: {error}")
                     self._record_interaction(user_input, call["tool"], False, error)
@@ -145,6 +307,20 @@ class MasterAgent:
                 self.state.client, self.state.model_name, messages, lang,
                 custom_prefix="", max_tokens=2048, silent=True
             )
+
+        # 保存会话结果
+        task = self.session["current_task"]
+        task["finished_at"] = datetime.now().isoformat()
+        task["final_answer"] = final_answer[:500]
+        task["step_count"] = self._step_count
+        self.session["task_history"].append(task)
+        # 只保留最近 20 个任务历史
+        self.session["task_history"] = self.session["task_history"][-20:]
+        self.session["current_task"] = None
+        # 提取上下文笔记（供下次对话延续）
+        if final_answer and len(final_answer) > 50:
+            self.session["context_notes"] = f"上一轮任务摘要：{user_input[:50]}... → {final_answer[:100]}..."
+        _save_json(SESSION_FILE, self.session)
 
         # 保存到 state.messages 以便会话连贯
         self.state.messages.append({"role": "user", "content": user_input})
@@ -248,18 +424,26 @@ class MasterAgent:
             self.evolution["prompt_addon"] = addon
             _save_json(EVOLUTION_FILE, self.evolution)
 
+        # 更新进化计数
+        self._status_data["evolution_count"] = self._status_data.get("evolution_count", 0) + 1
+        _save_json(STATUS_FILE, self._status_data)
+
     # ---------- 状态管理 ----------
 
     def toggle(self, enabled=None):
         """启用/禁用 MasterAgent"""
         if enabled is None:
-            enabled = not self.state.cfg.get("master_agent_enabled", False)
+            enabled = not self._status_data.get("enabled", False)
+        self._status_data["enabled"] = enabled
+        # 同步到配置文件（兼容旧逻辑）
         self.state.cfg["master_agent_enabled"] = enabled
         self.state.save_cfg()
+        _save_json(STATUS_FILE, self._status_data)
         return enabled
 
     def is_enabled(self):
-        return self.state.cfg.get("master_agent_enabled", False)
+        # 优先从 status.json 读取，兼容旧配置
+        return self._status_data.get("enabled", self.state.cfg.get("master_agent_enabled", False))
 
     def status(self):
         """返回当前状态摘要"""
@@ -272,5 +456,9 @@ class MasterAgent:
             "total_interactions": total,
             "success": success,
             "failure": failure,
+            "evolution_count": self._status_data.get("evolution_count", 0),
             "evolution_addon": addon + "..." if len(addon) > 80 else addon,
+            "last_active": self._status_data.get("last_active"),
+            "created_at": self._status_data.get("created_at"),
+            "current_task": self.session.get("current_task"),
         }

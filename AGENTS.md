@@ -343,18 +343,35 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 
 **设计目标**：一个类似 OpenClaw 的中央控制器。启用后接管所有普通对话（`/` 命令、`!` shell、`@` 前缀仍保持原有逻辑），通过 ReAct 循环自主调用工具，每 10 次交互自动反思并进化 prompt。
 
-**存储位置**：`~/.fr_cli_master/memory.json` + `evolution.json`
+**存储位置**：`~/.fr_cli_master/`
+
+**配置文件体系（有漏即补）**：
+
+| 文件 | 类型 | 说明 | 默认内容 |
+|------|------|------|----------|
+| `persona.md` | 文本 | 人设文件，用户可自定义系统人设，覆盖默认 prompt | 核心职责 + 执行原则 |
+| `skills.md` | 文本 | 技能装备文件，描述特殊能力与高级用法 | 高级规划 + 自我进化 + 状态感知 |
+| `memory.json` | JSON | 交互记忆，记录每次工具调用的成功/失败 | `{"interactions": []}` |
+| `evolution.json` | JSON | 进化记录，prompt 追加 + 成功/失败模式统计 | `{"success": [], "failure": [], "prompt_addon": ""}` |
+| `session.json` | JSON | 会话状态，当前任务 + 任务历史 + 上下文笔记 | `{"current_task": null, "task_history": [], "context_notes": ""}` |
+| `status.json` | JSON | 状态文件，启用状态 + 统计 + 时间戳 | `{"enabled": false, "total_interactions": 0, "evolution_count": 0}` |
+
+首次初始化时，`_ensure_all_master_files()` 会自动检查并补全缺失的默认配置文件。
 
 **核心类**：`agent/master.py` 中的 `MasterAgent`
 
 | 方法 | 说明 |
 |------|------|
-| `toggle(state, arg)` | `/master on\|off\|status` 入口 |
-| `run(state, user_input)` | ReAct 主循环：thought → action → observation → reflect |
-| `_extract_tool_calls(text)` | 从 AI 回复中提取结构化 JSON 工具调用 `{"tool": "...", "params": {...}}` |
-| `_execute_tool(state, tool_name, params)` | 执行工具并观察结果 |
+| `_ensure_all_master_files()` | 初始化所有配置文件（有漏即补） |
+| `toggle(enabled=None)` | 启用/禁用 MasterAgent，持久化到 status.json |
+| `is_enabled()` | 读取启用状态（优先 status.json，兼容 cfg） |
+| `status()` | 返回完整状态摘要 |
+| `handle(user_input)` | ReAct 主循环：thought → action → observation → reflect |
+| `_build_system_prompt(lang)` | 组装 system prompt：默认 prompt + persona + skills + evolution + context |
+| `_extract_tool_calls(text)` | 从 AI 回复中提取 ```tool 代码块 |
+| `_execute_tool(tool_name, params)` | 通过注册表执行工具 |
 | `_record_interaction(...)` | 记录交互到 memory.json |
-| `_evolve_if_needed(state)` | 每 10 次交互触发反思与 prompt 进化 |
+| `_reflect_and_evolve(...)` | 每 10 次交互触发反思与 prompt 进化 |
 
 **ReAct 循环伪代码**：
 ```python

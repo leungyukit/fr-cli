@@ -38,8 +38,12 @@ class TestMasterAgent(unittest.TestCase):
         self._orig_master_dir = master_mod.MASTER_DIR
         master_mod.SESSION_DIR = Path(self.tmpdir.name)
         master_mod.MASTER_DIR = Path(self.tmpdir.name)
+        master_mod.PERSONA_FILE = master_mod.MASTER_DIR / "persona.md"
+        master_mod.SKILLS_FILE = master_mod.MASTER_DIR / "skills.md"
         master_mod.EVOLUTION_FILE = master_mod.MASTER_DIR / "evolution.json"
         master_mod.MEMORY_FILE = master_mod.MASTER_DIR / "memory.json"
+        master_mod.SESSION_FILE = master_mod.MASTER_DIR / "session.json"
+        master_mod.STATUS_FILE = master_mod.MASTER_DIR / "status.json"
 
         self.state = MockState()
         self.agent = MasterAgent(self.state)
@@ -48,8 +52,12 @@ class TestMasterAgent(unittest.TestCase):
         self.tmpdir.cleanup()
         from fr_cli.agent import master as master_mod
         master_mod.MASTER_DIR = self._orig_master_dir
+        master_mod.PERSONA_FILE = master_mod.MASTER_DIR / "persona.md"
+        master_mod.SKILLS_FILE = master_mod.MASTER_DIR / "skills.md"
         master_mod.EVOLUTION_FILE = master_mod.MASTER_DIR / "evolution.json"
         master_mod.MEMORY_FILE = master_mod.MASTER_DIR / "memory.json"
+        master_mod.SESSION_FILE = master_mod.MASTER_DIR / "session.json"
+        master_mod.STATUS_FILE = master_mod.MASTER_DIR / "status.json"
 
     def test_toggle_default(self):
         """默认禁用，toggle 切换"""
