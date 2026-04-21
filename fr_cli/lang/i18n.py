@@ -119,17 +119,25 @@ I18N = {
 /undo             撤销最近一轮对话
 /export           导出当前会话为Markdown
 
+自动按日期存档:
+  /session_list     列出所有按日期自动保存的会话
+  /session_load <N> 加载指定编号的会话并继续对话
+  /session_del <N>  删除指定编号的自动会话
+
 使用示例:
   /save 项目讨论     保存当前会话
   /load              交互式选择并加载
   /del               交互式选择并删除
   /undo              撤销最近一轮
   /export            导出为 Markdown
+  /session_list      查看自动存档列表
+  /session_load 1    加载今天的第一个会话继续聊
 
 上下文记忆:
   • 自动保留最近5轮对话摘要
   • 按 session_name 持久化到 ~/.zhipu_cli_context.json
   • 加载会话时自动恢复上下文摘要
+  • 每次启动自动创建日期编号会话文件（~/.fr_cli_sessions/）
 """,
         "help_detail_plugin": """📜 【法宝 - 插件系统】
 
@@ -495,17 +503,25 @@ Security:
 /undo             Undo last conversation turn
 /export           Export session as Markdown
 
+Auto-save by date:
+  /session_list     List all auto-saved sessions
+  /session_load <N> Load session by index and continue
+  /session_del <N>  Delete auto-saved session by index
+
 Examples:
   /save project      Save current session
   /load              Interactive load
   /del               Interactive delete
   /undo              Undo last turn
   /export            Export to Markdown
+  /session_list      View auto-saved sessions
+  /session_load 1    Load today's first session
 
 Context Memory:
   • Auto-summarize last 5 turns
   • Persisted to ~/.zhipu_cli_context.json by session_name
   • Context restored when loading session
+  • Auto-created date-indexed session file on each launch (~/.fr_cli_sessions/)
 """,
         "help_detail_plugin": """📜 [Plugins]
 

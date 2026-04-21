@@ -16,6 +16,7 @@ from fr_cli.ui.ui import enable_win_ansi, print_banner, print_bye, CYAN, RED, YE
 from fr_cli.core.stream import stream_cnt
 from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context, load_context
+from fr_cli.memory.session import create_session, update_session, list_sessions as list_auto_sessions, load_session as load_auto_session, delete_session as delete_auto_session
 from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
 from fr_cli.core.recommender import recommend_features
 from fr_cli.core.sysmon import get_sys_stats
@@ -68,6 +69,7 @@ def _print_help(state, topic):
         print(f"  {T('help_cfg', lang)} /model /key /limit /alias /export /update")
         print(f"  {T('help_fs', lang)} /ls /cat /cd /write /append /delete")
         print(f"  {T('help_sess', lang)} /save /load /del /undo")
+        print(f"  {DIM}  自动存档: /session_list | /session_load <编号> | /session_del <编号>{RESET}")
         print(f"  {T('help_plugin', lang)} /skills (自动进化)")
         print(f"  {DIM}  思维: /mode <direct|cot|tot|react> — 切换 AI 推理模式{RESET}")
         print(f"  {T('help_extra', lang)} /mail_* /cron_* /web /fetch /disk_* /see")
@@ -364,6 +366,15 @@ def _handle_ai_chat(state, u):
     # 更新主消息列表
     state.messages = updated_messages
 
+    # 自动按日期存档会话
+    if not state.auto_session_path:
+        path = create_session(state.messages)
+        if path:
+            state.auto_session_path = path
+            print(f"{DIM}📁 自动会话已创建: {Path(path).name}{RESET}")
+    else:
+        update_session(state.auto_session_path, state.messages)
+
 
 # ------------------------------------------------------------------
 # 命令路由函数（将 main() 中巨大的 if-elif 链提取为字典映射）
@@ -496,6 +507,50 @@ def _cmd_del(state, parts):
     idx = input(f"{YELLOW}ID: {RESET}").strip()
     if idx.isdigit() and del_sess(int(idx)):
         print(GREEN + T("ok_sess_del", state.lang) + RESET)
+    return False
+
+
+def _cmd_session_list(state, parts):
+    """列出所有按日期自动保存的会话"""
+    sessions = list_auto_sessions()
+    if not sessions:
+        print(f"{DIM}暂无自动会话存档。{RESET}")
+        return False
+    print(f"{CYAN}📁 自动会话列表:{RESET}")
+    for s in sessions:
+        print(f"  [{s['index']}] {CYAN}{s['filename']}{RESET} | 创建: {s['created_at']} | 消息: {s['msg_count']} 条")
+    return False
+
+
+def _cmd_session_load(state, parts):
+    """加载指定索引的自动会话并继续对话"""
+    arg1 = parts[1] if len(parts) > 1 else ""
+    if not arg1 or not arg1.isdigit():
+        print(f"{YELLOW}用法: /session_load <编号>  (先用 /session_list 查看编号){RESET}")
+        return False
+    idx = int(arg1)
+    sp = T("sys_prompt", state.lang)
+    ok, msgs, fname = load_auto_session(idx, sp)
+    if ok:
+        state.messages = msgs
+        print(f"{GREEN}✅ 已加载会话 [{fname}]，共 {len(msgs)} 条消息。{RESET}")
+        print(f"{DIM}   后续对话将追加到当前自动会话存档中。{RESET}")
+    else:
+        print(f"{RED}❌ 加载失败，编号 {idx} 无效。{RESET}")
+    return False
+
+
+def _cmd_session_del(state, parts):
+    """删除指定索引的自动会话"""
+    arg1 = parts[1] if len(parts) > 1 else ""
+    if not arg1 or not arg1.isdigit():
+        print(f"{YELLOW}用法: /session_del <编号>{RESET}")
+        return False
+    idx = int(arg1)
+    if delete_auto_session(idx):
+        print(f"{GREEN}✅ 已删除编号 {idx} 的会话。{RESET}")
+    else:
+        print(f"{RED}❌ 删除失败，编号 {idx} 无效。{RESET}")
     return False
 
 
@@ -1080,6 +1135,9 @@ _COMMAND_ROUTES = {
     "/save": _cmd_save,
     "/load": _cmd_load,
     "/del": _cmd_del,
+    "/session_list": _cmd_session_list,
+    "/session_load": _cmd_session_load,
+    "/session_del": _cmd_session_del,
     "/see": _cmd_see,
     "/update": _cmd_update,
     "/agent_server": _cmd_agent_server,

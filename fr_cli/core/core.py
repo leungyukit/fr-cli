@@ -40,6 +40,9 @@ class AppState:
         self.context_summary = ""
         self.weapon_tools, self.weapon_triggers = load_weapon_md()
 
+        # 自动会话存档路径（按日期编号）
+        self.auto_session_path = None
+
         # 命令执行引擎
         self.executor = CommandExecutor(
             self.vfs, self.mail_c, self.web_c, self.disk_c,
