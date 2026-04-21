@@ -32,7 +32,7 @@
 - 🖼️ **视觉能力** — 图片生成 (CogView) + 图片分析 (GLM-4V)
 - 📧 **邮件收发** — IMAP/SMTP 真实邮件客户端
 - ⏰ **定时任务** — 后台线程定时执行命令
-- ☁️ **云盘集成** — 阿里云 OSS 上传/下载/列出
+- ☁️ **云盘集成** — 阿里云盘上传/下载/列出
 - 🔌 **插件系统** — AI 自动生成插件，动态扩展功能
 - 🧠 **会话记忆** — 自动保留最近对话摘要，持久化上下文
 - 🛡️ **四阶安全确认** — 精细控制危险操作权限
@@ -179,7 +179,7 @@ $ fr-cli
 | `auto_confirm_forever` | bool | `false` | 永久自动确认危险操作 |
 | `session_name` | str | `""` | 当前会话名称 |
 | `mail` | dict | `{}` | 邮件账户配置（IMAP/SMTP） |
-| `disk` | dict | `{}` | 云盘配置（当前支持阿里云 OSS） |
+| `disk` | dict | `{}` | 云盘配置（当前支持阿里云盘） |
 
 ### 邮件配置
 
@@ -220,9 +220,51 @@ $ fr-cli
 | `/alias <k> [v]` | 键 [值] | 查看/设置命令别名 |
 | `/lang <zh/en>` | 语言代码 | 切换界面语言 |
 | `/dir <path>` | 目录路径 | 添加允许访问的目录到沙盒 |
+| `/dirs` | - | 列出所有已挂载的工作目录 |
+| `/rmdir <索引/路径>` | 索引或路径 | 删除指定的工作目录 |
 | `/export` | - | 导出当前会话为 Markdown 文件 |
 | `/update check` | - | 检查更新 |
 | `/update run` | - | 执行更新并重启 |
+
+**使用步骤示例**：
+
+```
+>>> /model glm-4-plus
+✅ 法器更替: glm-4-plus
+
+>>> /key sk-xxxxxxxxxxxxxxxx
+✅ 重铸。
+
+>>> /limit 4096
+✅ 上限: 4096
+
+>>> /lang en
+语言已切换为: English
+
+>>> /alias ll 你好
+✅ 烙印: ll = 你好
+
+>>> /alias ll        # 查看别名值
+你好
+
+>>> /dir /Users/me/project
+✅ 洞府 [/Users/me/project] 已开辟
+
+>>> /dirs
+📂 已挂载的洞府:
+  [0] /Users/me/project
+  [1] /Users/me/docs
+
+>>> /rmdir 1         # 按索引删除
+✅ 洞府 [/Users/me/docs] 已关闭
+```
+
+**配置别名后使用**：
+```
+>>> ll               # 输入别名，自动替换为"你好"
+🧑 凡人: 你好
+🧙 仙人: 你好！有什么可以帮你的吗？
+```
 
 ### 二、文件操作命令（洞府）
 
@@ -235,11 +277,53 @@ $ fr-cli
 | `/append <file> <content>` | 文件名 内容 | 追加内容到文件 |
 | `/delete <file>` | 文件名 | 删除文件 |
 
+**使用步骤示例**：
+
+```
+>>> /ls
+📂 当前目录文件:
+  README.md
+  data/
+  config.json
+
+>>> /cd data
+✅ 穿梭至: /Users/me/project/data
+
+>>> /ls
+📂 当前目录文件:
+  input.csv
+  output.xlsx
+
+>>> /cat input.csv
+id,name,age
+1,张三,25
+2,李四,30
+
+>>> /write hello.txt 你好，凡人打字机！
+✅ 卷轴已刻录: hello.txt
+
+>>> /append hello.txt \n这是追加的内容。
+✅ 卷轴已刻录: hello.txt
+
+>>> /cat hello.txt
+你好，凡人打字机！
+这是追加的内容。
+
+>>> /delete hello.txt
+⚠️ 检测到高危神通，请选择因果:
+[Y]仅此  [A]本轮  [F]永世  [N]拒绝
+Y
+✅ 卷轴已销毁: hello.txt
+
+>>> /cd ..             # 返回上级目录
+✅ 穿梭至: /Users/me/project
+```
+
 **安全机制**：
 - 所有文件操作限制在 `allowed_dirs` 目录内
-- 禁止 `../` 目录穿越攻击
+- 禁止 `../` 目录穿越攻击（已解析的真实路径必须在 allowed_dirs 内）
 - `/write` 会自动创建父目录
-- 危险操作触发四阶安全确认
+- 危险操作（写入、删除）触发四阶安全确认（Y/A/F/N）
 
 ### 三、会话命令（轮回）
 
@@ -250,27 +334,78 @@ $ fr-cli
 | `/del` | - | 删除历史会话（交互式选择） |
 | `/undo` | - | 撤销最近一轮对话（用户 + AI） |
 
+**使用步骤示例**：
+
+```
+>>> /save 项目需求讨论
+✅ 刻录: [项目需求讨论]
+
+>>> /load
+  [0] 项目需求讨论
+  [1] 代码审查
+ID: 0                  # 输入要加载的会话索引
+✅ 穿梭至: [项目需求讨论]
+
+>>> /del
+  [0] 项目需求讨论
+  [1] 代码审查
+ID: 1                  # 输入要删除的会话索引
+✅ 斩断
+
+>>> /undo              # 撤销最近一轮（删除 assistant 的回复）
+✅ 时光倒流。
+```
+
 **上下文记忆**：
 - 自动保留最近 5 轮对话摘要
 - 按 `session_name` 持久化到 `~/.zhipu_cli_context.json`
 - 加载会话时自动恢复上下文摘要
+- 导出会话：`/export` 将当前会话导出为 Markdown 文件到当前工作目录
 
 ### 四、邮件命令（邮差）
 
-> 需先在配置中设置 `mail` 字段
+> 首次使用需配置邮件账户。可直接编辑 `~/.zhipu_cli_config.json`，或在对话中让 AI 帮你配置。
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
+| `/mail_setup` | - | 启动邮件配置向导 |
 | `/mail_inbox` | - | 列出收件箱最近 10 封邮件 |
 | `/mail_read <id>` | 邮件 ID | 读取指定邮件完整内容 |
 | `/mail_send <to> <sub> <body>` | 收件人 主题 正文 | 发送邮件 |
 
-**示例**：
+**配置步骤**：
+
+1. 获取邮箱授权码（以 QQ 邮箱为例）：
+   - 登录 QQ 邮箱 → 设置 → 账户 → 开启 IMAP/SMTP 服务
+   - 生成「授权码」（不是登录密码）
+
+2. 运行配置向导或手动编辑配置：
 ```
-/mail_inbox
-/mail_read 123
-/mail_send friend@qq.com 你好 这是一封测试邮件
+>>> /mail_setup
+👉 邮箱地址: your@qq.com
+👉 授权码/密码: xxxxxxxxxxxxxx
+👉 IMAP 服务器 [imap.qq.com]: 
+👉 SMTP 服务器 [smtp.qq.com]: 
+✅ 邮件配置已保存。
 ```
+
+**使用示例**：
+```
+>>> /mail_inbox
+  1 项目进度汇报 (boss@company.com)
+  2 会议邀请 (hr@company.com)
+
+>>> /mail_read 1
+主题: 项目进度汇报
+来自: boss@company.com | 2024-01-15 09:30
+
+正文内容...
+
+>>> /mail_send team@company.com 周报 本周完成了xxx功能，详见附件。
+✅ 已发送
+```
+
+**支持的邮箱**：QQ/163/Gmail/Outlook/阿里云，具体服务器地址见「配置说明」章节。
 
 ### 五、定时任务命令（结界）
 
@@ -280,42 +415,109 @@ $ fr-cli
 | `/cron_list` | - | 列出所有运行中的定时任务 |
 | `/cron_del <id>` | 任务 ID | 删除指定定时任务 |
 
-**示例**：
+**使用步骤示例**：
+
 ```
-/cron_add 60 echo hello          # 每 60 秒执行一次 echo
-/cron_list
-/cron_del 1
+>>> /cron_add 300 ls -la /Users/me/project
+✅ 布阵 (ID:1, 300秒)
+
+>>> /cron_list
+  [1] ls -la /Users/me/project (每300秒) 🏃 运行
+
+>>> /cron_del 1
+✅ 破阵: 1
 ```
+
+**使用场景**：
+- 定时备份：`/cron_add 3600 cp -r /project /backup`
+- 定时监控：`/cron_add 60 df -h`
+- 定时提醒：`/cron_add 1800 echo "该休息了"`
 
 **注意**：
 - 基于 `threading.Timer`，程序退出后任务消失
-- 任务输出截断为 100 字符
-- Shell 命令执行 30 秒超时
+- 如需持久化，使用 Gatekeeper 守护进程：`/gatekeeper start`
+- Shell 命令执行 30 秒超时，输出截断为 100 字符
+- 危险命令触发安全确认
 
 ### 六、网络命令（游侠）
-
-> 依赖 `requests`（`pip install requests`）
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
 | `/web <query>` | 搜索词 | 百度搜索 |
 | `/fetch <url>` | 网址 | 抓取网页并提取纯文本 |
 
-**示例**：
+**使用步骤示例**：
+
 ```
-/web Python asyncio 教程
-/fetch https://example.com/article
+>>> /web Python asyncio 教程
+📜 搜魂:
+  - Python asyncio 官方文档
+    https://docs.python.org/3/library/asyncio.html
+    asyncio 是用于编写并发代码的库...
+
+>>> /fetch https://docs.python.org/3/library/asyncio.html
+--- Fetch ---
+asyncio — Asynchronous I/O...
+
+ asyncio 是用于使用 async/await 语法编写并发代码的库。
+ ...
+--- EOF ---
 ```
+
+**AI 自动调用**：
+当用户提问涉及搜索时，AI 会自动输出调用标记：
+```
+【调用：search_web({"query": "Python asyncio 教程"})】
+【调用：fetch_web({"url": "https://docs.python.org/..."})】
+```
+程序会自动执行并返回结果给 AI。
 
 ### 七、云盘命令（腾云）
 
-> 需先在配置中设置 `disk` 字段，依赖 `oss2`（阿里云）
+> 当前支持阿里云盘（个人网盘）。
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| `/disk_ls` | - | 列出云盘文件 |
-| `/disk_up <local> <remote>` | 本地路径 云端路径 | 上传文件 |
-| `/disk_down <remote> [local]` | 云端路径 [本地路径] | 下载文件 |
+| `/disk_setup` | - | 启动云盘配置向导（扫码登录） |
+| `/disk_ls` | - | 列出当前云盘目录的文件和文件夹 |
+| `/disk_cd <目录名>` | 目录名 | 切换云盘目录（支持 `..` 返回上级） |
+| `/disk_up <本地路径> <云端名称>` | 本地路径 云端名称 | 上传文件到当前目录 |
+| `/disk_down <云端名称> [本地路径]` | 云端名称 [本地路径] | 从当前目录下载文件 |
+
+依赖: `pip install aligo`
+
+**使用步骤示例**：
+
+```
+>>> /disk_setup
+📱 请使用手机阿里云盘 App 扫描下方二维码...
+✅ 登录成功！
+
+>>> /disk_ls
+📂 根目录:
+  文档/
+  图片/
+  备份.zip
+
+>>> /disk_cd 文档
+✅ 已进入: 文档
+
+>>> /disk_ls
+📂 文档:
+  项目资料/
+  会议纪要.md
+
+>>> /disk_up /Users/me/report.pdf report.pdf
+✅ 飞升: report.pdf
+
+>>> /disk_down 会议纪要.md /Users/me/download/
+✅ 降落: 会议纪要.md
+```
+
+**说明**：
+- 首次使用必须运行 `/disk_setup` 完成扫码登录
+- 登录信息自动缓存，后续无需重复扫码
+- 切换目录仅影响云盘操作上下文，不影响本地工作目录
 
 ### 八、图像命令
 
@@ -323,7 +525,34 @@ $ fr-cli
 |------|------|------|
 | `/see <图片路径> [问题]` | 图片 问题 | 用 GLM-4V 分析图片内容 |
 
-**注意**：分析图片需切换模型至 `glm-4v-plus`。
+**使用步骤**：
+
+1. 切换至视觉模型：
+```
+>>> /model glm-4v-plus
+✅ 法器更替: glm-4v-plus
+```
+
+2. 分析本地图片：
+```
+>>> /see /Users/me/photo.jpg 这张图片里有什么
+⚠️ 需法器 glm-4v-plus
+👁️ 天眼…
+📊 模型: glm-4v-plus | 耗时: 2.35秒
+
+这张图片展示了一座山峰，山顶有积雪...
+```
+
+3. 分析网络图片：
+```
+>>> /see https://example.com/image.png 描述这张图片
+```
+
+**AI 自动调用**：
+```
+【调用：generate_image({"prompt": "一只在云上睡觉的猫"})】
+```
+图片生成使用 CogView-3-plus，保存到当前工作目录。
 
 ### 九、本机应用启动（驭器）
 
@@ -370,11 +599,105 @@ $ fr-cli
 | 命令 | 参数 | 说明 |
 |------|------|------|
 | `/agent_create <名称> <描述>` | 名称 需求描述 | AI 自动生成完整 Agent（人设/技能/代码） |
+| `/agent_forge <名称>` | 名称 | 从最近一次 AI 回复中提取代码，铸造为 Agent |
 | `/agent_list` | - | 列出所有 Agent 分身 |
 | `/agent_show <名称>` | Agent 名称 | 查看 Agent 详情（人设/记忆/技能/代码/工作流） |
 | `/agent_edit <名称> <类型>` | 名称 persona/memory/skills/agent/workflow | 编辑 Agent 设定 |
 | `/agent_run <名称> [参数]` | 名称 [传入参数] | 运行指定 Agent |
 | `/agent_delete <名称>` | Agent 名称 | 删除 Agent |
+
+#### 创建 Agent 的三种方法
+
+**方法一：AI 自动生成（/agent_create）**
+
+让 AI 根据你的需求描述，自动生成完整的 Agent（人设 + 技能 + 代码）：
+
+```
+>>> /agent_create 文件搜索助手 根据关键词搜索本地文件并返回匹配结果
+✅ Agent [文件搜索助手] 铸造完成！
+```
+
+**方法二：从已有代码铸造（/agent_forge）**
+
+当你在对话中让 AI 写了一段功能代码后，可以直接将其转为 Agent：
+
+```
+>>> 请帮我写一段代码，功能是根据关键词搜索本地文件
+🧙 仙人: （输出包含 def run(context, **kwargs) 的 Python 代码）
+
+>>> /agent_forge file_searcher
+✅ Agent [file_searcher] 铸造完成！
+  路径: ~/.fr_cli_agents/file_searcher/
+  运行: /agent_run file_searcher keyword=TODO
+```
+
+**方法三：自动检测提示**
+
+当 AI 回复中包含 `def run(context, **kwargs)` 和 `\`\`\`python` 代码块时，程序会自动检测到 Agent 分身结构并提示保存：
+
+```
+⚡ 检测到 Agent 分身结构，赐名 (回车放弃): file_searcher
+✅ Agent [file_searcher] 铸造完成！
+  路径: ~/.fr_cli_agents/file_searcher/
+  运行: /agent_run file_searcher [参数]
+```
+
+> **注意**：包含 `def run(args='')` 的代码会被识别为**插件**（保存到 `~/.zhipu_cli_plugins/`），而包含 `def run(context, **kwargs)` 的代码会被识别为 **Agent 分身**（保存到 `~/.fr_cli_agents/`）。两者互不干扰。
+
+**方法四：手动创建（直接操作文件）**
+
+如果你已有本地代码文件，可直接在文件系统中创建 Agent：
+
+```bash
+# 创建 Agent 目录
+mkdir -p ~/.fr_cli_agents/my_agent
+
+# 写入 agent.py（必须包含 run(context, **kwargs) 入口）
+cat > ~/.fr_cli_agents/my_agent/agent.py << 'EOF'
+def run(context, **kwargs):
+    """
+    context 包含: persona, memory, skills, client, model, lang, executor, state
+    kwargs  包含用户调用时传入的参数，如 user_input
+    """
+    user_input = kwargs.get("user_input", "")
+    # ... 你的功能逻辑 ...
+    return "执行结果"
+EOF
+
+# 可选：写入人设和技能
+echo "# my_agent" > ~/.fr_cli_agents/my_agent/persona.md
+echo "## 技能" > ~/.fr_cli_agents/my_agent/skills.md
+```
+
+然后执行 `/agent_run my_agent` 即可运行。
+
+#### Agent 代码约定
+
+Agent 分身的核心文件是 `agent.py`，其入口函数签名如下：
+
+```python
+def run(context, **kwargs):
+    """
+    context 字典包含以下键：
+      - persona: str      — 人设文本（来自 persona.md）
+      - memory: str       — 记忆文本（来自 memory.md）
+      - skills: str       — 技能文本（来自 skills.md）
+      - client: ZhipuAI   — AI 客户端实例，可直接调用大模型
+      - model: str        — 当前模型名称
+      - lang: str         — 语言代码（'zh' 或 'en'）
+      - executor: CommandExecutor — 可调用 invoke_tool()/execute() 执行工具
+      - state: AppState   — 可访问 vfs、cfg、plugins 等子系统
+      - agent_name: str   — 当前 Agent 名称
+    
+    kwargs 包含用户调用时传入的参数，如:
+      - user_input: str   — 用户输入文本
+    
+    返回值: str — 执行结果字符串
+    """
+    user_input = kwargs.get("user_input", "")
+    # ... 功能逻辑 ...
+    return "执行结果"
+```
 
 #### 内置 Agent 前缀
 
@@ -382,41 +705,122 @@ $ fr-cli
 
 | 前缀 | 说明 | 示例 |
 |------|------|------|
-| `@local <需求>` | 本地系统操作助手，AI 生成系统命令并执行 | `@local 查看当前目录下最大的10个文件` |
-| `@remote [IP] <需求>` | 远程 SSH 操作助手，通过 SSH 在远程主机执行命令 | `@remote 192.168.1.1 查看磁盘空间` |
-| `@spider <URL> [深度]` | 智能网页爬虫，模拟真人行为获取网页内容 | `@spider https://example.com 2` |
-| `@db [别名] <需求>` | 数据库智能助手，自动分析 Schema 并生成 SQL | `@db mydb 查询最近7天注册用户` |
-| `@RAG <问题>` | 本地知识库问答，向量检索 + 大模型生成 | `@RAG 什么是向量数据库` |
+| `@local <需求>` | 本地系统操作助手 | `@local 查看当前目录下最大的10个文件` |
+| `@remote [别名] <需求>` | 远程 SSH 操作助手 | `@remote myserver 查看磁盘空间` |
+| `@spider <URL> [深度]` | 智能网页爬虫 | `@spider https://example.com 2` |
+| `@db [别名] <需求>` | 数据库智能助手 | `@db mydb 查询最近7天注册用户` |
+| `@RAG <问题>` | 本地知识库问答 | `@RAG 什么是向量数据库` |
 
-**@remote 配置**：
-- 首次使用会自动启动配置向导
+**@local — 本地系统操作助手**
+
+AI 根据你的操作系统生成最合适的系统命令，经你确认后执行：
+
+```
+>>> @local 查看当前目录下最大的10个文件
+🧙 正在分析本地操作...
+
+建议命令:
+find . -type f -exec ls -lh {} + | sort -k5 -rh | head -10
+
+是否执行? [Y/n]: Y
+执行中...
+-rw-r--r--  1 user  staff   50M  Jan 15 10:20 ./data/backup.zip
+...
+```
+
+**@remote — 远程 SSH 操作助手**
+
+通过 SSH 在远程主机执行命令，支持多机配置：
+
+```
+>>> @remote 192.168.1.1 查看磁盘空间
+⚠️ 未配置远程主机。正在启动配置向导...
+═══ 远程主机配置向导 ═══
+别名 (如: myserver): myserver
+IP 地址: 192.168.1.1
+端口 [22]: 
+用户名: root
+认证方式 (password/key) [password]: 
+密码: ********
+✅ 主机 [myserver] (192.168.1.1) 已保存。
+
+🧙 正在为 [myserver](Linux) 生成远程命令...
+
+建议命令 (myserver):
+df -h
+
+是否执行? [Y/n]: Y
+
+Filesystem      Size  Used Avail Use% Mounted on
+/dev/sda1        50G   20G   28G  42% /
+```
+
+- 首次使用自动启动配置向导
 - 配置文件：`~/.fr_cli_remotes.json`
-- 支持多台主机，只配一台时无需指定 IP
 - 配置命令：`/remote_setup`
 
-**@db 数据库支持**：
-- MySQL / PostgreSQL / SQL Server / Oracle
+**@spider — 智能网页爬虫**
+
+模拟真人浏览行为，支持 requests → selenium 降级策略：
+
+```
+>>> @spider https://example.com 2
+🕷️ 开始爬取: https://example.com | 深度: 2
+
+爬取完成
+  成功: 15 个页面
+  失败: 0 个页面
+  保存目录: /Users/me/project/web_20240115
+```
+
+依赖: `pip install requests selenium`
+- 先尝试无头请求，触发反爬时自动降级到 selenium
+- 支持深度爬取（1~3层），默认只爬当前页面
+- 内容保存到工作区 `web_YYYYMMDD/` 目录
+
+**@db — 数据库智能助手**
+
+自动分析数据库 Schema，生成并执行 SQL：
+
+```
+>>> @db mydb 查询最近7天注册用户
+📊 正在分析 MYSQL [mydb](users_db) 的 Schema...
+🧙 正在生成 SQL...
+
+生成 SQL:
+SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY);
+
+是否执行? [Y/n]: Y
+
+返回 1 行:
+  {'COUNT(*)': 342}
+```
+
+支持：MySQL / PostgreSQL / SQL Server / Oracle
 - 首次使用自动启动配置向导
 - 配置文件：`~/.fr_cli_databases.json`
-- 自动分析表结构、列信息、生成 SQL
-- 危险操作（DELETE/DROP）会触发警告
 - 配置命令：`/db_setup`
 
-**@RAG 知识库**：
-- 向量库：ChromaDB（本地持久化 `~/.fr_cli_rag_db`）
-- 嵌入模型：sentence-transformers (all-MiniLM-L6-v2)
-- 后台自动监控知识库目录（每30秒扫描）
-- 新文件自动分块、向量化、入库
-- 支持格式：txt, md, py, js, json, html, csv, xlsx 等
-- 配置命令：`/rag_dir <目录路径>`
+**@RAG — 本地知识库问答**
 
-**@spider 依赖**：
-```bash
-pip install requests selenium
+向量检索 + 大模型生成，基于你的本地文档回答问题：
+
 ```
-- 先尝试无头请求，触发反爬时自动降级到 selenium 模拟真人浏览
-- 内容保存到工作区 `web_YYYYMMDD/` 目录下
-- 支持深度爬取（1~3层），默认只爬当前页面
+>>> @RAG 项目的部署流程是什么
+📚 正在同步知识库...
+✅ 所有文件已是最新状态
+🔍 正在检索知识库并生成回答...
+
+根据知识库中的 deploy.md 和 README.md，部署流程如下：
+1. 安装依赖: pip install -r requirements.txt
+2. 配置环境变量: cp .env.example .env
+3. 运行: python main.py
+```
+
+- 向量库：ChromaDB（本地持久化 `~/.fr_cli_rag_db`）
+- 支持格式：txt, md, py, js, json, html, csv, xlsx 等
+- 后台自动监控知识库目录（每30秒扫描）
+- 配置命令：`/rag_dir <目录路径>`
 
 #### Agent 目录结构
 
@@ -529,12 +933,81 @@ curl -X POST http://localhost:8080/agents/researcher/workflow \
 | `/read_excel <文件>` | Excel 文件路径 | 读取 Excel 并输出数据摘要 |
 | `/read_csv <文件>` | CSV 文件路径 | 读取 CSV 并输出数据摘要 |
 
+**使用步骤示例**：
+
+```
+>>> /read_excel sales_data.xlsx
+📊 数据摘要:
+表格: sales_data.xlsx
+行数: 1,250 | 列数: 5
+
+列信息:
+  日期        datetime64  非空: 1250/1250
+  产品名称     object      非空: 1250/1250
+  销量         int64       非空: 1250/1250  均值: 342.5  范围: 10~980
+  单价         float64     非空: 1248/1250  均值: 128.6
+  地区         object      非空: 1245/1250
+
+前10行预览:
+  ...
+
+>>> /read_csv users.csv
+📊 数据摘要:
+表格: users.csv
+行数: 500 | 列数: 3
+...
+```
+
+**与 AI 联动分析**：
+读取数据后，可将摘要提交给 AI 进行深度分析：
+```
+>>> 分析这份销售数据，找出销量最高的产品和增长趋势
+🧙 仙人: 根据数据分析，销量最高的产品是...
+```
+
 **说明**：
 - 支持 `.xlsx`, `.xls`, `.csv` 格式
 - 自动输出列名、数据类型、非空统计、数值统计、前10行预览
 - 数据摘要可提交给 AI 进行深度分析
 
-### 十三、破壁命令（系统 Shell）
+### 十三、守护进程（Gatekeeper）
+
+守护进程独立于 fr-cli 主程序运行，可在主程序退出后继续维持 Agent HTTP API 服务和定时任务。
+
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| `/gatekeeper start` | - | 启动守护进程 |
+| `/gatekeeper stop` | - | 停止守护进程 |
+| `/gatekeeper status` | - | 查看守护进程状态 |
+
+**使用步骤示例**：
+
+```
+>>> /agent_server start 8080          # 先启动 Agent HTTP 服务
+✅ Agent HTTP 服务已启动: http://0.0.0.0:8080
+
+>>> /cron_add 300 echo "heartbeat"    # 添加定时任务
+✅ 布阵 (ID:1, 300秒)
+
+>>> /gatekeeper start                 # 启动守护进程
+✅ 守护进程已启动
+
+>>> /exit                             # 退出 fr-cli
+道友，保重。👋
+
+# （守护进程仍在后台运行，维持 Agent API 和定时任务）
+
+$ fr-cli                              # 重新进入
+>>> /gatekeeper status
+运行中 | PID: 12345
+```
+
+**说明**：
+- 启动时自动保存当前的 Agent HTTP 服务端口和定时任务配置
+- 停止守护进程后，Agent API 和定时任务会随之停止
+- 守护进程配置存储在 `~/.zhipu_cli_config.json` 中
+
+### 十四、破壁命令（系统 Shell）
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
@@ -548,7 +1021,7 @@ curl -X POST http://localhost:8080/agents/researcher/workflow \
 !cat log.txt | 分析这段日志有什么问题
 ```
 
-### 十四、其他命令
+### 十五、其他命令
 
 | 命令 | 说明 |
 |------|------|
@@ -724,10 +1197,10 @@ pip install requests
 ### Q4: 云盘功能无法使用？
 
 ```bash
-pip install fr-cli[aliyun]   # 阿里云 OSS
-pip install fr-cli[baidu]    # 百度网盘
-pip install fr-cli[onedrive] # OneDrive
+pip install aligo   # 阿里云盘
 ```
+
+首次使用需运行 `/disk_setup` 完成扫码登录。
 
 ### Q5: 如何查看某功能的详细帮助？
 
@@ -743,6 +1216,10 @@ pip install fr-cli[onedrive] # OneDrive
 /help shell       # 系统命令
 /help tools       # AI 工具调用
 /help security    # 安全机制
+/help agent       # Agent 分身系统
+/help builtin     # 内置 Agent
+/help dataframe   # 数据卷轴
+/help gatekeeper  # 守护进程
 ```
 
 ### Q6: 程序文件和数据保存在哪里？

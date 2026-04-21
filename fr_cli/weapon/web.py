@@ -5,8 +5,6 @@
 """
 import re
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import RED, DIM, CYAN, RESET
-
 try:
     import requests
     HAS_REQ = True
@@ -18,9 +16,10 @@ class WebRaider:
         """使用百度搜索进行零配置搜索"""
         if not HAS_REQ: return None, "❌ pip install requests"
         try:
+            import urllib.parse
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
             # 百度搜索
-            url = f"https://www.baidu.com/s?wd={q}"
+            url = f"https://www.baidu.com/s?wd={urllib.parse.quote(q)}"
             res = requests.get(url, headers=headers, timeout=8)
             
             # 简易正则提取结果
@@ -36,7 +35,6 @@ class WebRaider:
                     if len(results) >= 5:
                         break
             
-            print(f"{DIM}调试信息：找到 {len(results)} 个搜索结果{RESET}")
             return results[:5], None
         except Exception as e: return None, f"{T('web_err', lang)} {e}"
 

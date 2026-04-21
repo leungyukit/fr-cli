@@ -3,22 +3,23 @@
 """
 import sys
 import time
-from fr_cli.ui.ui import RESET, BOLD, DIM, CYAN, GREEN, RED, CODE_BG, CODE_FG
+from fr_cli.ui.ui import RESET, DIM, CYAN, RED, CODE_BG, CODE_FG
 from fr_cli.lang.i18n import T
 
-def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None):
+def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None, silent=False):
     """
     流式调用智谱API并实时打印，带有简易代码块高亮状态机
+    :param silent: 如果为True，则不输出到终端，仅返回文本
     :return: tuple (完整回复文本 str, 使用情况 dict, 响应时间 float)
     """
-    p = custom_prefix or f"{CYAN}{T('prompt_ai', lang)}{RESET} "
-    sys.stdout.write(p); sys.stdout.flush()
+    if not silent:
+        p = custom_prefix or f"{CYAN}{T('prompt_ai', lang)}{RESET} "
+        sys.stdout.write(p); sys.stdout.flush()
     
     start_time = time.time()
     full_text = ""
     in_code = False
     usage = {}
-    start_time = time.time()
     
     try:
         # 验证API密钥
@@ -44,17 +45,21 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                         for i, part in enumerate(parts):
                             if i > 0:  # 遇到了一个 ```
                                 in_code = not in_code
-                                if in_code:
-                                    sys.stdout.write(f"{CODE_BG}{CODE_FG}")
-                                else:
-                                    sys.stdout.write(f"{RESET}")
-                            sys.stdout.write(part)
+                                if not silent:
+                                    if in_code:
+                                        sys.stdout.write(f"{CODE_BG}{CODE_FG}")
+                                    else:
+                                        sys.stdout.write(f"{RESET}")
+                            if not silent:
+                                sys.stdout.write(part)
+                            sys.stdout.flush()
                     else:
-                        if in_code:
-                            sys.stdout.write(f"{CODE_BG}{CODE_FG}{txt}{CODE_FG}")
-                        else:
-                            sys.stdout.write(txt)
-                    sys.stdout.flush()
+                        if not silent:
+                            if in_code:
+                                sys.stdout.write(f"{CODE_BG}{CODE_FG}{txt}{CODE_FG}")
+                            else:
+                                sys.stdout.write(txt)
+                        sys.stdout.flush()
                     
             if hasattr(chunk, 'usage') and chunk.usage:
                 usage = chunk.usage.model_dump()
@@ -63,9 +68,10 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
         sys.stdout.write(f"\n{DIM}{str(e)[:50]}{RESET}")
         sys.stdout.flush()
         
-    sys.stdout.write(RESET)
-    sys.stdout.write("\n")
-    sys.stdout.flush()
+    if not silent:
+        sys.stdout.write(RESET)
+        sys.stdout.write("\n")
+        sys.stdout.flush()
     
     end_time = time.time()
     response_time = end_time - start_time

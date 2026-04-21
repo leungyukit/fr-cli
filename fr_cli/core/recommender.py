@@ -15,7 +15,7 @@ def recommend_features(user_input):
         recommendations.append({"cmd": "/cd <dir>", "desc": "切换目录"})
 
     # 文件写入相关
-    if any(kw in input_lower for kw in ['保存', 'save', '写入', 'write', '创建', 'create', '生成', 'generate', 'markdown', 'md']):
+    if any(kw in input_lower for kw in ['保存', '写入', 'write', '创建', 'create', '生成', 'generate']):
         recommendations.append({"cmd": "/write <file> <content>", "desc": "写入文件内容"})
         recommendations.append({"cmd": "/append <file> <content>", "desc": "追加文件内容"})
 
@@ -45,7 +45,7 @@ def recommend_features(user_input):
         recommendations.append({"cmd": "/disk_down <remote> <local>", "desc": "从云盘下载"})
 
     # 会话相关
-    if any(kw in input_lower for kw in ['保存', 'save', '会话', 'session', '记录', 'record']):
+    if any(kw in input_lower for kw in ['保存会话', 'save session', '加载会话', 'load session', '会话', 'session', '记录', 'record']):
         recommendations.append({"cmd": "/save <name>", "desc": "保存当前会话"})
         recommendations.append({"cmd": "/load", "desc": "加载历史会话"})
 
@@ -60,7 +60,7 @@ def recommend_features(user_input):
         recommendations.append({"cmd": "/skills", "desc": "查看可用插件"})
 
     # 导出相关
-    if any(kw in input_lower for kw in ['导出', 'export', 'markdown', 'md', '文档', 'document']):
+    if any(kw in input_lower for kw in ['导出', 'export', '文档', 'document']):
         recommendations.append({"cmd": "/export", "desc": "导出会话为Markdown"})
 
     # 命令执行相关

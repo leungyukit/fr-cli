@@ -24,6 +24,7 @@ class AppState:
         self.api_key = cfg.get("key", "")
         self.sn = cfg.get("session_name", "")
         self.aliases = cfg.get("aliases", {})
+        self.thinking_mode = cfg.get("thinking_mode", "direct")
 
         # 核心子系统实例化
         self.client = ZhipuAI(api_key=self.api_key)
@@ -49,6 +50,10 @@ class AppState:
         # Agent HTTP 服务守护
         self.agent_server = None
 
+        # Gatekeeper 守护进程管理器
+        from fr_cli.gatekeeper.manager import GatekeeperManager
+        self.gatekeeper = GatekeeperManager()
+
     def reinit_client(self):
         """API Key 或模型变更后重铸客户端"""
         self.api_key = self.cfg.get("key", "")
@@ -65,12 +70,17 @@ class AppState:
         self.model_name = name
         self.save_cfg()
         self.reinit_client()
+        self.executor.model_name = self.model_name
+        self.executor.client = self.client
+        self.executor._deps = build_deps(self.executor)
 
     def update_key(self, key):
         """重铸 API 密钥"""
         self.cfg["key"] = key
         self.save_cfg()
         self.reinit_client()
+        self.executor.client = self.client
+        self.executor._deps = build_deps(self.executor)
 
     def update_limit(self, limit):
         """设置 Token 上限"""
@@ -83,10 +93,19 @@ class AppState:
         self.cfg["lang"] = lang
         self.lang = lang
         self.save_cfg()
-        self.security = SecurityManager(lang, self.cfg)
+        self.security = SecurityManager(self.lang, self.cfg)
+        self.executor.lang = self.lang
+        self.executor.security = self.security
+        self.executor._deps = build_deps(self.executor)
 
     def update_session_name(self, name):
         """更新轮回名"""
         self.sn = name
         self.cfg["session_name"] = name
+        self.save_cfg()
+
+    def update_thinking_mode(self, mode):
+        """切换思维模式"""
+        self.cfg["thinking_mode"] = mode
+        self.thinking_mode = mode
         self.save_cfg()

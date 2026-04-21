@@ -37,9 +37,11 @@
 
 ## scheduled_tasks
 - **名称**: 定时任务工具
-- **功能**: 添加、列出和删除定时任务
+- **功能**: 添加、列出和删除定时任务。支持 shell 命令和 Agent 分身两种任务类型。
 - **程序路径**: fr_cli/weapon/cron.py
-- **调用方式**: cron_add, cron_list, cron_del
+- **调用方式**: 
+  - shell 类型: `cron_add`, `cron_list`, `cron_del`（由 Gatekeeper 持久化执行）
+  - Agent 类型: `/agent_cron_add <agent> <秒> [输入]`, `/agent_cron_list`, `/agent_cron_del <ID>`
 - **触发关键词**: 定时任务, 定时执行, 周期性执行, cron job, scheduled task, 定时器
 
 ## cloud_storage
@@ -88,8 +90,13 @@
 - **名称**: Agent 分身系统
 - **功能**: 创建独立 Agent（角色设定/记忆/技能/工作流），支持 HTTP API 调用
 - **程序路径**: fr_cli/agent/
-- **调用方式**: /agent_server start [port], /agent_server stop, /agent_server status, /agent_create, /agent_list, /agent_run
+- **调用方式**:
+  - `/agent_create <name> <desc>` — AI 自动生成完整 Agent
+  - `/agent_forge <name>` — 从最近 AI 回复中提取代码铸造 Agent
+  - `/agent_list`, `/agent_show`, `/agent_edit`, `/agent_run`, `/agent_delete` — 管理 Agent
+  - `/agent_server start [port]`, `/agent_server stop`, `/agent_server status` — HTTP 服务
 - **触发关键词**: agent, 分身, 工作流, workflow, API, HTTP 服务
+- **创建方式**: 1) AI 自动生成 2) `/agent_forge` 从代码铸造 3) 自动检测提示 4) 手动创建 `~/.fr_cli_agents/<name>/agent.py`
 
 ## builtin_local
 - **名称**: @local 本机助手
@@ -121,9 +128,15 @@
 
 ## builtin_rag
 - **名称**: @RAG 本地知识库助手
-- **功能**: ChromaDB 向量检索，后台自动向量化监控目录，`@RAG <问题>` 检索回答
+- **功能**: ChromaDB 向量检索 + CrossEncoder 重排序(Rerank) + 大模型最佳片段判定。后台自动向量化监控目录。支持两种监控模式：
+  - 向量检索：使用 all-MiniLM-L6-v2 嵌入模型，检索 top-15 候选
+  - Rerank 重排序：使用 cross-encoder/ms-marco-MiniLM-L-6-v2 对候选重新打分，取 top-3
+  - 大模型判定：让 LLM 从 top-3 中评估相关性/完整性/准确性，选出最佳片段 ★【最佳】
+  - 最终生成：优先基于最佳片段回答，可综合其他片段补充
+  - 内置模式（daemon 线程）：`/rag_dir <目录>` 后自动启动
+  - 独立模式（系统进程）：`/rag_watch start [目录] [--interval N]`，退出终端后仍继续运行
 - **程序路径**: fr_cli/agent/builtins/rag.py
-- **调用方式**: `@RAG <问题>`
+- **调用方式**: `@RAG <问题>` / `/rag_dir <路径>` / `/rag_sync` / `/rag_watch start|stop|status|log`
 - **触发关键词**: 知识库, RAG, 检索, 向量搜索, 文档问答, 本地文档
 
 ## data_scroll
@@ -132,3 +145,24 @@
 - **程序路径**: fr_cli/weapon/dataframe.py
 - **调用方式**: `/read_excel <文件>`, `/read_csv <文件>`
 - **触发关键词**: Excel, CSV, 表格, 数据分析, 数据预览, 统计
+
+## gatekeeper
+- **名称**: 结界守护进程
+- **功能**: 独立于主程序运行的守护进程，持久化 Agent HTTP 服务、全局定时任务（shell）和 Agent 分身定时任务。每30秒热重载配置，自动同步主进程新增/删除的任务。
+- **程序路径**: fr_cli/gatekeeper/daemon.py, fr_cli/gatekeeper/manager.py
+- **调用方式**: `/gatekeeper start|stop|status`, `/agent_cron_add <agent> <秒> [输入]`, `/agent_cron_list`, `/agent_cron_del <ID>`
+- **触发关键词**: 守护进程, 后台, daemon, gatekeeper, 持久化, Agent 定时任务
+
+
+## thinking_mode
+- **名称**: 思维推演模式
+- **功能**: 在最终回答前，让大模型按照人类思维范式进行问题拆解和自我反馈验证。支持 CoT（思维链）、ToT（思维树）、ReAct（推理+行动）三种模式。
+- **程序路径**: fr_cli/core/thinking.py
+- **调用方式**: `/mode direct|cot|tot|react`
+- **触发关键词**: 深度思考, 推理, 思维链, 思维树, ReAct, 拆解问题, 自我验证
+
+模式说明:
+  - direct（默认）：直接回答，不增加额外推理步骤
+  - cot：先进行问题拆解、假设提出、验证评估、方案整合、自我检查，再将推理结果注入最终回答
+  - tot：生成多分支策略树，逐层评估打分，选择最优路径并给出备选方案
+  - react：每一步先思考（Thought）再行动（Action），基于观察结果（Observation）循环迭代，直到问题解决

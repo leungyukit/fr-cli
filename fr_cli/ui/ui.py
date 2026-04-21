@@ -1,13 +1,13 @@
 """
 终端UI、颜色定义与动画引擎
 """
-import sys, time, random, platform, os
+import sys, time, platform, os
 
 # ANSI 颜色与样式常量
 RESET = '\033[0m'; BOLD = '\033[1m'; DIM = '\033[2m'
 RED = '\033[91m'; GREEN = '\033[92m'; YELLOW = '\033[93m'
 BLUE = '\033[94m'; MAGENTA = '\033[95m'; CYAN = '\033[96m'; WHITE = '\033[97m'
-CODE_BG = '\033[48;5;236m'; CODE_FG = '\033[38;5=255m'
+CODE_BG = '\033[48;5;236m'; CODE_FG = '\033[38;5;255m'
 
 # 动画用的字符集
 C_HALF = r"!@#$%^&*()_+-=[]{}|;:<>?/~0123456789ABCDEFabcdef"

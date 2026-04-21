@@ -18,6 +18,7 @@ I18N = {
         "conn_ok": "✅ 天道连通。", "conn_fail": "❌ 天道拒绝:", "err_posix": "❌ 走火入魔:",
         "err_bound": "⚠️ 禁止穿越结界", "err_no_file": "⚠️ 卷轴不存在",
         "ok_dir_add": "✅ 洞府 [{}] 已开辟", "err_dir_no": "❌ 目录不存在", "ok_cd": "✅ 穿梭至: {}",
+        "ok_dir_remove": "✅ 洞府 [{}] 已关闭", "err_dir_idx": "❌ 索引无效", "err_dir_not_mounted": "❌ 未挂载的洞府: {}",
         "ok_write": "✅ 卷轴已刻录: {}", "err_write_perm": "❌ 权限不足，无法刻录", "ok_delete": "✅ 卷轴已销毁: {}",
         "ok_model": "✅ 法器更替: {}", "err_model": "❌ 碎裂:", "ok_key": "✅ 重铸。",
         "ok_limit": "✅ 上限: {}", "err_limit": "❌ 最小1000", "ok_forged": "✅ 法宝铸造: /{}",
@@ -28,8 +29,8 @@ I18N = {
         "sec_read": "读取卷轴", "sec_write": "写入法宝", "sec_exec": "执行法宝", "sec_mount": "开辟洞府", "sec_gen_img": "祭炼画卷", "sec_send_mail": "发送邮件", "sec_fetch_web": "抓取互联网", "sec_upload_disk": "上传至云端", "sec_download_disk": "下载自云端", "sec_shell": "执行系统命令",
         "gen_ing": "🎨 祭炼…", "gen_ok": "✅ 画卷成: {}", "gen_fail": "❌ 破碎: ", "see_warn": "⚠️ 需法器 glm-4v-plus", "see_ing": "👁️ 天眼…",
         "help_title": "📜 修仙指南:", "help_cfg": "【配置】", "help_fs": "【洞府】", "help_sess": "【轮回】", "help_plugin": "【法宝】", "help_extra": "【神通】", "help_shell": "【破壁】",
-        "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, all",
-        "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, all",
+        "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
+        "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
         "empty": "空空如也…", "none": "无", "no_sess": "无记忆。", "no_plugins": "无技能。",
         "ctx_dir": "\n[系统：凡人在 {}。]",
         "menu_mail": "【邮差】", "menu_cron": "【结界】", "menu_web": "【游侠】", "menu_disk": "【腾云】",
@@ -75,8 +76,11 @@ I18N = {
 /key <key>        修改智谱AI API Key
 /limit <n>        设置Token上限 (最小1000)
 /lang <zh/en>     切换界面语言
+/mode <direct|cot|tot|react>  切换AI思维模式（直接/思维链/思维树/ReAct）
 /alias <k> [v]    查看/设置命令别名
 /dir <path>       添加允许访问的目录到沙盒
+/dirs             列出所有已挂载的工作目录
+/rmdir <索引/路径> 删除指定的工作目录
 /export           导出当前会话为Markdown文件
 /update check     检查更新
 /update run       执行更新并重启
@@ -88,9 +92,19 @@ I18N = {
 /ls               列出当前目录文件
 /cat <file>       查看文件内容 (支持UTF-8/GBK/Latin-1)
 /cd <dir>         切换工作目录
+/dirs             列出所有已挂载的工作目录
+/rmdir <idx/path> 删除指定的工作目录
 /write <f> <c>    写入/覆盖文件
 /append <f> <c>   追加内容到文件
 /delete <f>       删除文件
+
+使用示例:
+  /cd data           切换至 data 目录
+  /ls                列出文件
+  /cat README.md     查看文件内容
+  /write a.md 内容   写入文件
+  /append a.md 追加  追加内容
+  /delete a.md       删除文件（需安全确认）
 
 安全机制:
   • 限制在 allowed_dirs 目录内, 禁止 ../ 穿越
@@ -103,6 +117,14 @@ I18N = {
 /load             加载历史会话 (交互式选择)
 /del              删除历史会话 (交互式选择)
 /undo             撤销最近一轮对话
+/export           导出当前会话为Markdown
+
+使用示例:
+  /save 项目讨论     保存当前会话
+  /load              交互式选择并加载
+  /del               交互式选择并删除
+  /undo              撤销最近一轮
+  /export            导出为 Markdown
 
 上下文记忆:
   • 自动保留最近5轮对话摘要
@@ -124,17 +146,20 @@ I18N = {
 """,
         "help_detail_mail": """📜 【邮差 - 邮件功能】
 
-需先在 ~/.zhipu_cli_config.json 中配置 mail 字段:
-  {
-    "imap_server": "imap.qq.com",
-    "smtp_server": "smtp.qq.com",
-    "email": "your@qq.com",
-    "password": "授权码"
-  }
+配置方式:
+  1. 获取邮箱授权码（QQ邮箱: 设置→账户→开启IMAP/SMTP）
+  2. /mail_setup 启动配置向导
 
+/mail_setup       邮件配置向导
 /mail_inbox       列出收件箱最近10封邮件
 /mail_read <id>   读取指定邮件完整内容
 /mail_send <to> <sub> <body>  发送邮件
+
+使用示例:
+  /mail_setup
+  /mail_inbox
+  /mail_read 1
+  /mail_send friend@qq.com 主题 正文
 
 支持邮箱: QQ/163/Gmail/Outlook/阿里云
 注意: QQ/163 需使用「授权码」而非登录密码
@@ -145,17 +170,26 @@ I18N = {
 /cron_list              列出运行中的定时任务
 /cron_del <id>          删除指定任务
 
+使用示例:
+  /cron_add 300 ls -la /project   每5分钟列出项目目录
+  /cron_add 60 df -h              每分钟检查磁盘
+  /cron_list
+  /cron_del 1
+
 注意:
   • 基于 threading.Timer, 程序退出后任务消失
+  • 如需持久化, 使用 /gatekeeper start 启动守护进程
   • Shell命令执行30秒超时, 输出截断100字符
   • 危险操作触发安全确认
 """,
         "help_detail_web": """📜 【游侠 - 网络搜索】
 
-依赖: pip install requests
-
 /web <query>      百度搜索 (返回最多5条结果)
 /fetch <url>      抓取网页并提取纯文本 (截断3000字符)
+
+使用示例:
+  /web Python asyncio 教程
+  /fetch https://docs.python.org/3/library/asyncio.html
 
 AI自动调用:
   【调用：search_web({"query": "搜索词"})】
@@ -163,37 +197,43 @@ AI自动调用:
 """,
         "help_detail_disk": """📜 【腾云 - 云盘功能】
 
-需先在配置中设置 disk 字段:
-  {
-    "type": "oss",
-    "ak": "AccessKey", "sk": "SecretKey",
-    "endpoint": "oss-cn-hangzhou.aliyuncs.com",
-    "bucket": "my-bucket", "prefix": "fr-cli/"
-  }
+当前支持阿里云盘（个人网盘）。
+首次使用需运行 /disk_setup 完成扫码登录。
 
-/disk_ls          列出云端文件
-/disk_up <local> <remote>   上传文件
-/disk_down <remote> [local] 下载文件
+/disk_setup       启动云盘配置向导（扫码登录）
+/disk_ls          列出当前云盘目录的文件和文件夹
+/disk_cd <目录名>  切换云盘目录（支持 .. 返回上级）
+/disk_up <本地路径> <云端名称>   上传文件到当前目录
+/disk_down <云端名称> [本地路径] 从当前目录下载文件
 
-依赖: pip install oss2 (阿里云)
-      或 fr-cli[aliyun] / fr-cli[baidu] / fr-cli[onedrive]
+使用示例:
+  /disk_setup                     首次扫码登录
+  /disk_ls                        列出云盘文件
+  /disk_cd 文档                   进入文档目录
+  /disk_up /local/report.pdf report.pdf
+  /disk_down report.pdf /local/
+
+依赖: pip install aligo
 """,
         "help_detail_vision": """📜 【天眼 - 图像功能】
 
 /see <图片路径> [问题]    用GLM-4V分析图片内容
 
-注意:
-  • 需切换模型至 glm-4v-plus: /model glm-4v-plus
-  • 支持本地图片路径或URL
-  • AI自动调用: 【调用：generate_image({"prompt": "描述"})】
-  • 图片生成使用 CogView-3-plus, 保存到当前目录
+使用步骤:
+  1. /model glm-4v-plus            切换至视觉模型
+  2. /see photo.jpg 描述这张图片  分析图片
+
+AI自动调用:
+  【调用：generate_image({"prompt": "描述"})】
+  图片生成使用 CogView-3-plus, 保存到当前目录
 """,
         "help_detail_shell": """📜 【破壁 - 系统命令】
 
 !<cmd>            执行本地Shell命令 (如 !ls -la)
 !<cmd> | <prompt> 将命令输出管道给AI分析
 
-示例:
+使用示例:
+  !ls -la /Users/me/project
   !ps aux | 找出占用CPU最高的进程
   !cat log.txt | 分析这段日志有什么问题
 
@@ -232,19 +272,98 @@ AI自动输出调用标记, 程序解析并执行:
 /launch <应用> [目标]      启动指定应用，可带文件或URL参数
 /apps                      列出本机可用的应用别名
 
+使用示例:
+  /open https://example.com
+  /open /Users/me/doc.pdf
+  /launch chrome https://github.com
+  /launch 微信
+  /launch word /Users/me/report.docx
+
 常用应用别名:
   浏览器: chrome, safari, firefox, edge, 浏览器
   办公:   word, excel, powerpoint, ppt, wps
   通讯:   wechat, 微信, qq, 钉钉, 飞书
   工具:   vscode, terminal, 终端, 计算器, 记事本
   媒体:   music, 播放器, spotify, vlc
+""",
+        "help_detail_agent": """📜 【分身 - Agent 系统】
 
-示例:
-  /open https://example.com
-  /open /Users/me/doc.pdf
-  /launch chrome https://example.com
-  /launch 微信
-  /launch word /Users/me/report.docx
+/agent_create <名称> <描述>   AI 自动生成完整 Agent（人设/技能/代码）
+/agent_forge <名称>            从最近一次 AI 回复中提取代码，铸造为 Agent
+/agent_list                    列出所有 Agent 分身
+/agent_show <名称>             查看 Agent 详情（人设/记忆/技能/代码/工作流）
+/agent_edit <名称> <类型>      编辑 Agent 设定（persona/memory/skills/agent/workflow）
+/agent_run <名称> [参数]       运行指定 Agent
+/agent_delete <名称>           删除 Agent
+
+Agent 目录: ~/.fr_cli_agents/<名称>/
+  • persona.md  — 角色设定
+  • memory.md   — 长期记忆
+  • skills.md   — 技能说明
+  • agent.py    — 可选自定义执行逻辑（必须包含 run(context, **kwargs)）
+  • workflow.md — 可选工作流定义
+
+将已有代码转为 Agent 的方法：
+  1. 在对话中让 AI 生成包含 def run(context, **kwargs) 的代码
+  2. 程序会自动检测到 Agent 结构并提示保存
+  3. 或手动执行 /agent_forge <名称> 从最近回复中提取代码
+""",
+        "help_detail_builtin": """📜 【神通 - 内置 Agent 前缀】
+
+在对话中直接使用 @ 前缀触发内置 Agent：
+
+@local <需求>              本地系统操作助手，AI 生成系统命令并执行
+@remote [别名] <需求>      远程 SSH 操作助手，通过 SSH 在远程主机执行命令
+@spider <URL> [深度]       智能网页爬虫，模拟真人行为获取网页内容
+@db [别名] <需求>          数据库智能助手，自动分析 Schema 并生成 SQL
+@RAG <问题>                本地知识库问答，向量检索 + 大模型生成
+
+RAG 知识库管理:
+  /rag_dir <路径>   — 设置知识库目录并首次同步
+  /rag_sync [路径]  — 手动同步知识库（向量化新文件）
+  /rag_watch start [目录] [--interval N] — 启动独立守护进程（持久化后台监控）
+  /rag_watch stop   — 停止独立守护进程
+  /rag_watch status — 查看守护进程状态
+  /rag_watch log [--lines N] — 查看守护进程日志
+
+说明:
+  • ChromaDB 以嵌入式 PersistentClient 自动启动，无需单独服务
+  • 内置模式（/rag_dir 后自动启动）为 daemon 线程，退出 fr-cli 后终止
+  • 独立模式（/rag_watch start）为系统级进程，退出终端后仍继续运行
+  • 守护进程通过 PID 文件管理，日志写入 ~/.fr_cli_rag_watcher.log
+
+配置向导:
+  /remote_setup  — 远程主机配置向导（配置文件: ~/.fr_cli_remotes.json）
+  /db_setup      — 数据库配置向导（配置文件: ~/.fr_cli_databases.json）
+""",
+        "help_detail_dataframe": """📜 【数据卷轴 - Excel / CSV】
+
+/read_excel <文件>   读取 Excel 文件并输出数据摘要
+/read_csv <文件>     读取 CSV 文件并输出数据摘要
+
+说明:
+  • 支持 .xlsx, .xls, .csv 格式
+  • 自动输出列名、数据类型、非空统计、数值统计、前10行预览
+  • 数据摘要可提交给 AI 进行深度分析
+""",
+        "help_detail_gatekeeper": """📜 【结界守护 - Gatekeeper 守护进程】
+
+/gatekeeper start    启动守护进程（持久化 Agent HTTP 服务、全局定时任务、Agent 定时任务）
+/gatekeeper stop     停止守护进程
+/gatekeeper status   查看守护进程状态
+
+Agent 分身定时任务:
+  /agent_cron_add <agent名称> <间隔秒> [输入]  为 Agent 添加定时执行计划
+  /agent_cron_list                              列出所有 Agent 定时任务
+  /agent_cron_del <ID>                          删除 Agent 定时任务
+
+说明:
+  • 守护进程独立于 fr-cli 主程序运行，退出终端后仍继续工作
+  • 启动时自动保存当前的 Agent HTTP 服务端口和定时任务配置
+  • 程序退出后守护进程仍可维持 Agent API、全局定时任务、Agent 定时任务
+  • 守护进程每30秒热重载配置，主进程新增/删除任务后自动同步
+  • 全局定时任务（/cron_add）修改后自动同步到守护进程配置
+  • 守护进程配置存储在 ~/.fr_cli_gatekeeper.json 中
 """,
         "help_detail_security": """📜 【安全机制】
 
@@ -262,6 +381,9 @@ AI自动输出调用标记, 程序解析并执行:
 
 目录穿越防护:
   VFS通过Path.resolve()检查路径, 禁止 ../ 逃逸出 allowed_dirs
+
+非交互环境:
+  • 设置 FR_CLI_NON_INTERACTIVE=1 时，安全确认默认拒绝（用于脚本/CI环境）
 """,
     },
     "en": {
@@ -274,6 +396,7 @@ AI自动输出调用标记, 程序解析并执行:
         "conn_ok": "✅ Connected.", "conn_fail": "❌ Failed:", "err_posix": "❌ Error:",
         "err_bound": "⚠️ Denied", "err_no_file": "⚠️ Not found",
         "ok_dir_add": "✅ Dir [{}] added", "err_dir_no": "❌ Not exists", "ok_cd": "✅ Dir: {}",
+        "ok_dir_remove": "✅ Dir [{}] removed", "err_dir_idx": "❌ Invalid index", "err_dir_not_mounted": "❌ Not mounted: {}",
         "ok_model": "✅ Model: {}", "err_model": "❌ Fail:", "ok_key": "✅ Updated.",
         "ok_limit": "✅ Limit: {}", "err_limit": "❌ Min 1000", "ok_forged": "✅ Skill: /{}",
         "ok_sess_save": "✅ Saved: [{}]", "ok_sess_load": "✅ Loaded: [{}]", "ok_sess_del": "✅ Deleted",
@@ -283,8 +406,8 @@ AI自动输出调用标记, 程序解析并执行:
         "sec_read": "Read file", "sec_write": "Write plugin", "sec_exec": "Run plugin", "sec_mount": "Mount dir", "sec_gen_img": "GenImg", "sec_send_mail": "Mail", "sec_fetch_web": "Fetch", "sec_upload_disk": "Upload", "sec_download_disk": "Download", "sec_shell": "Shell Exec",
         "gen_ing": "🎨 Gen…", "gen_ok": "✅ Saved: {}", "gen_fail": "❌ Fail: ", "see_warn": "⚠️ Need glm-4v-plus", "see_ing": "👁️ See…",
         "help_title": "📜 Help:", "help_cfg": "[Config]", "help_fs": "[FS]", "help_sess": "[Sess]", "help_plugin": "[Plugins]", "help_extra": "[Adv]", "help_shell": "[Matrix]",
-        "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, all",
-        "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, all",
+        "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
+        "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
         "empty": "(Empty)", "none": "None", "no_sess": "No sess.", "no_plugins": "No plug.",
         "ctx_dir": "\n[System: User in {}.]",
         "menu_mail": "[Mail]", "menu_cron": "[Cron]", "menu_web": "[Web]", "menu_disk": "[Disk]",
@@ -329,8 +452,11 @@ AI自动输出调用标记, 程序解析并执行:
 /key <key>        Change ZhipuAI API Key
 /limit <n>        Set token limit (min 1000)
 /lang <zh/en>     Switch UI language
+/mode <direct|cot|tot|react>  Switch AI thinking mode (direct/CoT/ToT/ReAct)
 /alias <k> [v]    View/set command alias
 /dir <path>       Add allowed directory to sandbox
+/dirs             List all mounted directories
+/rmdir <idx/path> Remove specified directory
 /export           Export current session to Markdown
 /update check     Check for updates
 /update run       Apply update and restart
@@ -342,9 +468,19 @@ Config file: ~/.zhipu_cli_config.json
 /ls               List files in current directory
 /cat <file>       View file content (UTF-8/GBK/Latin-1)
 /cd <dir>         Change working directory
+/dirs             List all mounted directories
+/rmdir <idx/path> Remove specified directory
 /write <f> <c>    Write/overwrite file
 /append <f> <c>   Append content to file
 /delete <f>       Delete file
+
+Examples:
+  /cd data           Change to data directory
+  /ls                List files
+  /cat README.md     View file content
+  /write a.md text   Write file
+  /append a.md more  Append content
+  /delete a.md       Delete file (needs confirmation)
 
 Security:
   • Restricted to allowed_dirs, ../ traversal blocked
@@ -357,6 +493,14 @@ Security:
 /load             Load historical session (interactive)
 /del              Delete historical session (interactive)
 /undo             Undo last conversation turn
+/export           Export session as Markdown
+
+Examples:
+  /save project      Save current session
+  /load              Interactive load
+  /del               Interactive delete
+  /undo              Undo last turn
+  /export            Export to Markdown
 
 Context Memory:
   • Auto-summarize last 5 turns
@@ -378,13 +522,20 @@ Safety: Runs in isolated subprocess with 15s timeout
 """,
         "help_detail_mail": """📜 [Mail]
 
-Requires mail config in ~/.zhipu_cli_config.json:
-  {"imap_server":"imap.qq.com","smtp_server":"smtp.qq.com",
-   "email":"your@qq.com","password":"auth_code"}
+Setup:
+  1. Get auth code (QQ Mail: Settings→Account→Enable IMAP/SMTP)
+  2. /mail_setup to run config wizard
 
+/mail_setup       Mail config wizard
 /mail_inbox       List last 10 emails
 /mail_read <id>   Read full content of specified email
 /mail_send <to> <sub> <body>  Send email
+
+Examples:
+  /mail_setup
+  /mail_inbox
+  /mail_read 1
+  /mail_send friend@qq.com Subject Body
 
 Supported: QQ/163/Gmail/Outlook/Aliyun
 Note: QQ/163 require "auth code" instead of login password
@@ -395,17 +546,26 @@ Note: QQ/163 require "auth code" instead of login password
 /cron_list              List running scheduled tasks
 /cron_del <id>          Delete specified task
 
+Examples:
+  /cron_add 300 ls -la /project   Every 5 minutes
+  /cron_add 60 df -h              Every minute
+  /cron_list
+  /cron_del 1
+
 Notes:
   • Based on threading.Timer, tasks vanish on program exit
+  • Use /gatekeeper start for persistence
   • Shell commands timeout at 30s, output truncated to 100 chars
   • Dangerous operations trigger security confirmation
 """,
         "help_detail_web": """📜 [Web]
 
-Requires: pip install requests
-
 /web <query>      Baidu search (returns up to 5 results)
 /fetch <url>      Fetch webpage and extract plain text (truncated to 3000 chars)
+
+Examples:
+  /web Python asyncio tutorial
+  /fetch https://docs.python.org/3/library/asyncio.html
 
 AI auto-invoke:
   【调用：search_web({"query": "..."})】
@@ -413,27 +573,35 @@ AI auto-invoke:
 """,
         "help_detail_disk": """📜 [Cloud Disk]
 
-Requires disk config:
-  {"type":"oss","ak":"...","sk":"...",
-   "endpoint":"oss-cn-hangzhou.aliyuncs.com",
-   "bucket":"my-bucket","prefix":"fr-cli/"}
+Currently supports Aliyun Drive (personal cloud).
+Run /disk_setup for first-time QR code login.
 
-/disk_ls          List cloud files
-/disk_up <local> <remote>    Upload file
-/disk_down <remote> [local]  Download file
+/disk_setup       Launch cloud disk setup wizard
+/disk_ls          List files and folders in current cloud dir
+/disk_cd <dir>     Change cloud directory (supports ..)
+/disk_up <local> <remote>    Upload file to current dir
+/disk_down <remote> [local]  Download file from current dir
 
-Deps: pip install oss2 (Aliyun)
-      or fr-cli[aliyun] / fr-cli[baidu] / fr-cli[onedrive]
+Examples:
+  /disk_setup                     First-time QR login
+  /disk_ls                        List cloud files
+  /disk_cd docs                   Enter docs folder
+  /disk_up /local/report.pdf report.pdf
+  /disk_down report.pdf /local/
+
+Deps: pip install aligo
 """,
         "help_detail_vision": """📜 [Vision]
 
 /see <img_path> [question]   Analyze image with GLM-4V
 
-Notes:
-  • Switch model first: /model glm-4v-plus
-  • Supports local path or URL
-  • AI auto-invoke: 【调用：generate_image({"prompt": "..."})】
-  • Image generation uses CogView-3-plus, saved to current dir
+Steps:
+  1. /model glm-4v-plus            Switch to vision model
+  2. /see photo.jpg Describe this  Analyze image
+
+AI auto-invoke:
+  【调用：generate_image({"prompt": "..."})】
+  Image generation uses CogView-3-plus, saved to current dir
 """,
         "help_detail_shell": """📜 [Matrix - Shell Commands]
 
@@ -441,6 +609,7 @@ Notes:
 !<cmd> | <prompt> Pipe command output to AI for analysis
 
 Examples:
+  !ls -la /Users/me/project
   !ps aux | find the highest CPU process
   !cat log.txt | analyze this log for issues
 
@@ -479,19 +648,98 @@ Legacy format compatible:
 /launch <app> [target]     Launch specific app, optionally with file/URL
 /apps                      List available app aliases on this machine
 
+Examples:
+  /open https://example.com
+  /open /Users/me/doc.pdf
+  /launch chrome https://github.com
+  /launch wechat
+  /launch word /Users/me/report.docx
+
 Common app aliases:
   Browser: chrome, safari, firefox, edge, browser
   Office:  word, excel, powerpoint, ppt, wps
   Chat:    wechat, qq, dingtalk, lark
   Tools:   vscode, terminal, calculator, notepad
   Media:   music, spotify, vlc
+""",
+        "help_detail_agent": """📜 [Agent System]
 
-Examples:
-  /open https://example.com
-  /open /Users/me/doc.pdf
-  /launch chrome https://example.com
-  /launch wechat
-  /launch word /Users/me/report.docx
+/agent_create <name> <desc>   Auto-generate a complete Agent (persona/skills/code)
+/agent_forge <name>           Extract code from the latest AI reply and forge as Agent
+/agent_list                   List all Agent instances
+/agent_show <name>            View Agent details (persona/memory/skills/code/workflow)
+/agent_edit <name> <type>     Edit Agent settings (persona/memory/skills/agent/workflow)
+/agent_run <name> [args]      Run specified Agent
+/agent_delete <name>          Delete Agent
+
+Agent directory: ~/.fr_cli_agents/<name>/
+  • persona.md  — Character setting
+  • memory.md   — Long-term memory
+  • skills.md   — Skill descriptions
+  • agent.py    — Optional custom execution logic (must contain run(context, **kwargs))
+  • workflow.md — Optional workflow definition
+
+How to turn existing code into an Agent:
+  1. Ask AI to generate code containing def run(context, **kwargs)
+  2. The program auto-detects Agent structure and prompts to save
+  3. Or manually run /agent_forge <name> to extract code from the latest reply
+""",
+        "help_detail_builtin": """📜 [Built-in Agents — @ Prefix]
+
+Use @ prefix in chat to trigger built-in Agents:
+
+@local <requirement>         Local system assistant, AI generates and executes shell commands
+@remote [alias] <requirement> Remote SSH assistant, executes commands on remote hosts
+@spider <URL> [depth]        Smart web crawler with anti-bot adaptation
+@db [alias] <requirement>    Database assistant, auto-analyzes schema and generates SQL
+@RAG <question>              Local knowledge base Q&A with vector search
+
+RAG Knowledge Base Management:
+  /rag_dir <path>   — Set KB directory and sync for the first time
+  /rag_sync [path]  — Manually sync KB (vectorize new files)
+  /rag_watch start [dir] [--interval N] — Start standalone daemon (persistent background watcher)
+  /rag_watch stop   — Stop the standalone daemon
+  /rag_watch status — Show daemon status
+  /rag_watch log [--lines N] — View daemon log
+
+Notes:
+  • ChromaDB runs in embedded mode (PersistentClient), no separate service needed
+  • Built-in mode (auto-started after /rag_dir) uses a daemon thread, stops when fr-cli exits
+  • Standalone mode (/rag_watch start) is a system-level process, survives terminal exit
+  • Daemon managed via PID file, logs written to ~/.fr_cli_rag_watcher.log
+
+Setup wizards:
+  /remote_setup  — Remote host configuration wizard
+  /db_setup      — Database configuration wizard
+""",
+        "help_detail_dataframe": """📜 [Data Scroll — Excel / CSV]
+
+/read_excel <file>   Read Excel file and output data summary
+/read_csv <file>     Read CSV file and output data summary
+
+Notes:
+  • Supports .xlsx, .xls, .csv formats
+  • Auto-outputs columns, dtypes, null stats, numeric stats, top-10 preview
+  • Summary can be fed to AI for deep analysis
+""",
+        "help_detail_gatekeeper": """📜 [Gatekeeper Daemon]
+
+/gatekeeper start    Start the daemon (persists Agent HTTP server, global cron, agent cron)
+/gatekeeper stop     Stop the daemon
+/gatekeeper status   Show daemon status
+
+Agent Cron Jobs:
+  /agent_cron_add <agent> <seconds> [input]  Add a scheduled execution for an Agent
+  /agent_cron_list                           List all Agent cron jobs
+  /agent_cron_del <ID>                       Delete an Agent cron job
+
+Notes:
+  • Daemon runs independently of the main fr-cli process, survives terminal exit
+  • On start, auto-saves current Agent HTTP port and cron job configs
+  • Agent API, global cron jobs, and agent cron jobs survive after fr-cli exits
+  • Daemon reloads config every 30 seconds; changes from main process auto-sync
+  • Global cron jobs (/cron_add) are auto-synced to daemon config after change
+  • Daemon config stored in ~/.fr_cli_gatekeeper.json
 """,
         "help_detail_security": """📜 [Security]
 
@@ -508,6 +756,9 @@ Protected operations:
 
 Path traversal protection:
   VFS checks via Path.resolve(), blocks ../ escaping allowed_dirs
+
+Non-interactive mode:
+  • Set FR_CLI_NON_INTERACTIVE=1 to default-deny (for scripts/CI)
 """,
     }
 }

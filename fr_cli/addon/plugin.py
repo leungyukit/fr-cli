@@ -5,7 +5,7 @@
 import os, re, subprocess, sys
 from pathlib import Path
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import RED, GREEN, DIM
+from fr_cli.ui.ui import RED, GREEN, DIM, RESET
 
 PLUGIN_DIR = Path.home() / ".zhipu_cli_plugins"
 
@@ -25,6 +25,8 @@ def extract_code(text):
     if match:
         return match.group(1).strip()
     return ""
+
+
 def exec_plugin(name, path, args, lang):
     """
     在子进程中安全执行插件

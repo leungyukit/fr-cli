@@ -6,7 +6,7 @@ import json, os
 from pathlib import Path
 from datetime import datetime
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import GREEN, RED, DIM, RESET
+from fr_cli.ui.ui import RED, RESET
 
 HIST_DIR = Path.home() / ".zhipu_cli_history"
 

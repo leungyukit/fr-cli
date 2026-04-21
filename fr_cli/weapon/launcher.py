@@ -2,7 +2,6 @@
 本地应用启动器 —— 驭器神通
 支持跨平台调用浏览器、办公软件、通讯工具等本机程序。
 """
-import os
 import platform
 import subprocess
 

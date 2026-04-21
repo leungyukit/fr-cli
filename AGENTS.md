@@ -232,6 +232,15 @@ Agent 分身系统允许用户创建独立的 AI Agent（分身），每个 Agen
 
 Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 
+### 创建 Agent 的四种方式
+
+1. **AI 自动生成**：`/agent_create <name> <description>` —— 调用大模型生成完整 Agent（persona + skills + code）
+2. **从已有代码铸造**：`/agent_forge <name>` —— 从历史消息中提取最近一段包含 `def run(context, **kwargs)` 的 Python 代码，直接保存为 Agent
+3. **自动检测提示**：当 AI 回复中包含 `def run(context, **kwargs)` 和 `\`\`\`python` 代码块时，程序自动弹出提示，输入名称即可保存
+4. **手动创建**：直接在 `~/.fr_cli_agents/<name>/` 目录下创建 `agent.py`（必须包含 `run(context, **kwargs)` 入口），可选补充 `persona.md`、`skills.md`、`workflow.md`
+
+> **插件 vs Agent 分身的区分**：包含 `def run(args='')` 的代码会被识别为**插件**（保存到 `~/.zhipu_cli_plugins/`），包含 `def run(context, **kwargs)` 的代码会被识别为 **Agent 分身**（保存到 `~/.fr_cli_agents/`）。
+
 ### 模块职责
 
 - **`agent/manager.py`** —— 分身掌管者
@@ -257,6 +266,65 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
   - `AgentHTTPServer(state, host, port)`：HTTP 守护线程
   - 提供 REST API：`GET /agents`、`GET /agents/<name>`、`POST /agents/<name>/run`、`POST /agents/<name>/workflow`
   - 零额外依赖（标准库 `http.server`）
+
+### 内置 Agent 使用指南
+
+**@local — 本地系统操作**
+```
+>>> @local 查看当前目录下最大的10个文件
+🧙 正在分析本地操作...
+建议命令: find . -type f -exec ls -lh {} + | sort -k5 -rh | head -10
+是否执行? [Y/n]: Y
+```
+
+**@remote — 远程 SSH 操作**
+```
+>>> @remote myserver 查看磁盘空间
+🧙 正在为 [myserver](Linux) 生成远程命令...
+建议命令 (myserver): df -h
+是否执行? [Y/n]: Y
+```
+- 首次使用自动启动配置向导，配置文件：`~/.fr_cli_remotes.json`
+
+**@spider — 智能网页爬虫**
+```
+>>> @spider https://example.com 2
+🕷️ 开始爬取: https://example.com | 深度: 2
+爬取完成 | 成功: 15 个页面 | 保存目录: web_20240115/
+```
+- 依赖: `pip install requests selenium`
+
+**@db — 数据库智能助手**
+```
+>>> @db mydb 查询最近7天注册用户
+📊 正在分析 Schema...
+生成 SQL: SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY);
+是否执行? [Y/n]: Y
+返回 1 行: {'COUNT(*)': 342}
+```
+- 支持：MySQL / PostgreSQL / SQL Server / Oracle
+- 配置文件：`~/.fr_cli_databases.json`
+
+**@RAG — 本地知识库问答**
+```
+>>> @RAG 项目的部署流程是什么
+📚 正在同步知识库...
+🔍 正在检索知识库并生成回答...
+```
+- 向量库：ChromaDB（嵌入式 `PersistentClient`，自动启动，无需单独服务）
+- 嵌入模型：all-MiniLM-L6-v2（向量检索）
+- Rerank 模型：cross-encoder/ms-marco-MiniLM-L-6-v2（重排序，取 top-3）
+- 大模型判定：LLM 从 top-3 中按相关性/完整性/准确性评估，选出 ★【最佳】片段
+- 最终生成：优先基于最佳片段回答，可综合其他片段补充
+- 配置命令：`/rag_dir <目录路径>` — 设置目录并首次同步
+- 手动同步：`/rag_sync [路径]` — 立即向量化新文件/更新文件
+- 独立守护进程：`/rag_watch start [目录] [--interval N]` — 启动持久化后台监控进程
+  - `/rag_watch stop` — 停止守护进程
+  - `/rag_watch status` — 查看守护进程状态
+  - `/rag_watch log [--lines N]` — 查看守护进程日志
+- 监控模式说明：
+  - 内置模式（`/rag_dir` 后自动启动）：daemon 线程，fr-cli 退出后终止
+  - 独立模式（`/rag_watch start`）：系统级子进程，脱离终端，日志写入 `~/.fr_cli_rag_watcher.log`
 
 ### 工作流格式示例
 
@@ -454,13 +522,19 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 | 添加本机应用启动 | 修改 `weapon/launcher.py` 的 `_APP_ALIASES` 映射表，按平台添加别名 |
 | 添加数据库支持 | 修改 `agent/builtins/db.py` 的 `_connect()` 添加新数据库驱动 |
 | 添加 RAG 文件类型 | 修改 `agent/builtins/rag.py` 的 `_read_file()` 添加新文件格式解析 |
+| 修改 RAG 检索流程 | 修改 `agent/builtins/rag.py` 的 `query()` — 调整 rerank 模型、候选池大小、大模型判定 prompt |
 | 添加 Excel/CSV 支持 | 修改 `weapon/dataframe.py` 添加新的数据读取/分析方法 |
 | 添加新数据库支持 | 修改 `agent/builtins/db.py` 的 `_connect()` 添加新数据库驱动 |
 | 添加 Agent 工作流 | 在 Agent 目录下创建 `workflow.md`，使用 `## 步骤N` 格式定义步骤 |
 | 启动 Agent HTTP 服务 | 在 CLI 中输入 `/agent_server start [port]`，或直接用 `AgentHTTPServer(state, port=8080).start()` |
 | 添加 Agent HTTP 端点 | 修改 `agent/server.py` 的 `_AgentHTTPHandler`，新增路由和处理逻辑 |
+| 启动 Gatekeeper 守护进程 | 在 CLI 中输入 `/gatekeeper start`，持久化 Agent HTTP 服务 + 定时任务 + Agent 定时任务 |
+| 添加 Agent 定时任务 | 在 CLI 中输入 `/agent_cron_add <agent名称> <秒> [输入]`，Gatekeeper 后台自动执行 |
+| 修改定时任务执行逻辑 | 修改 `weapon/cron.py` 的 `CronManager._job_runner()`，支持 shell/agent 两种类型 |
 | 添加新配置项 | 修改 `conf/config.py` 的默认字典 `d`，在 `AppState` 中读取并使用 |
 | 修改安全策略 | 修改 `security/security.py` 的 `ask()`，确保返回值在 `command/security.py` 的 `SecurityManager.check()` 中正确处理 |
+| 切换思维模式 | 在 CLI 中输入 `/mode cot|tot|react`，启用 CoT/ToT/ReAct 深度推理 |
+| 修改思维引擎 | 修改 `core/thinking.py` 的 prompt 模板或 `ThinkingEngine.analyze()` 逻辑 |
 | 修改插件机制 | 修改 `addon/plugin.py`，保持 `def run(args='')` 的约定和子进程超时 15 秒的限制 |
 | 修改流式输出 | 修改 `core/stream.py` 的 `stream_cnt()`，注意代码块高亮状态机 |
 | 修改国际化文本 | 修改 `lang/i18n.py` 的 `I18N` 字典，确保 `zh` 与 `en` 键同时存在 |
@@ -469,4 +543,4 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 
 ---
 
-*文档更新时间：2026-04-19（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG）+ 数据卷轴 + 本机应用启动）。*
+*文档更新时间：2026-04-20（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct 思维推演模式）。*

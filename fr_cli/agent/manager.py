@@ -11,11 +11,14 @@ PERSONA_FILE = "persona.md"
 MEMORY_FILE = "memory.md"
 SKILLS_FILE = "skills.md"
 AGENT_CODE_FILE = "agent.py"
+PROGRESS_FILE = "progress.json"
 
 
 def _agent_dir(name: str) -> Path:
     """获取指定 Agent 的洞府路径"""
     safe_name = "".join(c for c in name if c.isalnum() or c in ("_", "-"))
+    if not safe_name:
+        safe_name = "unnamed"
     return AGENTS_DIR / safe_name
 
 
@@ -122,3 +125,69 @@ def load_agent_module(name: str):
     mod = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(mod)
     return mod
+
+
+# ---------- 定时任务进度读写 ----------
+
+import json
+from datetime import datetime
+
+
+def load_progress(name: str) -> dict:
+    """读取 Agent 的定时任务执行进度"""
+    f = _agent_dir(name) / PROGRESS_FILE
+    if not f.exists():
+        return {}
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_progress(name: str, data: dict):
+    """保存 Agent 的定时任务执行进度"""
+    f = _agent_dir(name) / PROGRESS_FILE
+    try:
+        f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass
+
+
+def append_progress(name: str, result: str, user_input: str = "", status: str = "success", max_history: int = 50):
+    """追加一条执行记录到 Agent 进度文件
+    
+    Args:
+        result: 执行结果摘要
+        user_input: 触发此次执行的输入（定时任务的 input 或用户输入）
+        status: success / error
+        max_history: 保留的最大历史记录数
+    """
+    progress = load_progress(name)
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "input": user_input,
+        "result": result,
+        "status": status,
+    }
+    history = progress.get("history", [])
+    history.append(entry)
+    # 保留最近 max_history 条
+    if len(history) > max_history:
+        history = history[-max_history:]
+    progress["history"] = history
+    progress["latest"] = entry
+    progress["counter"] = progress.get("counter", 0) + 1
+    save_progress(name, progress)
+
+
+def get_latest_progress(name: str) -> dict:
+    """获取 Agent 最近一次执行进度"""
+    progress = load_progress(name)
+    return progress.get("latest", {})
+
+
+def get_progress_history(name: str, limit: int = 10) -> list:
+    """获取 Agent 执行历史记录"""
+    progress = load_progress(name)
+    history = progress.get("history", [])
+    return history[-limit:] if history else []

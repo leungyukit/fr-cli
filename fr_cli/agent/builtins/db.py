@@ -2,8 +2,6 @@
 @db 内置 Agent —— 数据库智能助手
 支持 MySQL / PostgreSQL / SQL Server / Oracle 的 Schema 分析和 SQL 生成。
 """
-import json
-import subprocess
 from pathlib import Path
 
 DB_CFG_PATH = Path.home() / ".fr_cli_databases.json"
@@ -26,16 +24,13 @@ Schema 信息:
 
 
 def _load_dbs():
-    if not DB_CFG_PATH.exists():
-        return {}
-    try:
-        return json.loads(DB_CFG_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    from fr_cli.agent.builtins._utils import load_json_config
+    return load_json_config(DB_CFG_PATH)
 
 
 def _save_dbs(dbs):
-    DB_CFG_PATH.write_text(json.dumps(dbs, ensure_ascii=False, indent=2), encoding="utf-8")
+    from fr_cli.agent.builtins._utils import save_json_config
+    save_json_config(DB_CFG_PATH, dbs)
 
 
 def _connect(db_cfg):
@@ -207,19 +202,16 @@ def handle_db(user_input, state):
         sql_text, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
         sql_text = sql_text.strip()
 
-        if sql_text.startswith("```"):
-            sql_text = sql_text.split("\n", 1)[1] if "\n" in sql_text else ""
-            if sql_text.endswith("```"):
-                sql_text = sql_text.rsplit("\n", 1)[0]
-            sql_text = sql_text.strip()
+        from fr_cli.agent.builtins._utils import strip_code_blocks
+        sql_text = strip_code_blocks(sql_text)
 
         if sql_text.startswith("COMMENT:"):
             print(f"{YELLOW}{sql_text}{RESET}")
             return
 
         print(f"\n{DIM}生成 SQL:{RESET}\n{CYAN}{sql_text}{RESET}")
-        confirm = input(f"{DIM}是否执行? [Y/n]: {RESET}").strip().lower()
-        if confirm and confirm not in ("y", "yes", "Y"):
+        from fr_cli.agent.builtins._utils import confirm_execute
+        if not confirm_execute():
             print(f"{DIM}已取消。{RESET}")
             return
 

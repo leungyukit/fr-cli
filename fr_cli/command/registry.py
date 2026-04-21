@@ -5,6 +5,16 @@
 from types import SimpleNamespace
 
 
+# ---- 触发关键词常量（避免同类工具重复定义）----
+_TRIGGERS_FILE = ["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"]
+_TRIGGERS_WEB = ["搜索", "search", "查一下", "查询", "look up", "最新新闻", "今天天气", "股价", "汇率", "查百度", "查谷歌"]
+_TRIGGERS_MAIL = ["邮件", "mail", "email", "发邮件", "收件箱", "inbox", "发送邮件", "查看邮件"]
+_TRIGGERS_CRON = ["定时任务", "定时执行", "周期性执行", "cron job", "scheduled task", "定时器"]
+_TRIGGERS_DISK = ["云盘", "上传文件", "下载文件", "cloud disk", "upload file", "download file", "云端"]
+_TRIGGERS_SESSION = ["保存会话", "加载会话", "导出会话", "save session", "load session", "export session"]
+_TRIGGERS_CONFIG = ["切换模型", "换模型", "改模型", "set model", "api key", "api密钥", "切换语言", "设置上限"]
+
+
 class ToolRegistry:
     """工具注册表 —— 单一真相源"""
 
@@ -35,7 +45,7 @@ class ToolRegistry:
         if not security_key:
             return True
         if deps.security is None:
-            return True
+            return True  # 测试/非交互环境中无 security 时放行，由调用方保障安全
         return deps.security.check(security_key, target)
 
     def dispatch(self, deps, tool_name, msgs=None, skip_security=False, **kwargs):
@@ -62,9 +72,8 @@ class ToolRegistry:
         except Exception as e:
             return None, f"Error: {e}"
 
-    def dispatch_cmd(self, deps, cmd_str, msgs=None):
-        """命令字符串调用：/cmd args（跳过安全确认，由调用方负责）"""
-        parts = cmd_str.strip().split()
+    def _dispatch_cmd_parts(self, deps, parts, msgs=None):
+        """内部：根据已分词的 parts 调度命令（复用逻辑，避免重复 split）"""
         if not parts:
             return None, "Empty command"
 
@@ -79,6 +88,11 @@ class ToolRegistry:
         if isinstance(kwargs, tuple) and len(kwargs) == 2 and kwargs[0] is None:
             return kwargs
         return self.dispatch(deps, tool_name, msgs=msgs, skip_security=True, **kwargs)
+
+    def dispatch_cmd(self, deps, cmd_str, msgs=None):
+        """命令字符串调用：/cmd args（跳过安全确认，由调用方负责）"""
+        parts = cmd_str.strip().split()
+        return self._dispatch_cmd_parts(deps, parts, msgs=msgs)
 
     def _parse_cmd_args(self, parts, tool, deps):
         """将命令行参数解析为 kwargs"""
@@ -271,7 +285,7 @@ def _ensure_mail(deps):
 
 
 def _ensure_disk(deps):
-    if deps.disk_c and getattr(deps.disk_c, "type", None) and getattr(deps.disk_c, "bucket", None):
+    if deps.disk_c and getattr(deps.disk_c, "type", None):
         return True
     from fr_cli.conf.wizard import disk_wizard
     ok, deps.cfg = disk_wizard(deps.cfg, deps.lang)
@@ -286,7 +300,7 @@ def _ensure_disk(deps):
 # ------------------------------------------------------------------
 @register(
     name="write_file",
-    triggers=["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"],
+    triggers=_TRIGGERS_FILE,
     description="写入文件",
     params={"path": str, "content": str},
     security="sec_write",
@@ -299,7 +313,7 @@ def _write_file(deps, **kwargs):
 
 @register(
     name="read_file",
-    triggers=["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"],
+    triggers=_TRIGGERS_FILE,
     description="读取文件",
     params={"path": str},
     security="sec_read",
@@ -312,7 +326,7 @@ def _read_file(deps, **kwargs):
 
 @register(
     name="list_files",
-    triggers=["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"],
+    triggers=_TRIGGERS_FILE,
     description="列出文件",
     params={},
     aliases=["/ls"],
@@ -324,7 +338,7 @@ def _list_files(deps, **kwargs):
 
 @register(
     name="change_dir",
-    triggers=["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"],
+    triggers=_TRIGGERS_FILE,
     description="切换目录",
     params={"path": str},
     aliases=["/cd"],
@@ -336,7 +350,7 @@ def _change_dir(deps, **kwargs):
 
 @register(
     name="append_file",
-    triggers=["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"],
+    triggers=_TRIGGERS_FILE,
     description="追加文件",
     params={"path": str, "content": str},
     security="sec_write",
@@ -349,7 +363,7 @@ def _append_file(deps, **kwargs):
 
 @register(
     name="delete_file",
-    triggers=["文件", "目录", "folder", "读取", "read", "保存到", "save to", "写入文件", "创建文件", "生成文件", "ls", "cat", "cd", "write", "append", "delete"],
+    triggers=_TRIGGERS_FILE,
     description="删除文件",
     params={"path": str},
     security="sec_write",
@@ -400,7 +414,7 @@ def _generate_image(deps, **kwargs):
 # ------------------------------------------------------------------
 @register(
     name="search_web",
-    triggers=["搜索", "search", "查一下", "查询", "look up", "最新新闻", "今天天气", "股价", "汇率", "查百度", "查谷歌"],
+    triggers=_TRIGGERS_WEB,
     description="网络搜索",
     params={"query": str},
     security="sec_fetch_web",
@@ -415,7 +429,7 @@ def _search_web(deps, **kwargs):
 
 @register(
     name="fetch_web",
-    triggers=["搜索", "search", "查一下", "查询", "look up", "最新新闻", "今天天气", "股价", "汇率", "查百度", "查谷歌"],
+    triggers=_TRIGGERS_WEB,
     description="抓取网页",
     params={"url": str},
     security="sec_fetch_web",
@@ -431,7 +445,7 @@ def _fetch_web(deps, **kwargs):
 # ------------------------------------------------------------------
 @register(
     name="mail_inbox",
-    triggers=["邮件", "mail", "email", "发邮件", "收件箱", "inbox", "发送邮件", "查看邮件"],
+    triggers=_TRIGGERS_MAIL,
     description="查看收件箱",
     params={},
     aliases=["/mail_inbox"],
@@ -448,7 +462,7 @@ def _mail_inbox(deps, **kwargs):
 
 @register(
     name="mail_read",
-    triggers=["邮件", "mail", "email", "发邮件", "收件箱", "inbox", "发送邮件", "查看邮件"],
+    triggers=_TRIGGERS_MAIL,
     description="读取邮件",
     params={"id": str},
     aliases=["/mail_read"],
@@ -465,7 +479,7 @@ def _mail_read(deps, **kwargs):
 
 @register(
     name="mail_send",
-    triggers=["邮件", "mail", "email", "发邮件", "收件箱", "inbox", "发送邮件", "查看邮件"],
+    triggers=_TRIGGERS_MAIL,
     description="发送邮件",
     params={"to": str, "subject": str, "body": str},
     security="sec_send_mail",
@@ -499,21 +513,26 @@ def _mail_setup(deps, **kwargs):
 # ------------------------------------------------------------------
 @register(
     name="cron_add",
-    triggers=["定时任务", "定时执行", "周期性执行", "cron job", "scheduled task", "定时器"],
+    triggers=_TRIGGERS_CRON,
     description="添加定时任务",
     params={"command": str, "interval": int},
     security="sec_exec",
     aliases=["/cron_add"],
 )
 def _cron_add(deps, **kwargs):
-    from fr_cli.weapon.cron import add_job
+    from fr_cli.weapon.cron import add_job, _default_manager
+    from fr_cli.gatekeeper.manager import sync_gatekeeper_cron_jobs
     jid, m = add_job(kwargs["command"], kwargs["interval"], deps.lang)
-    return (m, None) if jid is not None else (None, m)
+    if jid is not None:
+        # 自动同步到 gatekeeper 配置
+        sync_gatekeeper_cron_jobs(cron_jobs=_default_manager.export_jobs())
+        return m, None
+    return None, m
 
 
 @register(
     name="cron_list",
-    triggers=["定时任务", "定时执行", "周期性执行", "cron job", "scheduled task", "定时器"],
+    triggers=_TRIGGERS_CRON,
     description="列出定时任务",
     params={},
     aliases=["/cron_list"],
@@ -526,15 +545,20 @@ def _cron_list(deps, **kwargs):
 
 @register(
     name="cron_del",
-    triggers=["定时任务", "定时执行", "周期性执行", "cron job", "scheduled task", "定时器"],
+    triggers=_TRIGGERS_CRON,
     description="删除定时任务",
     params={"id": str},
     aliases=["/cron_del"],
 )
 def _cron_del(deps, **kwargs):
-    from fr_cli.weapon.cron import del_job
+    from fr_cli.weapon.cron import del_job, _default_manager
+    from fr_cli.gatekeeper.manager import sync_gatekeeper_cron_jobs
     ok, m = del_job(int(kwargs["id"]), deps.lang)
-    return (m, None) if ok else (None, m)
+    if ok:
+        # 自动同步到 gatekeeper 配置
+        sync_gatekeeper_cron_jobs(cron_jobs=_default_manager.export_jobs())
+        return m, None
+    return None, m
 
 
 # ------------------------------------------------------------------
@@ -542,7 +566,7 @@ def _cron_del(deps, **kwargs):
 # ------------------------------------------------------------------
 @register(
     name="disk_ls",
-    triggers=["云盘", "上传文件", "下载文件", "cloud disk", "upload file", "download file", "云端"],
+    triggers=_TRIGGERS_DISK,
     description="列出云盘文件",
     params={},
     aliases=["/disk_ls"],
@@ -557,7 +581,7 @@ def _disk_ls(deps, **kwargs):
 
 @register(
     name="disk_up",
-    triggers=["云盘", "上传文件", "下载文件", "cloud disk", "upload file", "download file", "云端"],
+    triggers=_TRIGGERS_DISK,
     description="上传文件到云盘",
     params={"local": str, "remote": str},
     security="sec_upload_disk",
@@ -573,7 +597,7 @@ def _disk_up(deps, **kwargs):
 
 @register(
     name="disk_down",
-    triggers=["云盘", "上传文件", "下载文件", "cloud disk", "upload file", "download file", "云端"],
+    triggers=_TRIGGERS_DISK,
     description="从云盘下载文件",
     params={"remote": str, "local": str},
     security="sec_download_disk",
@@ -586,6 +610,21 @@ def _disk_down(deps, **kwargs):
     loc = kwargs.get("local") or kwargs["remote"].split("/")[-1]
     ok, m = deps.disk_c.down(kwargs["remote"], loc, deps.lang)
     return (m, None) if ok else (None, m)
+
+
+@register(
+    name="disk_cd",
+    triggers=_TRIGGERS_DISK,
+    description="切换云盘目录",
+    params={"path": str},
+    aliases=["/disk_cd"],
+)
+def _disk_cd(deps, **kwargs):
+    from fr_cli.lang.i18n import T
+    if not _ensure_disk(deps):
+        return None, T("disk_no_cfg", deps.lang)
+    ok, msg = deps.disk_c.cd(kwargs["path"], deps.lang)
+    return (msg, None) if ok else (None, msg)
 
 
 @register(
@@ -608,7 +647,7 @@ def _disk_setup(deps, **kwargs):
 # ------------------------------------------------------------------
 @register(
     name="save_session",
-    triggers=["保存会话", "加载会话", "导出会话", "save session", "load session", "export session"],
+    triggers=_TRIGGERS_SESSION,
     description="保存会话",
     params={"name": str},
     aliases=["/save"],
@@ -628,7 +667,7 @@ def _save_session(deps, msgs=None, **kwargs):
 
 @register(
     name="list_sessions",
-    triggers=["保存会话", "加载会话", "导出会话", "save session", "load session", "export session"],
+    triggers=_TRIGGERS_SESSION,
     description="列出会话",
     params={},
     aliases=["/load"],
@@ -644,7 +683,7 @@ def _list_sessions(deps, **kwargs):
 
 @register(
     name="export_session",
-    triggers=["保存会话", "加载会话", "导出会话", "save session", "load session", "export session"],
+    triggers=_TRIGGERS_SESSION,
     description="导出会话",
     params={},
     aliases=["/export"],
@@ -661,16 +700,22 @@ def _export_session(deps, msgs=None, **kwargs):
 @register(
     name="delete_session",
     description="删除会话",
-    params={},
+    params={"id": str},
     aliases=["/del"],
 )
 def _delete_session(deps, **kwargs):
-    from fr_cli.memory.history import get_sessions
+    from fr_cli.memory.history import get_sessions, del_sess
     from fr_cli.lang.i18n import T
     ss = get_sessions()
     if not ss:
         return None, T("no_sess", deps.lang)
-    return "\n".join([f"[{i}] {s['name']}" for i, s in enumerate(ss)]), None
+    sid = kwargs.get("id", "")
+    if sid and sid.isdigit():
+        idx = int(sid)
+    else:
+        idx = 0
+    ok = del_sess(idx)
+    return (T('ok_sess_del', deps.lang), None) if ok else (None, "Delete failed")
 
 
 # ------------------------------------------------------------------
@@ -678,7 +723,7 @@ def _delete_session(deps, **kwargs):
 # ------------------------------------------------------------------
 @register(
     name="set_model",
-    triggers=["切换模型", "换模型", "改模型", "set model", "api key", "api密钥", "切换语言", "设置上限"],
+    triggers=_TRIGGERS_CONFIG,
     description="切换模型",
     params={"name": str},
     aliases=["/model"],
@@ -687,13 +732,14 @@ def _set_model(deps, **kwargs):
     from fr_cli.conf.config import save_config
     from fr_cli.lang.i18n import T
     deps.cfg["model"] = kwargs["name"]
+    deps.model_name = kwargs["name"]
     save_config(deps.cfg)
     return T('ok_model', deps.lang, kwargs["name"]), None
 
 
 @register(
     name="set_key",
-    triggers=["切换模型", "换模型", "改模型", "set model", "api key", "api密钥", "切换语言", "设置上限"],
+    triggers=_TRIGGERS_CONFIG,
     description="设置API密钥",
     params={"key": str},
     aliases=["/key"],
@@ -708,7 +754,7 @@ def _set_key(deps, **kwargs):
 
 @register(
     name="set_limit",
-    triggers=["切换模型", "换模型", "改模型", "set model", "api key", "api密钥", "切换语言", "设置上限"],
+    triggers=_TRIGGERS_CONFIG,
     description="设置Token上限",
     params={"limit": int},
     aliases=["/limit"],
@@ -726,7 +772,7 @@ def _set_limit(deps, **kwargs):
 
 @register(
     name="set_lang",
-    triggers=["切换模型", "换模型", "改模型", "set model", "api key", "api密钥", "切换语言", "设置上限"],
+    triggers=_TRIGGERS_CONFIG,
     description="切换语言",
     params={"code": str},
     aliases=["/lang"],
@@ -736,6 +782,7 @@ def _set_lang(deps, **kwargs):
     lc = kwargs["code"]
     if lc in ['zh', 'en']:
         deps.cfg["lang"] = lc
+        deps.lang = lc
         save_config(deps.cfg)
         return f"Language changed to {lc}", None
     return None, "Invalid language. Use zh or en"
@@ -901,7 +948,15 @@ def _agent_create(deps, **kwargs):
 )
 def _agent_run(deps, **kwargs):
     from fr_cli.agent.executor import run_agent
-    result, err = run_agent(kwargs["name"], deps)
+    # run_agent 需要 AppState（state），但 registry 中只有 deps（SimpleNamespace）
+    # 将 deps 包装为兼容对象，补充 executor 和 state 引用
+    class _CompatState:
+        def __init__(self, d):
+            for k, v in d.__dict__.items():
+                setattr(self, k, v)
+    compat = _CompatState(deps)
+    compat.executor = getattr(deps, 'executor', None)
+    result, err = run_agent(kwargs["name"], compat)
     return (result, None) if not err else (None, err)
 
 

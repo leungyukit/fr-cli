@@ -5,7 +5,7 @@
 import os
 from pathlib import Path
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import GREEN, RED, CYAN, DIM, RESET
+from fr_cli.ui.ui import GREEN, RED, CYAN, RESET
 
 class VFS:
     def __init__(self, allowed_dirs):
@@ -19,11 +19,14 @@ class VFS:
         target = (base / p).resolve()
         # 检查解析后的路径是否仍在允许的目录树内
         for d in self.ds:
-            base_path = str(Path(d).resolve())
-            target_str = str(target)
-            # 精确匹配或确保是子目录（防止 /foo 匹配 /foo-bar）
-            if target_str == base_path or target_str.startswith(base_path + os.sep):
+            base_path = Path(d).resolve()
+            try:
+                # 使用 relative_to 精确判断是否为目标目录的子路径
+                # 可正确处理根目录（/）及避免 /foo 错误匹配 /foo-bar 的前缀问题
+                target.relative_to(base_path)
                 return target
+            except ValueError:
+                continue
         return None
 
     def add(self, p, l):
@@ -89,11 +92,10 @@ class VFS:
         if not target: return False, f"{RED}{T('err_bound', l)}{RESET}"
         
         try:
-            # 如果是覆盖模式，检查父目录是否存在
-            if mode == 'w':
-                parent = target.parent
-                if not parent.exists():
-                    parent.mkdir(parents=True, exist_ok=True)
+            # 确保父目录存在（覆盖和追加模式都需要）
+            parent = target.parent
+            if not parent.exists():
+                parent.mkdir(parents=True, exist_ok=True)
             
             # 写入文件
             with open(target, mode, encoding=encoding) as f:
@@ -152,3 +154,53 @@ class VFS:
             return False, f"{RED}{T('err_write_perm', l)}{RESET}"
         except Exception as e:
             return False, f"{RED}{e}{RESET}"
+
+    def list_dirs(self, l):
+        """列出所有已挂载的工作目录（洞府）
+        
+        Returns:
+            (列表, None) 或 (None, 错误信息)
+        """
+        if not self.ds:
+            return None, f"{RED}{T('no_dir', l)}{RESET}"
+        items = []
+        for i, d in enumerate(self.ds):
+            marker = f" {GREEN}[{T('cur_dir', l)}]{RESET}" if d == self.cwd else ""
+            items.append(f"  [{i}] {CYAN}{d}{RESET}{marker}")
+        return items, None
+
+    def remove_dir(self, p, l):
+        """从允许列表中移除指定工作目录
+        
+        支持按索引或绝对/相对路径删除。
+        若移除的是当前 cwd，自动切换到剩余目录中的第一个。
+        
+        Args:
+            p: 索引字符串或路径
+            l: 语言
+        
+        Returns:
+            (success, message)
+        """
+        if not self.ds:
+            return False, f"{RED}{T('no_dir', l)}{RESET}"
+
+        # 尝试按索引解析
+        try:
+            idx = int(p)
+            if idx < 0 or idx >= len(self.ds):
+                return False, f"{RED}{T('err_dir_idx', l)}{RESET}"
+            removed = self.ds.pop(idx)
+        except ValueError:
+            # 按路径解析
+            rp = str(Path(p).resolve())
+            if rp not in self.ds:
+                return False, f"{RED}{T('err_dir_not_mounted', l, rp)}{RESET}"
+            self.ds.remove(rp)
+            removed = rp
+
+        # 若删除的是当前 cwd，自动切换
+        if self.cwd == removed:
+            self.cwd = self.ds[0] if self.ds else None
+
+        return True, f"{GREEN}{T('ok_dir_remove', l, removed)}{RESET}"

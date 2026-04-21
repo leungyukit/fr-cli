@@ -88,6 +88,68 @@ class TestVFS(unittest.TestCase):
         self.assertIsNone(items)
         self.assertIsNotNone(err)
 
+    def test_list_dirs(self):
+        """列出所有已挂载的工作目录"""
+        items, err = self.vfs.list_dirs("zh")
+        self.assertIsNone(err)
+        self.assertEqual(len(items), 1)
+        self.assertIn(self.temp_dir, items[0])
+
+    def test_list_dirs_empty(self):
+        """未挂载任何目录时列出为空"""
+        from fr_cli.weapon.fs import VFS
+        empty_vfs = VFS([])
+        items, err = empty_vfs.list_dirs("zh")
+        self.assertIsNone(items)
+        self.assertIsNotNone(err)
+
+    def test_remove_dir_by_index(self):
+        """按索引删除工作目录"""
+        # 先添加第二个目录
+        subdir = os.path.join(self.temp_dir, "sub2")
+        os.makedirs(subdir)
+        self.vfs.add(subdir, "zh")
+        self.assertEqual(len(self.vfs.ds), 2)
+
+        # 按索引 1 删除
+        ok, msg = self.vfs.remove_dir("1", "zh")
+        self.assertTrue(ok)
+        self.assertEqual(len(self.vfs.ds), 1)
+        self.assertNotIn(subdir, self.vfs.ds)
+
+    def test_remove_dir_by_path(self):
+        """按路径删除工作目录"""
+        subdir = os.path.join(self.temp_dir, "sub3")
+        os.makedirs(subdir)
+        self.vfs.add(subdir, "zh")
+
+        ok, msg = self.vfs.remove_dir(subdir, "zh")
+        self.assertTrue(ok)
+        self.assertEqual(len(self.vfs.ds), 1)
+
+    def test_remove_dir_cwd_switch(self):
+        """删除当前 cwd 时自动切换"""
+        subdir = os.path.join(self.temp_dir, "sub4")
+        os.makedirs(subdir)
+        self.vfs.add(subdir, "zh")
+        self.vfs.cd("sub4", "zh")
+        self.assertEqual(self.vfs.cwd, subdir)
+
+        ok, msg = self.vfs.remove_dir(subdir, "zh")
+        self.assertTrue(ok)
+        # cwd 应自动切回剩余的第一个目录
+        self.assertEqual(self.vfs.cwd, self.temp_dir)
+
+    def test_remove_dir_invalid_index(self):
+        """删除无效的索引应失败"""
+        ok, msg = self.vfs.remove_dir("99", "zh")
+        self.assertFalse(ok)
+
+    def test_remove_dir_not_mounted(self):
+        """删除未挂载的路径应失败"""
+        ok, msg = self.vfs.remove_dir("/nonexistent/path", "zh")
+        self.assertFalse(ok)
+
 
 class TestSecurity(unittest.TestCase):
     """四阶安全确认引擎测试"""
@@ -397,6 +459,137 @@ class TestCommandParsing(unittest.TestCase):
         loc = parts[2] if len(parts) > 2 else arg1.split("/")[-1]
         self.assertEqual(arg1, "remote/path/file.txt")
         self.assertEqual(loc, "local/file.txt")
+
+
+class TestAliyunDrive(unittest.TestCase):
+    """阿里云盘适配器测试"""
+
+    def test_missing_dependency(self):
+        """未安装 aligo 时应优雅降级"""
+        from unittest.mock import patch
+        # 模拟 aligo 不存在
+        with patch.dict("sys.modules", {"aligo": None}):
+            from fr_cli.weapon.disk import CloudDisk
+            disk = CloudDisk({"type": "aliyundrive", "name": "test"})
+            self.assertTrue(str(disk.client).startswith("MISSING"))
+            res, err = disk.ls("zh")
+            self.assertIsNone(res)
+            self.assertIn("aligo", err)
+
+    def test_cloud_disk_with_mock(self):
+        """使用 Mock 验证 CloudDisk 各方法调用"""
+        from unittest.mock import MagicMock, patch
+        mock_aligo = MagicMock()
+        mock_file = MagicMock()
+        mock_file.name = "test.txt"
+        mock_file.file_id = "abc123"
+        mock_aligo.get_file_list.return_value = [mock_file]
+        mock_aligo.refresh_token = "mock_token"
+
+        with patch.dict("sys.modules", {"aligo": MagicMock(Aligo=MagicMock(return_value=mock_aligo))}):
+            from fr_cli.weapon.disk import CloudDisk
+            # 重新导入以确保使用 patched 模块
+            import importlib
+            import fr_cli.weapon.disk as disk_module
+            importlib.reload(disk_module)
+            CloudDisk = disk_module.CloudDisk
+
+            disk = CloudDisk({"type": "aliyundrive", "refresh_token": "rt"})
+            self.assertIsNotNone(disk.client)
+
+            # ls
+            files, err = disk.ls("zh")
+            self.assertIsNone(err)
+            self.assertEqual(files, ["📄 test.txt"])
+            mock_aligo.get_file_list.assert_called()
+
+            # up
+            import tempfile
+            with tempfile.NamedTemporaryFile(delete=False) as f:
+                f.write(b"hello")
+                tmp_path = f.name
+            ok, msg = disk.up(tmp_path, "test.txt", "zh")
+            self.assertTrue(ok)
+            mock_aligo.upload_file.assert_called()
+            os.unlink(tmp_path)
+
+            # down
+            ok, msg = disk.down("test.txt", "/tmp/test.txt", "zh")
+            self.assertTrue(ok)
+            mock_aligo.download_file.assert_called()
+
+    def test_ls_distinguishes_folders_and_files(self):
+        """ls() 应区分文件和文件夹并返回对应图标"""
+        from unittest.mock import MagicMock, patch
+        mock_aligo = MagicMock()
+        mock_folder = MagicMock()
+        mock_folder.name = "docs"
+        mock_folder.file_id = "folder1"
+        mock_folder.type = "folder"
+        mock_file = MagicMock()
+        mock_file.name = "readme.txt"
+        mock_file.file_id = "file1"
+        mock_file.type = "file"
+        mock_aligo.get_file_list.return_value = [mock_folder, mock_file]
+
+        with patch.dict("sys.modules", {"aligo": MagicMock(Aligo=MagicMock(return_value=mock_aligo))}):
+            import importlib
+            import fr_cli.weapon.disk as disk_module
+            importlib.reload(disk_module)
+            CloudDisk = disk_module.CloudDisk
+
+            disk = CloudDisk({"type": "aliyundrive"})
+            items, err = disk.ls("zh")
+            self.assertIsNone(err)
+            self.assertEqual(len(items), 2)
+            self.assertIn("📁 docs", items)
+            self.assertIn("📄 readme.txt", items)
+
+    def test_cd_into_subfolder_and_back(self):
+        """cd() 应支持进入子目录和返回上级"""
+        from unittest.mock import MagicMock, patch
+        mock_aligo = MagicMock()
+        mock_folder = MagicMock()
+        mock_folder.name = "projects"
+        mock_folder.file_id = "fid_123"
+        mock_folder.type = "folder"
+        mock_aligo.get_file_list.return_value = [mock_folder]
+
+        with patch.dict("sys.modules", {"aligo": MagicMock(Aligo=MagicMock(return_value=mock_aligo))}):
+            import importlib
+            import fr_cli.weapon.disk as disk_module
+            importlib.reload(disk_module)
+            CloudDisk = disk_module.CloudDisk
+
+            disk = CloudDisk({"type": "aliyundrive"})
+            # 先 ls 填充 _path_map
+            disk.ls("zh")
+
+            # 进入子目录
+            ok, msg = disk.cd("projects", "zh")
+            self.assertTrue(ok)
+            self.assertEqual(disk._cwd, "fid_123")
+
+            # 返回上级
+            ok2, msg2 = disk.cd("..", "zh")
+            self.assertTrue(ok2)
+            self.assertEqual(disk._cwd, "root")
+
+    def test_cd_back_at_root(self):
+        """在根目录执行 cd .. 应失败"""
+        from unittest.mock import MagicMock, patch
+        mock_aligo = MagicMock()
+        mock_aligo.get_file_list.return_value = []
+
+        with patch.dict("sys.modules", {"aligo": MagicMock(Aligo=MagicMock(return_value=mock_aligo))}):
+            import importlib
+            import fr_cli.weapon.disk as disk_module
+            importlib.reload(disk_module)
+            CloudDisk = disk_module.CloudDisk
+
+            disk = CloudDisk({"type": "aliyundrive"})
+            ok, msg = disk.cd("..", "zh")
+            self.assertFalse(ok)
 
 
 class TestToolCallingLoop(unittest.TestCase):

@@ -1,6 +1,7 @@
 """
 四阶安全确认引擎
 """
+import os
 from fr_cli.ui.ui import RED, BOLD, YELLOW, CYAN, RESET
 from fr_cli.lang.i18n import T
 from fr_cli.conf.config import save_config
@@ -19,11 +20,15 @@ def ask(k, d, l, fconfirm, sconfirm, config):
     # 如果已经处于放行状态，直接放行
     if fconfirm or sconfirm:
         return True, sconfirm, fconfirm
-    
+
+    # 非交互环境（如 Agent HTTP 服务、CI）默认拒绝，避免阻塞或崩溃
+    if os.environ.get("FR_CLI_NON_INTERACTIVE"):
+        return False, sconfirm, fconfirm
+
     print(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
     print(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
     print(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
-    
+
     while True:
         c = input(f"{BOLD}    👉 {RESET}").strip().lower()
         if c == 'y':

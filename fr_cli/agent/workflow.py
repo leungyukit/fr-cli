@@ -141,7 +141,7 @@ def run_workflow(name, state, user_input=None, **kwargs):
                 mem = params.get("content", "")
                 from fr_cli.agent.manager import save_memory, load_memory
                 old = load_memory(name)
-                save_memory(name, old + "\\n" + mem if old else mem)
+                save_memory(name, old + "\n" + mem if old else mem)
                 result = "记忆已更新"
             else:
                 error = f"未知动作: {action}"

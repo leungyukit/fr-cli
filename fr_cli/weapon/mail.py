@@ -4,8 +4,6 @@
 import re
 from html.parser import HTMLParser
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import RED, GREEN, DIM
-
 
 class _HTMLTextExtractor(HTMLParser):
     """将 HTML 提取为纯文本 —— 去除标签，保留换行"""
@@ -23,7 +21,7 @@ class _HTMLTextExtractor(HTMLParser):
 
     def handle_endtag(self, tag):
         if tag in self.skip_tags:
-            self._skip_depth -= 1
+            self._skip_depth = max(0, self._skip_depth - 1)
         elif tag in ("p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "tr", "td"):
             self.text.append("\n")
 

@@ -3,7 +3,7 @@
 对接智谱 CogView 画图与 GLM-4V 看图能力
 """
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import RED, GREEN, CYAN, DIM, RESET
+from fr_cli.ui.ui import CYAN, RESET
 import base64, os
 
 def gen_img(client, prompt, out_dir, lang):
@@ -23,9 +23,10 @@ def gen_img(client, prompt, out_dir, lang):
             import requests
             img_url = response.data[0].url
             res = requests.get(img_url, timeout=15)
-            
+            res.raise_for_status()
+
             os.makedirs(out_dir, exist_ok=True)
-            safe_name = prompt[:20].replace(" ", "_").replace("/", "_")
+            safe_name = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in prompt[:30])
             local_path = os.path.join(out_dir, f"img_{safe_name}.png")
             
             with open(local_path, "wb") as f:

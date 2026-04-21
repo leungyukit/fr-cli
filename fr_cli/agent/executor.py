@@ -1,5 +1,5 @@
 # Agent executor
-from fr_cli.agent.manager import (load_persona, load_memory, load_skills, load_agent_module, agent_exists)
+from fr_cli.agent.manager import (load_persona, load_memory, load_skills, load_agent_module, agent_exists, load_progress)
 from fr_cli.agent.workflow import run_workflow, load_workflow
 
 
@@ -7,7 +7,8 @@ def run_agent(name, state, **kwargs):
     if not agent_exists(name):
         return None, "Agent not found. Use /agent_create <name> <description>"
     if load_workflow(name):
-        return run_workflow(name, state, user_input=kwargs.get("pipeline_input"), **kwargs)
+        result, err, _ = run_workflow(name, state, user_input=kwargs.get("pipeline_input"), **kwargs)
+        return result, err
     persona = load_persona(name)
     memory = load_memory(name)
     skills = load_skills(name)
@@ -16,6 +17,8 @@ def run_agent(name, state, **kwargs):
         return None, "agent.py not found or load failed"
     if not hasattr(mod, "run"):
         return None, "agent.py missing run(context, **kwargs)"
+    progress = load_progress(name)
+    latest = progress.get("latest", {})
     context = {
         "persona": persona,
         "memory": memory,
@@ -26,6 +29,10 @@ def run_agent(name, state, **kwargs):
         "executor": state.executor,
         "state": state,
         "agent_name": name,
+        "progress": progress,
+        "latest_result": latest.get("result", ""),
+        "latest_status": latest.get("status", ""),
+        "execution_count": progress.get("counter", 0),
     }
     try:
         result = mod.run(context, **kwargs)

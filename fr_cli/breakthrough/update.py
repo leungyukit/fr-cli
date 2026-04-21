@@ -128,7 +128,10 @@ def update_and_restart(local_version: Optional[str] = None, verbose: bool = Fals
         if allow_restart:
             if on_before_restart: on_before_restart()
             subprocess.Popen([sys.executable, str(PROJECT_ROOT / "main.py")], cwd=str(PROJECT_ROOT))
-            time.sleep(0.5); os._exit(0)
+            time.sleep(0.5)
+            sys.stdout.flush()
+            sys.stderr.flush()
+            sys.exit(0)
         return True, f"Updated to {nver}. Please restart."
     else:
         fname = os.path.basename(info.get("download_url", "update.bin"))

@@ -2,8 +2,6 @@
 数据卷轴读取器 —— Excel / CSV 分析神通
 支持读取表格文件并提交给大模型进行智能分析。
 """
-import json
-
 
 def _try_import_pandas():
     try:

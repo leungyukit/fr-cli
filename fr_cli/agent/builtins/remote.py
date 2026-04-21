@@ -2,8 +2,6 @@
 @remote 内置 Agent —— 远程 SSH 操作助手
 支持多机配置、配置向导、AI 生成远程命令。
 """
-import json
-import os
 import subprocess
 from pathlib import Path
 
@@ -23,16 +21,13 @@ REMOTE_SYS_PROMPT = """你是一个远程系统命令专家。请根据目标主
 
 
 def _load_hosts():
-    if not REMOTE_CFG_PATH.exists():
-        return {}
-    try:
-        return json.loads(REMOTE_CFG_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    from fr_cli.agent.builtins._utils import load_json_config
+    return load_json_config(REMOTE_CFG_PATH)
 
 
 def _save_hosts(hosts):
-    REMOTE_CFG_PATH.write_text(json.dumps(hosts, ensure_ascii=False, indent=2), encoding="utf-8")
+    from fr_cli.agent.builtins._utils import save_json_config
+    save_json_config(REMOTE_CFG_PATH, hosts)
 
 
 def list_hosts():
@@ -161,11 +156,8 @@ def handle_remote(user_input, state):
     cmd_text, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
     cmd_text = cmd_text.strip()
 
-    if cmd_text.startswith("```"):
-        cmd_text = cmd_text.split("\n", 1)[1] if "\n" in cmd_text else ""
-        if cmd_text.endswith("```"):
-            cmd_text = cmd_text.rsplit("\n", 1)[0]
-        cmd_text = cmd_text.strip()
+    from fr_cli.agent.builtins._utils import strip_code_blocks
+    cmd_text = strip_code_blocks(cmd_text)
 
     if not cmd_text:
         print(f"{RED}未能生成有效命令。{RESET}")
@@ -176,8 +168,8 @@ def handle_remote(user_input, state):
         return
 
     print(f"\n{DIM}建议命令 ({alias}):{RESET}\n{CYAN}{cmd_text}{RESET}")
-    confirm = input(f"{DIM}是否执行? [Y/n]: {RESET}").strip().lower()
-    if confirm and confirm not in ("y", "yes", "Y"):
+    from fr_cli.agent.builtins._utils import confirm_execute
+    if not confirm_execute():
         print(f"{DIM}已取消。{RESET}")
         return
 

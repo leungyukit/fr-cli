@@ -60,8 +60,9 @@ def mail_wizard(cfg, lang="zh"):
         print(f"{RED}{'❌ 无效选择' if uf else '❌ Invalid choice'}{RESET}")
         return False, cfg
 
+    import getpass
     email = _prompt("邮箱地址" if uf else "Email address")
-    password = _prompt("授权码/密码 (输入不可见)" if uf else "Auth code / password")
+    password = getpass.getpass(f"{CYAN}👉 {'授权码/密码' if uf else 'Auth code / password'}: {RESET}")
 
     if not email or not password:
         print(f"{RED}{'❌ 邮箱和密码不能为空' if uf else '❌ Email and password required'}{RESET}")
@@ -93,7 +94,7 @@ def mail_wizard(cfg, lang="zh"):
 
 # ── 云盘类型预设 ──
 DISK_PRESETS = {
-    "1": {"name": "阿里云 OSS", "type": "oss"},
+    "1": {"name": "阿里云盘", "type": "aliyundrive"},
     "2": {"name": "百度网盘", "type": "baidu"},
     "3": {"name": "OneDrive", "type": "onedrive"},
 }
@@ -114,40 +115,54 @@ def disk_wizard(cfg, lang="zh"):
     print(f"\n{CYAN}{'☁️ 选择云盘类型:' if uf else '☁️ Select cloud type:'}{RESET}")
     for k, v in DISK_PRESETS.items():
         print(f"  [{k}] {v['name']}")
-    print(f"  [4] {'自定义' if uf else 'Custom'}")
 
     choice = _prompt("选择" if uf else "Choice", "1")
     if choice in DISK_PRESETS:
         disk_type = DISK_PRESETS[choice]["type"]
-    elif choice == "4":
-        disk_type = _prompt("类型标识 (oss/baidu/onedrive)" if uf else "Type (oss/baidu/onedrive)")
     else:
         print(f"{RED}{'❌ 无效选择' if uf else '❌ Invalid choice'}{RESET}")
         return False, cfg
 
-    # 阿里云 OSS 配置
-    if disk_type == "oss":
-        print(f"\n{DIM}{'需要阿里云 RAM 用户的 AccessKey 和 SecretKey' if uf else 'Need Aliyun RAM AccessKey & SecretKey'}{RESET}")
-        ak = _prompt("AccessKey")
-        sk = _prompt("SecretKey")
-        endpoint = _prompt("Endpoint", "oss-cn-hangzhou.aliyuncs.com")
-        bucket = _prompt("Bucket 名称" if uf else "Bucket name")
-        prefix = _prompt("文件前缀 (可选)" if uf else "File prefix (optional)", "fr-cli/")
-
-        if not ak or not sk or not bucket:
-            print(f"{RED}{'❌ 必填项不能为空' if uf else '❌ Required fields cannot be empty'}{RESET}")
+    # 阿里云盘配置（扫码登录）
+    if disk_type == "aliyundrive":
+        try:
+            from aligo import Aligo
+        except ImportError:
+            print(f"{RED}{'❌ 请先安装 aligo: pip install aligo' if uf else '❌ Please install aligo: pip install aligo'}{RESET}")
             return False, cfg
 
-        cfg["disk"] = {
-            "type": "oss",
-            "ak": ak,
-            "sk": sk,
-            "endpoint": endpoint,
-            "bucket": bucket,
-            "prefix": prefix if prefix.endswith("/") else prefix + "/",
-        }
+        print(f"\n{DIM}{'正在初始化阿里云盘登录...' if uf else 'Initializing Aliyun Drive login...'}{RESET}")
+        try:
+            # 尝试使用已有 refresh_token 登录
+            old_disk = cfg.get("disk", {})
+            refresh_token = old_disk.get("refresh_token") if old_disk.get("type") == "aliyundrive" else None
+            name = old_disk.get("name", "fr-cli")
+
+            if refresh_token:
+                ali = Aligo(name=name, refresh_token=refresh_token)
+                print(f"{GREEN}{'✅ 已使用缓存令牌登录成功' if uf else '✅ Logged in with cached token'}{RESET}")
+            else:
+                print(f"{YELLOW}{'请使用阿里云盘 App 扫描二维码完成登录' if uf else 'Please scan QR code with Aliyun Drive App'}{RESET}")
+                ali = Aligo(name=name)
+                print(f"{GREEN}{'✅ 登录成功' if uf else '✅ Login successful'}{RESET}")
+
+            # 保存配置
+            disk_cfg = {
+                "type": "aliyundrive",
+                "name": name,
+            }
+            # 尝试提取 refresh_token 以便后续免扫码登录
+            try:
+                disk_cfg["refresh_token"] = ali.refresh_token
+            except AttributeError:
+                pass
+
+            cfg["disk"] = disk_cfg
+        except Exception as e:
+            print(f"{RED}{'❌ 登录失败:' if uf else '❌ Login failed:'} {e}{RESET}")
+            return False, cfg
     else:
-        print(f"{YELLOW}{'⚠️ 当前仅支持阿里云 OSS，其他类型敬请期待' if uf else '⚠️ Only Aliyun OSS is currently supported'}{RESET}")
+        print(f"{YELLOW}{'⚠️ 当前仅支持阿里云盘，其他类型敬请期待' if uf else '⚠️ Only Aliyun Drive is currently supported'}{RESET}")
         return False, cfg
 
     save_config(cfg)

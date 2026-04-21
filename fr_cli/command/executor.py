@@ -44,7 +44,8 @@ class CommandExecutor:
     # 第二层：传统命令解析（用户输入 / 插件调用）
     # ------------------------------------------------------------------
     def execute(self, cmd_str, msgs=None):
-        """执行单个命令并返回结果 (result, error)"""
+        """执行单个命令并返回结果 (result, error)
+        已分词检查插件后，直接通过注册表内部接口调度，避免重复 split。"""
         parts = cmd_str.strip().split()
         if not parts:
             return None, "Empty command"
@@ -54,7 +55,8 @@ class CommandExecutor:
             p_args = ' '.join(parts[1:]) if len(parts) > 1 else ""
             exec_plugin(cmd, self.plugins[cmd], p_args, self.lang)
             return f"Plugin {cmd} executed", None
-        return self._reg.dispatch_cmd(self._deps, cmd_str, msgs=msgs)
+        # 其余命令通过注册表内部接口直接调度，避免 dispatch_cmd 再次 split
+        return self._reg._dispatch_cmd_parts(self._deps, parts, msgs=msgs)
 
     # ------------------------------------------------------------------
     # 第三层：AI 回复解析
@@ -108,7 +110,7 @@ class CommandExecutor:
             val_str = val_str.replace('\\r', '\r')
             val_str = val_str.replace(QUOTE_PH, '"')
             result[key] = val_str
-        return result if result else None
+        return result if result is not None else None
 
     def _parse_tool_kwargs(self, arg_str):
         """安全解析工具参数字符串（JSON 或 Python dict）"""
@@ -147,7 +149,7 @@ class CommandExecutor:
                 return self._loose_parse_kwargs(arg_str)
 
     def _extract_tool_calls(self, text):
-        """从文本中提取所有【调用：tool_name({...})】标记（支持嵌套括号）"""
+        """从文本中提取所有【调用：tool_name({...})】标记（支持嵌套括号，忽略字符串内的括号）"""
         calls = []
         i = 0
         while True:
@@ -160,14 +162,25 @@ class CommandExecutor:
             tool_name = text[start + 4:paren].strip()
             depth = 1
             j = paren + 1
+            in_string = False
+            escape = False
             while j < len(text) and depth > 0:
-                if text[j] == '(':
-                    depth += 1
-                elif text[j] == ')':
-                    depth -= 1
+                ch = text[j]
+                if escape:
+                    escape = False
+                elif ch == '\\':
+                    escape = True
+                elif ch == '"':
+                    in_string = not in_string
+                elif not in_string:
+                    if ch == '(':
+                        depth += 1
+                    elif ch == ')':
+                        depth -= 1
                 j += 1
             if depth != 0:
-                break
+                i = paren + 1
+                continue
             arg_str = text[paren + 1:j - 1]
             end = text.find('】', j - 1)
             if end == -1:
@@ -245,12 +258,10 @@ class CommandExecutor:
                 results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {result}")
             markers_to_remove.append(m.group(0))
 
-        # 清理回复文本
+        # 清理回复文本：移除命令标记后，仅压缩因移除标记产生的连续多余空行，并去除首尾空白
         clean_response = ai_response
         for marker in markers_to_remove:
             clean_response = clean_response.replace(marker, "")
-        clean_response = "\n".join(
-            line for line in clean_response.splitlines() if line.strip()
-        )
+        clean_response = re.sub(r'\n\s*\n\s*\n+', '\n\n', clean_response).strip()
 
         return clean_response, results

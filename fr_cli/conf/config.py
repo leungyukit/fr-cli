@@ -25,6 +25,7 @@ def _default_config():
         "auto_confirm_forever": False,
         "mail": {},
         "disk": {},
+        "thinking_mode": "direct",
     }
 
 
@@ -85,6 +86,11 @@ def save_config(c):
         return False
 
 
+class ConfigError(Exception):
+    """配置初始化异常（替代 exit，避免作为库导入时终止进程）"""
+    pass
+
+
 def init_config():
     """首次运行引导：检查并要求输入 API Key，自动创建默认工作空间"""
     c = load_config()
@@ -101,8 +107,11 @@ def init_config():
         k = input(f"👉 Enter Zhipu API Key: ").strip()
         if k:
             c["key"] = k
-            save_config(c)
+            ok = save_config(c)
+            if ok:
+                print(f"{GREEN}✅ API Key 已保存至: {CONFIG_FILE}{RESET}")
+            else:
+                print(f"{RED}❌ 配置保存失败，下次启动可能需要重新输入。{RESET}")
         else:
-            print("Exiting.")
-            exit(1)
+            raise ConfigError("API Key is required")
     return c
