@@ -40,7 +40,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，142 个测试全部通过 |
+| 测试 | `pytest`，201 个测试全部通过 |
 
 ---
 
@@ -64,8 +64,10 @@ fr-cli/
 │   │   ├── executor.py         # Agent 执行器（加载 persona/memory/skills 并调用 run）
 │   │   ├── workflow.py         # 工作流引擎（解析 workflow.md，步骤调度，模板变量）
 │   │   └── server.py           # HTTP 服务（将 Agent 发布为 REST API）
+│   ├── repl/
+│   │   └── commands.py         # 40 个命令处理器（从 main.py 提取，架构解耦）
 │   ├── addon/
-│   │   └── plugin.py           # 插件进化引擎：扫描、落盘、子进程执行
+│   │   └── plugin.py           # 插件进化引擎：扫描、落盘、子进程隔离执行（runpy+json.dumps）
 │   ├── breakthrough/
 │   │   └── update.py           # 自动更新：查询远程版本、下载 ZIP、备份替换、重启
 │   ├── command/
@@ -111,6 +113,9 @@ fr-cli/
 │   ├── test_integration.py     # 集成测试
 │   ├── test_structured_tools.py # 结构化工具调用测试
 │   ├── test_agent_server.py    # Agent HTTP 服务测试
+│   ├── test_builtins.py        # 内置 Agent 测试
+│   ├── test_dataframe.py       # 数据卷轴测试
+│   ├── test_launcher.py        # 本地应用启动器测试
 │   └── run_live_demo.py
 ├── structure.py                # 打包脚本（旧版，与当前源码不同步）
 └── .venv/                      # Python 3.13 虚拟环境
@@ -191,31 +196,39 @@ python fr_cli/breakthrough/update.py run
 
 ```
 main.py
-├── core.core         → AppState（DI 容器，聚合所有子系统）
-├── core.stream       → 流式调用 ZhipuAI，代码高亮输出
-├── core.recommender  → 功能推荐
-├── command.executor  → 解析 AI 回复，调度注册表
-├── memory.history    → ~/.zhipu_cli_history/ (JSON)
-├── memory.context    → ~/.zhipu_cli_context.json（会话摘要）
-├── addon.plugin      → ~/.zhipu_cli_plugins/ (*.py)
-├── weapon.loader     → 从注册表生成工具描述
-├── weapon.cron       → CronManager（threading.Timer）
+├── core.core           → AppState（DI 容器，聚合所有子系统）
+├── core.stream         → 流式调用 ZhipuAI，代码高亮输出
+├── core.recommender    → 功能推荐
+├── core.thinking       → 思维模式引擎（CoT/ToT/ReAct）
+├── command.executor    → 解析 AI 回复，调度注册表（动态构建依赖）
+├── repl.commands       → 40 个命令处理器
+├── memory.history      → ~/.zhipu_cli_history/ (JSON)
+├── memory.context      → ~/.zhipu_cli_context.json（会话摘要）
+├── memory.session      → ~/.fr_cli_sessions/ (按日期自动存档)
+├── addon.plugin        → ~/.zhipu_cli_plugins/ (*.py)
+├── weapon.loader       → 从注册表生成工具描述
+├── weapon.cron         → CronManager（threading.Timer）
+├── agent.master        → ~/.fr_cli_master/ (记忆与进化)
 └── breakthrough.update → 远程更新
 ```
 
 ### 关键数据流（一次普通对话）
 
 1. `main.py` 通过 `AppState` 获取所有运行时状态。
-2. 组装 `messages`（system prompt + 工具清单 + 上下文摘要 + 历史）。
-3. 通过 `should_inject_tools()` 判定是否需要注入工具信息。
-4. 调用 `stream_cnt()` → 逐 token 输出到 stdout。
-5. 收到完整回复后，`executor.process_ai_commands()` 解析调用标记：
+2. 检查 `state.master_agent.enabled`：
+   - 若启用 → 由 `MasterAgent.run()` 接管，进入 ReAct 循环
+   - 若禁用 → 继续传统流式对话流程
+3. 组装 `messages`（system prompt + 工具清单 + 上下文摘要 + 历史）。
+4. 通过 `should_inject_tools()` 判定是否需要注入工具信息。
+5. 调用 `stream_cnt()` → 逐 token 输出到 stdout。
+6. 收到完整回复后，`executor.process_ai_commands()` 解析调用标记：
    - `【调用：tool_name({"参数": "值"})】` → `registry.dispatch()` → 执行 handler
    - `【命令：/command args】` → `registry.dispatch_cmd()` → 执行同一 handler
-6. 自动执行提取的命令，打印结果，并将结果回写到 `messages`。
-7. 再次调用 AI 生成最终回复（命令标记从显示文本中清除）。
-8. 显示 token 统计、功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
-9. 提取最近 5 轮对话，生成摘要，持久化到 `~/.zhipu_cli_context.json`。
+7. 自动执行提取的命令，打印结果，并将结果回写到 `messages`。
+8. 再次调用 AI 生成最终回复（命令标记从显示文本中清除）。
+9. 显示 token 统计、功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
+10. 提取最近 5 轮对话，生成摘要，持久化到 `~/.zhipu_cli_context.json`。
+11. 自动存档：若首次输入则创建 `~/.fr_cli_sessions/YYYY-MM-DD_NN.json`，否则增量更新。
 
 ---
 
@@ -325,6 +338,54 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 - 监控模式说明：
   - 内置模式（`/rag_dir` 后自动启动）：daemon 线程，fr-cli 退出后终止
   - 独立模式（`/rag_watch start`）：系统级子进程，脱离终端，日志写入 `~/.fr_cli_rag_watcher.log`
+
+### MasterAgent 自我进化主控
+
+**设计目标**：一个类似 OpenClaw 的中央控制器。启用后接管所有普通对话（`/` 命令、`!` shell、`@` 前缀仍保持原有逻辑），通过 ReAct 循环自主调用工具，每 10 次交互自动反思并进化 prompt。
+
+**存储位置**：`~/.fr_cli_master/memory.json` + `evolution.json`
+
+**核心类**：`agent/master.py` 中的 `MasterAgent`
+
+| 方法 | 说明 |
+|------|------|
+| `toggle(state, arg)` | `/master on\|off\|status` 入口 |
+| `run(state, user_input)` | ReAct 主循环：thought → action → observation → reflect |
+| `_extract_tool_calls(text)` | 从 AI 回复中提取结构化 JSON 工具调用 `{"tool": "...", "params": {...}}` |
+| `_execute_tool(state, tool_name, params)` | 执行工具并观察结果 |
+| `_record_interaction(...)` | 记录交互到 memory.json |
+| `_evolve_if_needed(state)` | 每 10 次交互触发反思与 prompt 进化 |
+
+**ReAct 循环伪代码**：
+```python
+for step in range(8):
+    txt = call_llm(history)
+    if "【最终答案】" in txt:
+        return extract_final_answer(txt)
+    actions = extract_tool_calls(txt)
+    for action in actions:
+        obs = execute_tool(action["tool"], action.get("params", {}))
+        history.append({"role": "system", "content": f"Observation: {obs}"})
+        record_interaction(action, obs)
+```
+
+---
+
+### 按日期自动存档会话
+
+**存储位置**：`~/.fr_cli_sessions/YYYY-MM-DD_NN.json`
+
+**核心模块**：`memory/session.py`
+
+| 函数 | 说明 |
+|------|------|
+| `create_session(msgs)` | 生成 `YYYY-MM-DD_NN.json`，NN 自动递增 |
+| `update_session(path, msgs)` | 增量写入完整对话 |
+| `list_sessions()` / `load_session(idx)` / `delete_session(idx)` | 管理接口 |
+
+**命令**：`/session_list`, `/session_load <idx>`, `/session_del <idx>`
+
+---
 
 ### 工作流格式示例
 
@@ -476,9 +537,9 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 - `tests/test_launcher.py` — 本地应用启动器测试
 - `tests/test_builtins.py` — 内置 Agent 测试（远程配置/爬虫工具）
 - `tests/test_dataframe.py` — 数据卷轴测试
-- 总计 **142 个测试全部通过**
+- 总计 **201 个测试全部通过**
 
-测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation
+测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、Gatekeeper
 
 ---
 
@@ -506,10 +567,52 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 - `registry.dispatch_cmd()` 用于用户命令，跳过安全确认（由 `main.py` 在调用前确认）。
 - 插件通过 `execute()` 解析命令字符串执行。
 
-### 4. 插件子进程隔离
+### 4. 插件子进程隔离（安全加固后）
 
-- 插件通过 `subprocess.run([sys.executable, "-c", runner_code], timeout=15)` 执行。
-- 超时 15 秒，输出捕获后打印。
+- 插件名称通过 `name.isidentifier()` 校验，只允许合法 Python 标识符
+- 参数使用 `json.dumps()` 序列化传递，消除字符串拼接注入
+- 使用 `runpy.run_path(path, run_name="__plugin__", init_globals={"ARGS": json.dumps(args)})` 执行，替代 `subprocess.run([sys.executable, "-c", runner_code], shell=True)` 的字符串拼接方式
+- 超时 15 秒，输出捕获后打印
+
+### 5. 定时任务安全
+
+- `CronManager._job_runner()` 使用 `shlex.split(cmd) + shell=False` 替代 `shell=True`
+- `add_job` 强制 `interval >= 5`，防止高频执行
+
+### 6. SSH 远程安全
+
+- `agent/builtins/remote.py` 全面改用 `paramiko.SSHClient().connect() + exec_command()`
+- 彻底消除 `subprocess.run(ssh_cmd, shell=True)` 的远程命令注入风险
+
+### 7. 网页抓取 SSRF 防护
+
+- `weapon/web.py` 中 `_is_private_url(url)` 拦截：
+  - 非 http/https 协议（file://、ftp:// 等）
+  - localhost / 127.0.0.1 / 0.0.0.0
+  - 私有 IP 段：10/8、172.16/12、192.168/16、169.254/16
+
+### 8. 邮件头注入防护
+
+- `weapon/mail.py` 中邮件头字段过滤换行符（`\r`、`\n`），防止 SMTP 头注入攻击
+
+### 9. 配置文件原子写入
+
+- `conf/config.py` 中 `save_config()` 使用：
+  - `tempfile.mkstemp(dir=CONFIG_FILE.parent)` 创建临时文件
+  - `os.chmod(fd, 0o600)` 设置仅所有者可读写
+  - `os.replace(tmp, CONFIG_FILE)` 原子替换，防竞态条件和截断写入
+
+### 10. Agent HTTP 安全
+
+- 默认绑定 `host="127.0.0.1"`（原为 `0.0.0.0`）
+- 启动时生成随机 Bearer Token：`secrets.token_hex(16)`
+- 所有端点需携带 `Authorization: Bearer <token>`
+- CORS 改为按需而非全局 `*`
+
+### 11. 架构解耦带来的安全收益
+
+- `CommandExecutor` 从快照同步改为**动态构建依赖**（`_build_deps(state)`），消除状态不同步导致的安全边界漂移
+- `main.py` 从 1334 行瘦身至 ~600 行，命令处理器提取至 `repl/commands.py`，降低单文件复杂度带来的安全风险
 
 ---
 
@@ -543,4 +646,4 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 
 ---
 
-*文档更新时间：2026-04-20（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct 思维推演模式）。*
+*文档更新时间：2026-04-20（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct 思维推演模式 + MasterAgent 自我进化主控 + 按日期自动存档会话 + 全模块安全加固与架构解耦）。*

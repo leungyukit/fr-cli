@@ -5,17 +5,19 @@
 ## ✨ 功能特性
 
 - 🤖 **AI 对话**：基于 GLM-4 系列模型的智能对话
+- 🧠 **MasterAgent 主控**：自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化
+- 🧩 **思维模式**：direct / CoT / ToT / ReAct 四种推理模式切换
 - 📁 **文件沙盒**：安全的虚拟文件系统，支持读写/目录操作
-- 🔍 **联网搜索**：内置 Web 搜索与网页内容提取
+- 🔍 **联网搜索**：内置 Web 搜索与网页内容提取（SSRF 防护）
 - 🖼️ **视觉能力**：图片生成 (CogView) 与多模态识别 (GLM-4V)
-- 📧 **邮件收发**：支持 IMAP/SMTP
-- ⏰ **定时任务**：后台定时执行命令
+- 📧 **邮件收发**：支持 IMAP/SMTP（防头注入）
+- ⏰ **定时任务**：后台定时执行命令（shlex 安全解析）
 - ☁️ **云盘集成**：百度/阿里/OneDrive 网盘
-- 🔌 **插件系统**：AI 生成代码自动保存为插件
-- 🧠 **会话记忆**：自动保留最近 5 轮对话摘要
-- 🛡️ **安全确认**：四阶危险操作拦截
+- 🔌 **插件系统**：AI 生成代码自动保存为插件（子进程隔离，无代码注入）
+- 🧠 **会话记忆**：自动保留最近 5 轮对话摘要 + 按日期自动存档
+- 🛡️ **安全确认**：四阶危险操作拦截 + 虚拟文件系统沙盒
 - 👤 **Agent 分身系统**：AI 自动生成 Agent（人设/记忆/技能/代码），支持工作流编排
-- 🌐 **Agent HTTP API**：将 Agent 发布为 REST API 供外部调用
+- 🌐 **Agent HTTP API**：将 Agent 发布为 REST API 供外部调用（默认 127.0.0.1 + Bearer Token）
 - 🖥️ **本机应用启动**：一键调用浏览器、微信、Word、WPS 等本地程序
 - 🧑‍💻 **内置 Agent**：`@local` `@remote` `@spider` `@db` `@RAG`
 - 📊 **数据卷轴**：Excel / CSV 读取与智能分析
@@ -57,6 +59,23 @@ fr-cli
 @RAG 什么是向量数据库           # 本地知识库问答
 /read_excel report.xlsx    # 读取 Excel
 /read_csv data.csv         # 读取 CSV
+
+# MasterAgent 自我进化主控
+/master on                 # 启用主控Agent
+/master off                # 关闭主控Agent
+/master status             # 查看主控状态
+
+# 思维模式切换
+/mode direct               # 直接回答（默认）
+/mode cot                  # CoT 链式思考
+/mode tot                  # ToT 树状搜索
+/mode react                # ReAct 深度推理
+
+# 自动会话存档
+/session_list              # 列出按日期存档的会话
+/session_load 0            # 加载第0个存档
+/session_del 1             # 删除第1个存档
+
 /help              # 查看帮助
 /exit              # 退出
 ```
@@ -83,10 +102,12 @@ fr-cli
 # 在 fr-cli 中启动服务
 >>> /agent_server start 8080
 
-# 外部系统调用
-curl http://localhost:8080/agents
+# 外部系统调用（需携带 Bearer Token）
+curl http://localhost:8080/agents \
+  -H "Authorization: Bearer <token>"
 curl -X POST http://localhost:8080/agents/my_agent/run \
   -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <token>" \
   -d '{"input": "请分析这个需求"}'
 ```
 

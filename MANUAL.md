@@ -14,10 +14,13 @@
 3. [快速开始](#快速开始)
 4. [配置说明](#配置说明)
 5. [命令参考](#命令参考)
-6. [AI 工具调用](#ai-工具调用)
-7. [插件系统](#插件系统)
-8. [安全机制](#安全机制)
-9. [常见问题](#常见问题)
+6. [MasterAgent 主控](#masteragent-主控)
+7. [思维模式](#思维模式)
+8. [按日期自动存档会话](#按日期自动存档会话)
+9. [AI 工具调用](#ai-工具调用)
+10. [插件系统](#插件系统)
+11. [安全机制](#安全机制)
+12. [常见问题](#常见问题)
 
 ---
 
@@ -27,17 +30,19 @@
 
 **核心特性：**
 - 🤖 **AI 智能对话** — 基于 GLM-4 系列模型，流式实时响应
+- 🧠 **MasterAgent 主控** — 自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化
+- 🧩 **思维模式** — direct / CoT / ToT / ReAct 四种推理模式切换
 - 📁 **安全文件沙盒** — 虚拟文件系统，防止目录穿越攻击
-- 🔍 **联网搜索** — 百度搜索 + 网页内容提取
+- 🔍 **联网搜索** — 百度搜索 + 网页内容提取（SSRF 防护）
 - 🖼️ **视觉能力** — 图片生成 (CogView) + 图片分析 (GLM-4V)
-- 📧 **邮件收发** — IMAP/SMTP 真实邮件客户端
-- ⏰ **定时任务** — 后台线程定时执行命令
+- 📧 **邮件收发** — IMAP/SMTP 真实邮件客户端（防头注入）
+- ⏰ **定时任务** — 后台线程定时执行命令（shlex 安全解析）
 - ☁️ **云盘集成** — 阿里云盘上传/下载/列出
-- 🔌 **插件系统** — AI 自动生成插件，动态扩展功能
-- 🧠 **会话记忆** — 自动保留最近对话摘要，持久化上下文
+- 🔌 **插件系统** — AI 自动生成插件，动态扩展功能（子进程隔离，无代码注入）
+- 🧠 **会话记忆** — 自动保留最近对话摘要 + 按日期自动存档
 - 🛡️ **四阶安全确认** — 精细控制危险操作权限
 - 👤 **Agent 分身系统** — 创建独立 Agent（角色/记忆/技能/工作流），AI 自动生成
-- 🌐 **Agent HTTP API** — 将 Agent 发布为 REST API 供外部调用
+- 🌐 **Agent HTTP API** — 将 Agent 发布为 REST API 供外部调用（默认 127.0.0.1 + Bearer Token）
 - 🖥️ **本机应用启动** — 一键调用浏览器、微信、Word、WPS 等本地程序
 - 🧑‍💻 **内置 Agent** — `@local` 本地系统操作、`@remote` 远程 SSH、`@spider` 智能爬虫、`@db` 数据库助手、`@RAG` 知识库问答
 - 📊 **数据卷轴** — Excel / CSV 读取与智能分析
@@ -111,11 +116,12 @@ $ fr-cli
 
 >>> /help
 📜 修仙指南:
-  【配置】 /model /key /limit /alias /export /update
+  【配置】 /model /key /limit /alias /export /update /mode
   【洞府】 /ls /cat /cd /write /append /delete
-  【轮回】 /save /load /del /undo
+  【轮回】 /save /load /del /undo /session_list /session_load /session_del
   【法宝】 /skills (自动进化)
   【神通】 /mail_* /cron_* /web /fetch /disk_* /see
+  【主控】 /master on | off | status
   【分身 API】 /agent_server start [port] | stop | status
   【驭器】 /open <路径/URL> | /launch <应用> [目标] | /apps
   【破壁】 !命令 ...
@@ -178,6 +184,7 @@ $ fr-cli
 | `aliases` | dict | `{}` | 命令别名映射 |
 | `auto_confirm_forever` | bool | `false` | 永久自动确认危险操作 |
 | `session_name` | str | `""` | 当前会话名称 |
+| `thinking_mode` | str | `"direct"` | 思维模式：`direct` / `cot` / `tot` / `react` |
 | `mail` | dict | `{}` | 邮件账户配置（IMAP/SMTP） |
 | `disk` | dict | `{}` | 云盘配置（当前支持阿里云盘） |
 
@@ -361,6 +368,37 @@ ID: 1                  # 输入要删除的会话索引
 - 按 `session_name` 持久化到 `~/.zhipu_cli_context.json`
 - 加载会话时自动恢复上下文摘要
 - 导出会话：`/export` 将当前会话导出为 Markdown 文件到当前工作目录
+
+#### 自动存档会话（新增）
+
+每次与 AI 对话后，系统会自动将完整对话按日期存档到 `~/.fr_cli_sessions/YYYY-MM-DD_NN.json`。
+
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| `/session_list` | - | 列出所有按日期存档的会话 |
+| `/session_load <idx>` | 索引 | 加载指定索引的存档会话 |
+| `/session_del <idx>` | 索引 | 删除指定索引的存档会话 |
+
+**使用示例**：
+```
+>>> /session_list
+📜 存档列表:
+  [0] 2026-04-20_01 (5 轮对话)
+  [1] 2026-04-19_03 (12 轮对话)
+  [2] 2026-04-19_02 (8 轮对话)
+
+>>> /session_load 0
+✅ 已加载存档: 2026-04-20_01
+
+>>> /session_del 2
+✅ 已删除存档: 2026-04-19_02
+```
+
+**说明**：
+- 首次输入时自动创建 `~/.fr_cli_sessions/YYYY-MM-DD_NN.json`
+- 每次 AI 响应后增量保存
+- 文件名按日期自动编号，不重复
+- 传统手动 `/save` `/load` 仍然可用
 
 ### 四、邮件命令（邮差）
 
@@ -926,7 +964,71 @@ curl -X POST http://localhost:8080/agents/researcher/workflow \
 | `{{agent.memory}}` | Agent 的长期记忆 |
 | `{{agent.skills}}` | Agent 的技能描述 |
 
-### 十一、数据卷轴（Excel / CSV）
+### 十一、MasterAgent 主控
+
+> MasterAgent 是一个自我进化的 ReAct 主控 Agent。启用后，它会接管普通对话，自主规划、调用工具、观察结果并持续进化。
+
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| `/master on` | - | 启用 MasterAgent 主控模式 |
+| `/master off` | - | 关闭 MasterAgent，恢复传统流式对话 |
+| `/master status` | - | 查看 MasterAgent 当前状态 |
+
+**使用示例**：
+
+```
+>>> /master on
+✅ MasterAgent 已觉醒
+
+>>> 帮我搜索 Python 异步编程的最新资料并整理成文档
+🧠 MasterAgent 思考: 用户需要搜索资料并整理成文档。我应该先搜索，然后写入文件。
+
+【调用：search_web({"query": "Python 异步编程 最新"})】
+...
+【调用：write_file({"path": "async_guide.md", "content": "..."})】
+✅ 任务完成，已保存到 async_guide.md
+```
+
+**工作原理**：
+1. **ReAct 循环**：Thought → Action → Observation → Reflect，最多 8 步
+2. **工具调用**：AI 输出 JSON 格式 `{"tool": "name", "params": {...}}`，系统解析并执行
+3. **自动记忆**：记录每次工具调用的成功/失败模式到 `~/.fr_cli_master/memory.json`
+4. **自我进化**：每 10 次交互自动反思，将成功经验沉淀为 prompt 追加到 `~/.fr_cli_master/evolution.json`
+5. **状态隔离**：`/` 命令、`!` shell、`@` 前缀仍保持原有逻辑，不受 MasterAgent 影响
+
+---
+
+### 十二、思维模式
+
+支持四种思维模式，影响 AI 的推理深度：
+
+| 命令 | 说明 |
+|------|------|
+| `/mode direct` | 直接回答（默认，最快） |
+| `/mode cot` | CoT（Chain-of-Thought）链式思考 |
+| `/mode tot` | ToT（Tree-of-Thoughts）树状搜索 |
+| `/mode react` | ReAct（Reasoning + Acting）推理行动 |
+
+**使用示例**：
+```
+>>> /mode react
+✅ 思维模式: react
+
+>>> 帮我分析这个复杂的技术选型问题
+🧠 [思考] 需要从多个维度评估...
+🧠 [行动] 搜索相关资料...
+...
+```
+
+**说明**：
+- `direct`：常规流式对话，不注入思维 prompt
+- `cot`：要求 AI 分步推理，展示思考链
+- `tot`：要求 AI 生成多个候选方案并评估
+- `react`：要求 AI 交替进行思考（Thought）和行动（Action）
+
+---
+
+### 十三、数据卷轴（Excel / CSV）
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
@@ -970,7 +1072,7 @@ curl -X POST http://localhost:8080/agents/researcher/workflow \
 - 自动输出列名、数据类型、非空统计、数值统计、前10行预览
 - 数据摘要可提交给 AI 进行深度分析
 
-### 十三、守护进程（Gatekeeper）
+### 十五、守护进程（Gatekeeper）
 
 守护进程独立于 fr-cli 主程序运行，可在主程序退出后继续维持 Agent HTTP API 服务和定时任务。
 
@@ -1007,7 +1109,7 @@ $ fr-cli                              # 重新进入
 - 停止守护进程后，Agent API 和定时任务会随之停止
 - 守护进程配置存储在 `~/.zhipu_cli_config.json` 中
 
-### 十四、破壁命令（系统 Shell）
+### 十六、破壁命令（系统 Shell）
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
@@ -1021,7 +1123,7 @@ $ fr-cli                              # 重新进入
 !cat log.txt | 分析这段日志有什么问题
 ```
 
-### 十五、其他命令
+### 十七、其他命令
 
 | 命令 | 说明 |
 |------|------|
@@ -1172,7 +1274,22 @@ def run(args=''):
 
 ### 目录穿越防护
 
-VFS 虚拟文件系统通过 `Path.resolve()` 检查目标路径是否仍在 `allowed_dirs` 列表内，防止 `../` 攻击。
+VFS 虚拟文件系统通过 `Path.resolve()` 检查目标路径是否仍在 `allowed_dirs` 列表内，防止 `../` 攻击。路径检查使用 `== base_path or startswith(base_path + os.sep)`，防止 `/foo` 错误匹配 `/foo-bar`。
+
+### 安全加固（v2.2.0）
+
+| 模块 | 加固措施 |
+|------|----------|
+| **插件执行** | `name.isidentifier()` 校验；参数使用 `json.dumps()` 序列化；`runpy.run_path()` 替代字符串拼接执行 |
+| **定时任务** | `shlex.split(cmd) + shell=False` 替代 `shell=True`；最小间隔 ≥ 5 秒 |
+| **SSH 远程** | 全面改用 `paramiko.SSHClient`，消除 `subprocess.run(ssh_cmd, shell=True)` 命令注入 |
+| **网页抓取** | SSRF 防护：拦截 `file://`、`ftp://`、localhost、私有 IP 段（10/8、172.16/12、192.168/16、127/8、169.254/16） |
+| **图片分析** | 网络图片 URL 经 VFS 接口校验后再下载，防止路径穿越 |
+| **邮件发送** | 邮件头字段过滤换行符，防止头注入攻击 |
+| **配置文件** | `tempfile.mkstemp() + os.chmod(0o600) + os.replace()` 原子写入，防竞态 |
+| **Agent HTTP** | 默认绑定 `127.0.0.1`；启动时生成随机 Bearer Token；移除全局 `*` CORS |
+| **AI 工具调用** | 结构化 `kwargs` 参数，避免字符串 split 导致的问题；`registry.dispatch()` 自动参数校验 |
+| **架构解耦** | `CommandExecutor` 从快照同步改为动态构建依赖，消除状态不同步导致的安全边界漂移 |
 
 ---
 
@@ -1208,6 +1325,8 @@ pip install aligo   # 阿里云盘
 /help config      # 配置相关
 /help fs          # 文件操作
 /help session     # 会话管理
+/help master      # MasterAgent 主控
+/help thinking    # 思维模式
 /help mail        # 邮件功能
 /help cron        # 定时任务
 /help web         # 网络搜索
@@ -1234,6 +1353,8 @@ pip install aligo   # 阿里云盘
 | `~/.fr_cli_remotes.json` | 远程主机配置 |
 | `~/.fr_cli_databases.json` | 数据库连接配置 |
 | `~/.fr_cli_rag_db/` | RAG 向量库（ChromaDB）|
+| `~/.fr_cli_sessions/` | 按日期自动存档的会话 |
+| `~/.fr_cli_master/` | MasterAgent 记忆与进化记录 |
 
 ---
 
