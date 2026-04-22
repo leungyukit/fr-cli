@@ -71,10 +71,11 @@ def _print_help(state, topic):
         print(f"  {DIM}  内置Agent: @local <需求> | @remote [IP] <需求> | @spider <URL> [深度] | @db <需求> | @RAG <问题>{RESET}")
         print(f"  {DIM}  知识库: /rag_dir <目录> | /rag_sync | /rag_watch start/stop/status/log{RESET}")
         print(f"  {DIM}  数据: /read_excel <文件> | /read_csv <文件>{RESET}")
+        print(f"  {DIM}  MCP: /mcp_list | /mcp_add <名称> <命令> [参数...] | /mcp_del <名称> | /mcp_enable <名称> | /mcp_disable <名称> | /mcp_refresh{RESET}")
         print(f"  {T('help_shell', lang)} {T('shell_tip', lang)}\n                {T('pipe_tip', lang)}")
         print(f"\n{T('help_usage', lang)}")
     elif mapped == "all":
-        for t in ["config", "fs", "session", "plugin", "mail", "cron", "web", "disk", "vision", "shell", "tools", "security", "app", "agent", "builtin", "dataframe", "gatekeeper"]:
+        for t in ["config", "fs", "session", "plugin", "mail", "cron", "web", "disk", "vision", "shell", "tools", "security", "app", "agent", "builtin", "dataframe", "gatekeeper", "mcp"]:
             print(T(f"help_detail_{t}", lang))
             print()
     else:
@@ -992,3 +993,106 @@ def _cmd_master(state, parts):
     return False
 
 
+
+
+def _cmd_mcp_list(state, parts):
+    """列出 MCP 服务器和可用工具"""
+    servers = state.mcp.list_servers()
+    if not servers:
+        print(f"{YELLOW}暂无 MCP 服务器配置。{RESET}")
+        print(f"{DIM}用法: /mcp_add <名称> <命令> [参数...]{RESET}")
+        return False
+
+    print(f"{CYAN}📡 MCP 服务器配置 ({len(servers)} 个):{RESET}")
+    for s in servers:
+        status = f"{GREEN}● 启用{RESET}" if s.get("enabled", True) else f"{RED}● 禁用{RESET}"
+        print(f"\n  {CYAN}[{s['name']}]{RESET} {status}")
+        print(f"    传输: {s.get('transport', 'stdio')}")
+        print(f"    命令: {s.get('command', 'N/A')} {' '.join(s.get('args', []))}")
+        if s.get('cwd'):
+            print(f"    工作目录: {s['cwd']}")
+
+    # 尝试获取工具列表
+    print(f"\n{CYAN}🔧 可用法宝:{RESET}")
+    tools = state.mcp.list_all_tools()
+    if not tools:
+        print(f"  {DIM}暂无可用法宝（服务器可能未连接或已禁用）{RESET}")
+    else:
+        for t in tools:
+            print(f"  - {GREEN}{t['name']}{RESET}: {t['description']}")
+            print(f"    所属服务器: {t['server']}")
+    return False
+
+
+def _cmd_mcp_add(state, parts):
+    """添加 MCP 服务器: /mcp_add <名称> <命令> [参数...]"""
+    if len(parts) < 3:
+        print(f"{YELLOW}用法: /mcp_add <名称> <命令> [参数...]{RESET}")
+        print(f"{DIM}示例: /mcp_add filesystem npx -y @modelcontextprotocol/server-filesystem /tmp{RESET}")
+        return False
+    name = parts[1]
+    command = parts[2]
+    args = parts[3:] if len(parts) > 3 else []
+    ok, err = state.mcp.add_server(name, command, args)
+    if ok:
+        print(f"{GREEN}✅ MCP 服务器 [{name}] 已添加。{RESET}")
+        print(f"{DIM}  命令: {command} {' '.join(args)}{RESET}")
+        print(f"{DIM}  使用 /mcp_refresh 或重新启动以加载其法宝。{RESET}")
+    else:
+        print(f"{RED}❌ 添加失败: {err}{RESET}")
+    return False
+
+
+def _cmd_mcp_del(state, parts):
+    """删除 MCP 服务器: /mcp_del <名称>"""
+    if len(parts) < 2:
+        print(f"{YELLOW}用法: /mcp_del <名称>{RESET}")
+        return False
+    name = parts[1]
+    ok, err = state.mcp.remove_server(name)
+    if ok:
+        print(f"{GREEN}✅ MCP 服务器 [{name}] 已删除。{RESET}")
+    else:
+        print(f"{RED}❌ 删除失败: {err}{RESET}")
+    return False
+
+
+def _cmd_mcp_enable(state, parts):
+    """启用 MCP 服务器: /mcp_enable <名称>"""
+    if len(parts) < 2:
+        print(f"{YELLOW}用法: /mcp_enable <名称>{RESET}")
+        return False
+    name = parts[1]
+    ok, err = state.mcp.toggle_server(name, True)
+    if ok:
+        print(f"{GREEN}✅ MCP 服务器 [{name}] 已启用。{RESET}")
+    else:
+        print(f"{RED}❌ 操作失败: {err}{RESET}")
+    return False
+
+
+def _cmd_mcp_disable(state, parts):
+    """禁用 MCP 服务器: /mcp_disable <名称>"""
+    if len(parts) < 2:
+        print(f"{YELLOW}用法: /mcp_disable <名称>{RESET}")
+        return False
+    name = parts[1]
+    ok, err = state.mcp.toggle_server(name, False)
+    if ok:
+        print(f"{GREEN}✅ MCP 服务器 [{name}] 已禁用。{RESET}")
+    else:
+        print(f"{RED}❌ 操作失败: {err}{RESET}")
+    return False
+
+
+def _cmd_mcp_refresh(state, parts):
+    """刷新 MCP 服务器法宝列表"""
+    print(f"{CYAN}🔄 正在刷新 MCP 法宝列表...{RESET}")
+    tools = state.mcp.list_all_tools()
+    if tools:
+        print(f"{GREEN}✅ 发现 {len(tools)} 个法宝:{RESET}")
+        for t in tools:
+            print(f"  - {t['name']} ({t['server']}): {t['description']}")
+    else:
+        print(f"{YELLOW}⚠️ 未发现可用法宝。请检查服务器配置和连接状态。{RESET}")
+    return False

@@ -64,6 +64,31 @@ _FORCE_TOOL_KEYWORDS = [
     "schedule", "scheduled task", "cron job", "timer",
     "upload", "upload to", "download", "download to",
     "save session", "export session", "switch model", "set key", "set api key",
+    # MCP 外部神通关键词
+    "mcp", "外部工具", "外部神通", "调用工具", "use tool", "invoke tool",
+]
+
+# 保存意图关键词（用于第二轮强制保存检测）
+_SAVE_KEYWORDS = [
+    "保存", "保存到", "保存文件", "写入", "写到", "写入文件", "写到文件",
+    "存储", "存到", "存为", "导出到", "导出文件",
+    "save", "save to", "save file", "save as", "write", "write to", "write file",
+    "store", "store to", "export to", "export file",
+]
+
+# 信息获取关键词（触发"先回答再调用工具"双源模式）
+_INFO_FETCH_KEYWORDS = [
+    # 搜索/查询
+    "搜索", "查询", "查一下", "搜一下", "什么是", "是什么", "介绍", "了解一下",
+    "最新", "新闻", "资讯", "百科", "定义", "概念", "解释",
+    "search", "look up", "what is", "what are", "introduction to", "latest",
+    "news", "wikipedia", "who is", "how to", "define", "explain",
+    # 远程/RAG/Agent
+    "远程", "rag", "知识库", "agent", "mcp", "外部工具", "外部神通",
+    "remote", "knowledge base", "external tool",
+    # 文件/数据读取
+    "读取", "查看内容", "分析文件", "总结", "提取",
+    "read", "analyze file", "summarize", "extract",
 ]
 
 
@@ -137,6 +162,22 @@ def _handle_ai_chat(state, u):
 
     # 意图判定：先快速关键词预检，未命中再让大模型判定
     tools = get_available_tools(state.weapon_tools, state.plugins)
+    # 将 MCP 外部神通纳入意图判定视野
+    mcp_manager = getattr(state, "mcp", None)
+    mcp_tools_summary = []
+    if mcp_manager and hasattr(mcp_manager, "list_all_tools"):
+        try:
+            _mcp_tools = mcp_manager.list_all_tools()
+            if isinstance(_mcp_tools, list):
+                mcp_tools_summary = _mcp_tools
+        except Exception:
+            pass
+    if mcp_tools_summary:
+        tools.append({
+            "name": "mcp_tools",
+            "description": "MCP 外部神通: " + ", ".join([t["name"] for t in mcp_tools_summary]),
+            "commands": ["mcp_call"],
+        })
     if _should_force_tool(u):
         intent = "TOOL"
     else:
@@ -164,6 +205,35 @@ def _handle_ai_chat(state, u):
         tools_info = "\n\n当前可用的工具列表：\n"
         for i, tool in enumerate(tools, 1):
             tools_info += f"{i}. {tool['name']}: {tool['description']}\n   可用命令: {', '.join(tool['commands'])}\n"
+        # 注入 MCP 外部神通
+        mcp_manager = getattr(state, "mcp", None)
+        if mcp_manager and hasattr(mcp_manager, "get_server_tools_desc"):
+            try:
+                mcp_desc = mcp_manager.get_server_tools_desc()
+                if isinstance(mcp_desc, str) and mcp_desc:
+                    tools_info += mcp_desc + "\n"
+                    tools_info += "\n调用 MCP 工具时，请使用格式：【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n"
+            except Exception:
+                pass
+        # 信息获取规范：当用户需要调用外部信息源时，采用双源回答模式
+        has_info_fetch = any(kw in u.lower() for kw in _INFO_FETCH_KEYWORDS)
+        if has_info_fetch:
+            tools_info += """\n
+【信息获取规范 —— 双源回答与汇总】
+用户的问题涉及信息获取（如搜索、查询、读取远程内容、调用Agent/MCP工具等）。请严格按以下步骤执行：
+
+1. 初步回答（必须）：
+   先基于你的内部知识给出一个初步回答或分析框架，直接输出在回复文本中。
+   禁止只写"让我查一下"而不给实质内容。
+
+2. 工具补充：
+   然后调用相应的工具（search_web、mcp_call、agent_call、read_file 等）获取补充信息。
+
+3. 汇总整理（第二轮自动执行）：
+   所有工具结果返回后，我会将你的初步回答与所有工具返回结果一起提交给你。
+   请基于多源信息整理成一份完整、准确、结构清晰的最终答案。
+   若不同来源存在冲突，请以最新/最权威来源为准，或明确标注不确定性。
+"""
         sp = T("sys_prompt", lang)
         system_content = sp + tools_info + state.context_summary
     else:
@@ -222,11 +292,36 @@ def _handle_ai_chat(state, u):
         for result in cmd_results:
             print(f"{DIM}{result}{RESET}")
 
+        # 重构为【多源信息汇总】模式：将 AI 初步回答与所有工具结果结构化合并
+        sources = []
+        if clean_txt.strip():
+            sources.append(f"【来源一：大模型初步回答】\n{clean_txt.strip()}")
+        for idx, result in enumerate(cmd_results, start=2):
+            sources.append(f"【来源{idx}：工具执行结果】\n{result}")
+
+        blend_system_content = "=== 多源信息汇总 ===\n\n"
+        blend_system_content += "\n\n---\n\n".join(sources)
+        blend_system_content += (
+            "\n\n=== 整理要求 ===\n"
+            "请基于以上所有信息来源，整理成一份完整、准确、结构清晰的最终答案。\n"
+            "- 不同来源的信息若存在冲突，请以最新/最权威来源为准，或明确标注不确定性。\n"
+            "- 若大模型初步回答已较完整，但工具结果提供了更新/更详细的数据，请在初步回答基础上补充修正。\n"
+            "- 若工具结果与初步回答完全一致，可精简输出，避免冗余。\n"
+            "- 最终答案应自成一体，用户无需知道这是多源汇总的结果。"
+        )
+
         updated_messages[-1]["content"] = clean_txt if clean_txt.strip() else "[已执行命令]"
-        updated_messages.append({
-            "role": "system",
-            "content": f"命令执行结果:\n" + "\n".join(cmd_results)
-        })
+        updated_messages.append({"role": "system", "content": blend_system_content})
+
+        # 方案二：检测保存意图，追加提示强制第二轮 AI 调用 write_file
+        has_save_intent = any(kw in u.lower() for kw in _SAVE_KEYWORDS)
+        if has_save_intent:
+            save_hint = (
+                "\n[系统提示：用户原始请求中包含'保存到本地'的意图。"
+                "请在给出最终整理后的回答后，使用 write_file 工具将完整内容保存到文件。"
+                "如果用户未指定文件名，请使用一个能反映内容主题的简洁文件名（如 a2a_introduction.md）。]"
+            )
+            updated_messages.append({"role": "system", "content": save_hint})
 
         sys.stdout.write(f"{CYAN}{T('prompt_ai', lang)}{RESET} ")
         sys.stdout.flush()
@@ -373,7 +468,13 @@ from fr_cli.repl.commands import (
     _cmd_rag_sync,
     _cmd_read_excel,
     _cmd_read_csv,
-    _cmd_master
+    _cmd_master,
+    _cmd_mcp_list,
+    _cmd_mcp_add,
+    _cmd_mcp_del,
+    _cmd_mcp_enable,
+    _cmd_mcp_disable,
+    _cmd_mcp_refresh,
 )
 
 
@@ -426,6 +527,12 @@ _COMMAND_ROUTES = {
     "/read_excel": _cmd_read_excel,
     "/read_csv": _cmd_read_csv,
     "/master": _cmd_master,
+    "/mcp_list": _cmd_mcp_list,
+    "/mcp_add": _cmd_mcp_add,
+    "/mcp_del": _cmd_mcp_del,
+    "/mcp_enable": _cmd_mcp_enable,
+    "/mcp_disable": _cmd_mcp_disable,
+    "/mcp_refresh": _cmd_mcp_refresh,
 }
 
 

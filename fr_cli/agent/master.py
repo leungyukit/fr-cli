@@ -192,6 +192,19 @@ class MasterAgent:
                                     for k, v in t.get("params", {}).items())
             lines.append(f"- {t['name']}: {t['description']}  参数: {params_str or '无'}")
 
+        # 追加 MCP 外部神通
+        mcp_manager = getattr(self.state, "mcp", None)
+        if mcp_manager:
+            try:
+                mcp_tools = mcp_manager.list_all_tools()
+                if mcp_tools:
+                    lines.append("\n=== MCP 外部神通 ===")
+                    for t in mcp_tools:
+                        lines.append(f"- {t['name']}: {t['description']}  (服务器: {t['server']})")
+                    lines.append("\n调用方式: mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})")
+            except Exception:
+                pass
+
         # 追加可用 Agent 列表（本地 + 远程）
         agents = discover_all_agents()
         if agents:

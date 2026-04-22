@@ -11,6 +11,7 @@ from fr_cli.addon.plugin import init_plugins
 from fr_cli.command.security import SecurityManager
 from fr_cli.command.executor import CommandExecutor
 from fr_cli.weapon.loader import load_weapon_md
+from fr_cli.weapon.mcp import MCPManager
 
 
 class AppState:
@@ -35,10 +36,14 @@ class AppState:
         self.disk_c = CloudDisk(cfg.get("disk", {}))
         self.security = SecurityManager(self.lang, cfg)
 
+        # MCP 法宝管理器
+        self.mcp = MCPManager(cfg)
+
         # 运行时消息与上下文
         self.messages = []
         self.context_summary = ""
         self.weapon_tools, self.weapon_triggers = load_weapon_md()
+        self.mcp_tools = []  # 延迟加载，避免启动阻塞
 
         # 自动会话存档路径（按日期编号）
         self.auto_session_path = None

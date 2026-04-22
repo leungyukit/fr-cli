@@ -23,6 +23,7 @@ def _build_deps(state):
         cfg=state.cfg,
         client=state.client,
         model_name=state.model_name,
+        mcp=getattr(state, "mcp", None),
     )
 
 

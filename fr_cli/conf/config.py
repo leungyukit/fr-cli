@@ -27,6 +27,7 @@ def _default_config():
         "mail": {},
         "disk": {},
         "thinking_mode": "direct",
+        "mcp": {"servers": []},
     }
 
 

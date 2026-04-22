@@ -29,8 +29,8 @@ I18N = {
         "sec_read": "读取卷轴", "sec_write": "写入法宝", "sec_exec": "执行法宝", "sec_mount": "开辟洞府", "sec_gen_img": "祭炼画卷", "sec_send_mail": "发送邮件", "sec_fetch_web": "抓取互联网", "sec_upload_disk": "上传至云端", "sec_download_disk": "下载自云端", "sec_shell": "执行系统命令",
         "gen_ing": "🎨 祭炼…", "gen_ok": "✅ 画卷成: {}", "gen_fail": "❌ 破碎: ", "see_warn": "⚠️ 需法器 glm-4v-plus", "see_ing": "👁️ 天眼…",
         "help_title": "📜 修仙指南:", "help_cfg": "【配置】", "help_fs": "【洞府】", "help_sess": "【轮回】", "help_plugin": "【法宝】", "help_extra": "【神通】", "help_shell": "【破壁】",
-        "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
-        "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
+        "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+        "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
         "empty": "空空如也…", "none": "无", "no_sess": "无记忆。", "no_plugins": "无技能。",
         "ctx_dir": "\n[系统：凡人在 {}。]",
         "menu_mail": "【邮差】", "menu_cron": "【结界】", "menu_web": "【游侠】", "menu_disk": "【腾云】",
@@ -375,6 +375,25 @@ Agent 分身定时任务:
   • 全局定时任务（/cron_add）修改后自动同步到守护进程配置
   • 守护进程配置存储在 ~/.fr_cli_gatekeeper.json 中
 """,
+        "help_detail_mcp": """📜 【MCP 外部神通】
+
+MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。
+
+管理命令:
+  /mcp_list                列出所有服务器及其可用法宝
+  /mcp_add <名> <命令> [参数...]  添加 stdio 服务器
+  /mcp_del <名>             删除服务器
+  /mcp_enable <名>          启用服务器
+  /mcp_disable <名>         禁用服务器
+  /mcp_refresh              刷新法宝列表
+
+AI 调用格式:
+  【调用：mcp_call({"server": "服务器名", "tool": "工具名", "arguments": {...}})】
+
+示例:
+  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+  /mcp_refresh
+""",
         "help_detail_security": """📜 【安全机制】
 
 四阶安全确认 (Y/A/F/N):
@@ -416,8 +435,27 @@ Agent 分身定时任务:
         "sec_read": "Read file", "sec_write": "Write plugin", "sec_exec": "Run plugin", "sec_mount": "Mount dir", "sec_gen_img": "GenImg", "sec_send_mail": "Mail", "sec_fetch_web": "Fetch", "sec_upload_disk": "Upload", "sec_download_disk": "Download", "sec_shell": "Shell Exec",
         "gen_ing": "🎨 Gen…", "gen_ok": "✅ Saved: {}", "gen_fail": "❌ Fail: ", "see_warn": "⚠️ Need glm-4v-plus", "see_ing": "👁️ See…",
         "help_title": "📜 Help:", "help_cfg": "[Config]", "help_fs": "[FS]", "help_sess": "[Sess]", "help_plugin": "[Plugins]", "help_extra": "[Adv]", "help_shell": "[Matrix]",
-        "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
-        "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
+        "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+        "help_detail_mcp": """📜 [MCP External Tools]
+
+MCP (Model Context Protocol) connects external servers and makes their tools available to AI.
+
+Management:
+  /mcp_list                List all servers and their tools
+  /mcp_add <name> <cmd> [args...]  Add a stdio server
+  /mcp_del <name>          Remove server
+  /mcp_enable <name>       Enable server
+  /mcp_disable <name>      Disable server
+  /mcp_refresh             Refresh tool list
+
+AI call format:
+  【调用：mcp_call({"server": "server_name", "tool": "tool_name", "arguments": {...}})】
+
+Example:
+  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+  /mcp_refresh
+""",
+        "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
         "empty": "(Empty)", "none": "None", "no_sess": "No sess.", "no_plugins": "No plug.",
         "ctx_dir": "\n[System: User in {}.]",
         "menu_mail": "[Mail]", "menu_cron": "[Cron]", "menu_web": "[Web]", "menu_disk": "[Disk]",

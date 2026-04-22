@@ -22,10 +22,11 @@ _LEGACY_CATEGORIES = {
 }
 
 
-def load_weapon_md():
+def load_weapon_md(mcp_tools=None):
     """
     从统一注册表获取法宝图谱。
     保持返回格式兼容旧接口：(tools:list, trigger_map:dict)
+    :param mcp_tools: MCP 外部神通列表，可选
     """
     reg = get_registry()
     reg_tools = {t["name"]: t for t in reg.get_available_tools(plugins={})}
@@ -60,6 +61,17 @@ def load_weapon_md():
                     seen.add(t)
                     unique_triggers.append(t)
             trigger_map[cat_name] = unique_triggers
+
+    # 注入 MCP 外部神通
+    if mcp_tools:
+        mcp_commands = [t["name"] for t in mcp_tools]
+        tools.append({
+            "name": "mcp_tools",
+            "description": "MCP 外部神通: " + ", ".join([t["name"] for t in mcp_tools]),
+            "commands": mcp_commands,
+            "path": "fr_cli/weapon/mcp.py",
+        })
+        trigger_map["mcp_tools"] = ["mcp", "外部工具"]
 
     return tools, trigger_map
 
