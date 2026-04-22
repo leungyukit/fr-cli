@@ -39,65 +39,6 @@ def _sync_manual_to_workspace(vfs):
         pass
 
 
-def _print_help(state, topic):
-    """打印修仙指南"""
-    topic_map = {
-        "config": "config",
-        "fs": "fs", "file": "fs", "files": "fs",
-        "session": "session", "sess": "session",
-        "plugin": "plugin", "plugins": "plugin", "skill": "plugin", "skills": "plugin",
-        "mail": "mail", "email": "mail",
-        "cron": "cron", "timer": "cron", "schedule": "cron",
-        "web": "web", "search": "web",
-        "disk": "disk", "cloud": "disk",
-        "vision": "vision", "image": "vision", "see": "vision", "img": "vision",
-        "shell": "shell", "matrix": "shell", "cmd": "shell",
-        "tools": "tools", "tool": "tools", "invoke": "tools",
-        "security": "security", "safe": "security", "sec": "security",
-        "app": "app", "launcher": "app", "launch": "app", "open": "app",
-        "agent": "agent", "agents": "agent",
-        "builtin": "builtin", "builtins": "builtin",
-        "dataframe": "dataframe", "data": "dataframe",
-        "gatekeeper": "gatekeeper",
-        "all": "all",
-    }
-    mapped = topic_map.get(topic, "")
-    lang = state.lang
-
-    if not mapped:
-        print(f"{CYAN}{T('help_title', lang)}{RESET}")
-        print(f"  {T('help_cfg', lang)} /model /key /limit /alias /export /update")
-        print(f"  {T('help_fs', lang)} /ls /cat /cd /write /append /delete")
-        print(f"  {T('help_sess', lang)} /save /load /del /undo")
-        print(f"  {DIM}  自动存档: /session_list | /session_load <编号> | /session_del <编号>{RESET}")
-        print(f"  {DIM}  主控Agent: /master on|off|status — 启用自我进化型主Agent{RESET}")
-        print(f"  {T('help_plugin', lang)} /skills (自动进化)")
-        print(f"  {DIM}  思维: /mode <direct|cot|tot|react> — 切换 AI 推理模式{RESET}")
-        print(f"  {T('help_extra', lang)} /mail_* /cron_* /web /fetch /disk_* /see")
-        print(f"  {DIM}  Agent: /agent_create /agent_forge /agent_list /agent_run /agent_show /agent_edit /agent_delete{RESET}")
-        print(f"  {DIM}  Agent API: /agent_server start [port] | stop | status{RESET}")
-        print(f"  {DIM}  Agent 发布: /agent_publish — 生成对外连接信息{RESET}")
-        print(f"  {DIM}  Agent 定时: /agent_cron_add <agent> <秒> [输入] | /agent_cron_list | /agent_cron_del <ID>{RESET}")
-        print(f"  {DIM}  远程Agent: /remote_agent_add <name> <host> <port> <token> [desc] | /remote_agent_list | /remote_agent_del <name>{RESET}")
-        print(f"  {DIM}  远程发现: /remote_agent_scan <host> <port> <token> | /remote_agent_import <host> <port> <token> [prefix]{RESET}")
-        print(f"  {DIM}  本机应用: /open <路径/URL> | /launch <应用> [目标] | /apps{RESET}")
-        print(f"  {DIM}  内置Agent: @local <需求> | @remote [IP] <需求> | @spider <URL> [深度] | @db <需求> | @RAG <问题>{RESET}")
-        print(f"  {DIM}  知识库: /rag_dir <目录> | /rag_sync | /rag_watch start/stop/status/log{RESET}")
-        print(f"  {DIM}  数据: /read_excel <文件> | /read_csv <文件>{RESET}")
-        print(f"  {T('help_shell', lang)} {T('shell_tip', lang)}\n                {T('pipe_tip', lang)}")
-        print(f"\n{T('help_usage', lang)}")
-    elif mapped == "all":
-        for t in ["config", "fs", "session", "plugin", "mail", "cron", "web", "disk", "vision", "shell", "tools", "security", "app", "agent", "builtin", "dataframe", "gatekeeper"]:
-            print(T(f"help_detail_{t}", lang))
-            print()
-    else:
-        detail = T(f"help_detail_{mapped}", lang)
-        if detail:
-            print(detail)
-        else:
-            print(T("help_not_found", lang, topic))
-
-
 # 明确的工具操作关键词（兜底规则，避免大模型漏判）
 # 同时包含中英文，覆盖用户在任何语言界面下输入任意语言的场景
 _FORCE_TOOL_KEYWORDS = [
