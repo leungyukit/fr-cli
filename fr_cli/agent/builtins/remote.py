@@ -2,7 +2,6 @@
 @remote 内置 Agent —— 远程 SSH 操作助手
 支持多机配置、配置向导、AI 生成远程命令。
 """
-import subprocess
 from pathlib import Path
 
 REMOTE_CFG_PATH = Path.home() / ".fr_cli_remotes.json"

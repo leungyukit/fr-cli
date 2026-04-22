@@ -145,6 +145,33 @@ python fr_cli/breakthrough/update.py check
 python fr_cli/breakthrough/update.py run
 ```
 
+### Docker 部署
+
+项目已内置 `Dockerfile` 与 `docker-compose.yml`，支持在容器环境中运行。
+
+```bash
+# 构建镜像
+docker build -t fr-cli .
+
+# 运行（交互式终端，需挂载配置卷以持久化数据）
+docker run -it \
+  -v ~/.zhipu_cli_config.json:/root/.zhipu_cli_config.json \
+  -v ~/.zhipu_cli_history:/root/.zhipu_cli_history \
+  -v ~/.zhipu_cli_plugins:/root/.zhipu_cli_plugins \
+  -v ~/.zhipu_cli_context.json:/root/.zhipu_cli_context.json \
+  -v ~/.fr_cli_agents:/root/.fr_cli_agents \
+  -v ~/.fr_cli_master:/root/.fr_cli_master \
+  -v ~/.fr_cli_remote_agents.json:/root/.fr_cli_remote_agents.json \
+  -v ~/.fr_cli_sessions:/root/.fr_cli_sessions \
+  -v $(pwd):/app/workspace \
+  fr-cli
+
+# 或使用 Docker Compose（推荐）
+docker compose up fr-cli
+```
+
+> 注意：首次运行需在交互中输入 Zhipu API Key，配置会自动写入挂载的配置文件。
+
 ---
 
 ## 代码组织与模块划分
@@ -660,6 +687,7 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 | 修改国际化文本 | 修改 `lang/i18n.py` 的 `I18N` 字典，确保 `zh` 与 `en` 键同时存在 |
 | 添加测试 | 在 `tests/` 目录中新增或修改，运行 `python -m pytest tests/ -v` 验证 |
 | 发布新版本 | 修改 `pyproject.toml` 的 `version`，运行 `python -m build && twine upload dist/*` |
+| Docker 部署 | 使用 `docker build -t fr-cli .` 构建，`docker compose up fr-cli` 运行；配置通过卷挂载持久化 |
 
 ---
 

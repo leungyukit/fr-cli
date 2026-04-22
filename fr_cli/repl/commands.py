@@ -3,11 +3,6 @@ REPL 命令路由处理器
 从 main.py 提取的所有 / 命令实现，减轻主模块负担。
 """
 import sys
-import os
-import subprocess
-import platform
-import shutil
-from pathlib import Path
 
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
@@ -21,20 +16,14 @@ from fr_cli.memory.session import (
     load_session as load_auto_session,
     delete_session as delete_auto_session,
 )
-from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
+from fr_cli.addon.plugin import extract_code
 from fr_cli.core.stream import stream_cnt
-from fr_cli.core.recommender import recommend_features
 from fr_cli.agent.manager import (
     create_agent_dir, save_agent_code, save_persona, save_skills,
     save_memory, agent_exists, list_agents, delete_agent,
-    load_persona, load_memory, load_skills, load_agent_module,
+    load_persona, load_memory, load_skills,
 )
 from fr_cli.agent.executor import run_agent
-from fr_cli.agent.builtins.local import handle_local
-from fr_cli.agent.builtins.remote import handle_remote
-from fr_cli.agent.builtins.spider import handle_spider
-from fr_cli.agent.builtins.db import handle_db
-from fr_cli.agent.builtins.rag import handle_rag
 
 
 def _cmd_exit(state, parts):

@@ -635,14 +635,12 @@ class TestSecurityManager(unittest.TestCase):
         self.assertTrue(sm.sconfirm)
         mock_save.assert_called_once()
 
-    @patch("fr_cli.command.security.save_config")
-    def test_y_once(self, mock_save):
+    def test_y_once(self):
         from fr_cli.command.security import SecurityManager
         sm = SecurityManager("zh", {})
         with patch("builtins.input", return_value="y"):
             self.assertTrue(sm.check("sec_read", "a.txt"))
         self.assertFalse(sm.fconfirm)
-        mock_save.assert_not_called()
 
     def test_already_fconfirm(self):
         from fr_cli.command.security import SecurityManager

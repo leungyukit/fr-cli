@@ -103,7 +103,7 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
             agents = list_agents()
             self._send_json(200, {
                 "service": "fr-cli-agent-api",
-                "version": "2.2.0",
+                "version": "2.1.0",
                 "agents": [
                     {
                         "name": a["name"],

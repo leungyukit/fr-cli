@@ -920,6 +920,17 @@ def _agent_create(deps, **kwargs):
     return f"Agent [{name}] 铸造完成！路径: {d}", None
 
 
+def _make_compat_state(deps):
+    """将 SimpleNamespace deps 包装为兼容 AppState 的对象，供 Agent executor 使用"""
+    class _CompatState:
+        def __init__(self, d):
+            for k, v in d.__dict__.items():
+                setattr(self, k, v)
+    compat = _CompatState(deps)
+    compat.executor = getattr(deps, 'executor', None)
+    return compat
+
+
 @register(
     name="agent_run",
     triggers=["运行Agent", "调用Agent", "执行Agent", "run agent"],
@@ -929,13 +940,7 @@ def _agent_create(deps, **kwargs):
 )
 def _agent_run(deps, **kwargs):
     from fr_cli.agent.executor import run_agent
-    class _CompatState:
-        def __init__(self, d):
-            for k, v in d.__dict__.items():
-                setattr(self, k, v)
-    compat = _CompatState(deps)
-    compat.executor = getattr(deps, 'executor', None)
-    result, err = run_agent(kwargs["name"], compat)
+    result, err = run_agent(kwargs["name"], _make_compat_state(deps))
     return (result, None) if not err else (None, err)
 
 
@@ -949,13 +954,7 @@ def _agent_run(deps, **kwargs):
 def _agent_call(deps, **kwargs):
     """MasterAgent 调用其他 Agent（支持本地和远程）"""
     from fr_cli.agent.client import call_agent
-    class _CompatState:
-        def __init__(self, d):
-            for k, v in d.__dict__.items():
-                setattr(self, k, v)
-    compat = _CompatState(deps)
-    compat.executor = getattr(deps, 'executor', None)
-    result, err = call_agent(kwargs["name"], compat, user_input=kwargs.get("user_input", ""))
+    result, err = call_agent(kwargs["name"], _make_compat_state(deps), user_input=kwargs.get("user_input", ""))
     return (result, None) if not err else (None, err)
 
 

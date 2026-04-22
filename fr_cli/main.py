@@ -14,10 +14,10 @@ from fr_cli.conf.config import init_config, ConfigError
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import enable_win_ansi, print_banner, print_bye, CYAN, RED, YELLOW, GREEN, DIM, RESET
 from fr_cli.core.stream import stream_cnt
-from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
+from fr_cli.memory.history import load_sess
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context, load_context
-from fr_cli.memory.session import create_session, update_session, list_sessions as list_auto_sessions, load_session as load_auto_session, delete_session as delete_auto_session
-from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
+from fr_cli.memory.session import create_session, update_session
+from fr_cli.addon.plugin import extract_code
 from fr_cli.core.recommender import recommend_features
 from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.core.core import AppState

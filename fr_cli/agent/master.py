@@ -11,9 +11,7 @@
   status.json    — 状态文件（启用状态、统计、时间戳）
 """
 import json
-import os
 import re
-import time
 from datetime import datetime
 from pathlib import Path
 
@@ -21,7 +19,7 @@ from pathlib import Path
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
 from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
-from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.ui import RED, YELLOW, GREEN, DIM, RESET
 
 MASTER_DIR = Path.home() / ".fr_cli_master"
 PERSONA_FILE = MASTER_DIR / "persona.md"

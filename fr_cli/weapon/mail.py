@@ -77,66 +77,73 @@ class MailClient:
             return None, T("mail_no_cfg", lang)
         if not self.imap_server or not self.email or not self.password:
             return None, T("mail_no_cfg", lang)
-        
+
+        mail = None
         try:
             mail = self.imap.IMAP4_SSL(self.imap_server)
             mail.login(self.email, self.password)
             mail.select('inbox')
-            
+
             _, data = mail.search(None, 'ALL')
             mail_ids = data[0].split()
-            
+
             mails = []
             for mail_id in mail_ids[-10:]:  # 只取最近10封
                 _, msg_data = mail.fetch(mail_id, '(RFC822)')
                 raw_email = msg_data[0][1]
                 email_message = self.email_module.message_from_bytes(raw_email)
-                
+
                 subject = ""
                 for part in self.decode_header(email_message['Subject']):
                     if isinstance(part[0], bytes):
                         subject += part[0].decode(part[1] or 'utf-8', errors='ignore')
                     else:
                         subject += part[0]
-                
+
                 from_addr = email_message['From'] or "Unknown"
-                
+
                 mails.append({
                     "id": mail_id.decode(),
                     "sub": subject[:50],
                     "from": from_addr[:30]
                 })
-            
-            mail.close()
-            mail.logout()
+
             return mails, None
         except Exception as e:
             return None, f"{T('mail_err', lang)} {e}"
+        finally:
+            if mail:
+                try:
+                    mail.close()
+                    mail.logout()
+                except Exception:
+                    pass
 
     def read(self, mail_id, lang):
         """读取指定邮件"""
         if not self.connected:
             return None, T("mail_no_cfg", lang)
-        
+
+        mail = None
         try:
             mail = self.imap.IMAP4_SSL(self.imap_server)
             mail.login(self.email, self.password)
             mail.select('inbox')
-            
+
             _, msg_data = mail.fetch(mail_id, '(RFC822)')
             raw_email = msg_data[0][1]
             email_message = self.email_module.message_from_bytes(raw_email)
-            
+
             subject = ""
             for part in self.decode_header(email_message['Subject']):
                 if isinstance(part[0], bytes):
                     subject += part[0].decode(part[1] or 'utf-8', errors='ignore')
                 else:
                     subject += part[0]
-            
+
             from_addr = email_message['From'] or "Unknown"
             date = email_message['Date'] or ""
-            
+
             body = ""
             html_body = ""
             if email_message.is_multipart():
@@ -166,10 +173,7 @@ class MailClient:
                     body = _html_to_text(raw)
                 else:
                     body = raw
-            
-            mail.close()
-            mail.logout()
-            
+
             return {
                 "sub": subject,
                 "from": from_addr,
@@ -178,6 +182,13 @@ class MailClient:
             }, None
         except Exception as e:
             return None, f"{T('mail_err', lang)} {e}"
+        finally:
+            if mail:
+                try:
+                    mail.close()
+                    mail.logout()
+                except Exception:
+                    pass
 
     def send(self, to, subject, body, lang):
         """发送邮件"""
@@ -194,19 +205,23 @@ class MailClient:
         if not parsed[1] or '@' not in parsed[1]:
             return False, "❌ 收件人地址格式无效"
 
+        server = None
         try:
             msg = self.mime_multipart()
             msg['From'] = self.email
             msg['To'] = to
             msg['Subject'] = subject
 
-            msg.attach(self.mime_text(body, 'plain', 'utf-8'))
-
             server = self.smtp.SMTP_SSL(self.smtp_server, 465)
             server.login(self.email, self.password)
             server.send_message(msg)
-            server.quit()
 
             return True, None
         except Exception as e:
             return False, f"{T('mail_err', lang)} {e}"
+        finally:
+            if server:
+                try:
+                    server.quit()
+                except Exception:
+                    pass

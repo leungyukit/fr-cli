@@ -2,10 +2,10 @@
 插件进化引擎
 负责本地技能的扫描、动态落盘与沙盒执行
 """
-import os, re, subprocess, sys
+import re, subprocess, sys
 from pathlib import Path
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import RED, GREEN, DIM, RESET
+from fr_cli.ui.ui import RED, DIM, RESET
 
 PLUGIN_DIR = Path.home() / ".zhipu_cli_plugins"
 
