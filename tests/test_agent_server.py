@@ -111,6 +111,45 @@ class TestAgentHTTPHandler(unittest.TestCase):
         self.assertEqual(resp.status, 401)
         conn.close()
 
+    def test_capabilities_endpoint(self):
+        status, data = self._request("GET", "/capabilities")
+        self.assertEqual(status, 200)
+        self.assertEqual(data["service"], "fr-cli-agent-api")
+        self.assertIn("agents", data)
+        self.assertIn("endpoints", data)
+
+    def test_cors_preflight(self):
+        import http.client
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        conn.request("OPTIONS", "/agents", headers={
+            "Authorization": f"Bearer {self.server._token}",
+            "Origin": "http://example.com",
+        })
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 204)
+        conn.close()
+
+    def test_ip_whitelist_block(self):
+        # 设置一个不可能匹配的 IP 白名单
+        self.server.set_ip_whitelist(["1.2.3.4"])
+        import http.client
+        conn = http.client.HTTPConnection("127.0.0.1", self.port)
+        conn.request("GET", "/health", headers={
+            "Authorization": f"Bearer {self.server._token}",
+        })
+        resp = conn.getresponse()
+        self.assertEqual(resp.status, 403)
+        conn.close()
+        # 恢复
+        self.server.set_ip_whitelist([])
+
+    def test_publish_info(self):
+        info = self.server.get_publish_info()
+        self.assertIsNotNone(info)
+        self.assertIn("url", info)
+        self.assertIn("token", info)
+        self.assertEqual(info["token"], self.server._token)
+
 
 class TestAgentHTTPRun(unittest.TestCase):
 

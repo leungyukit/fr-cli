@@ -104,6 +104,96 @@ class TestAgentClient(unittest.TestCase):
         self.assertIsNone(result)
         self.assertIn("401", err)
 
+    @patch("fr_cli.agent.client.urllib.request.urlopen")
+    def test_scan_remote_host(self, mock_urlopen):
+        from fr_cli.agent.client import scan_remote_host
+
+        def _make_resp(data_dict):
+            m = MagicMock()
+            m.read.return_value = json.dumps(data_dict).encode("utf-8")
+            m.__enter__ = MagicMock(return_value=m)
+            m.__exit__ = MagicMock(return_value=False)
+            return m
+
+        def mock_response(req, timeout=None):
+            url = req.full_url
+            if "capabilities" in url:
+                return _make_resp({
+                    "service": "fr-cli-agent-api",
+                    "version": "2.2.0",
+                    "agents": [],
+                    "endpoints": {},
+                })
+            elif "agents" in url:
+                return _make_resp({
+                    "agents": [{"name": "coder", "has_persona": True, "has_skills": True}],
+                })
+            return _make_resp({})
+
+        mock_urlopen.side_effect = mock_response
+        info, err = scan_remote_host("192.168.1.10", 8080, "tok")
+        self.assertIsNone(err)
+        self.assertEqual(info["service"], "fr-cli-agent-api")
+        self.assertEqual(len(info["agents"]), 1)
+        self.assertEqual(info["agents"][0]["name"], "coder")
+
+    @patch("fr_cli.agent.client.urllib.request.urlopen")
+    def test_scan_remote_host_failure(self, mock_urlopen):
+        from fr_cli.agent.client import scan_remote_host
+        from urllib.error import URLError
+        mock_urlopen.side_effect = URLError("Connection refused")
+        info, err = scan_remote_host("bad_host", 9999, "tok")
+        self.assertIsNone(info)
+        self.assertIn("Connection refused", err)
+
+    @patch("fr_cli.agent.client.urllib.request.urlopen")
+    def test_import_remote_agents(self, mock_urlopen):
+        from fr_cli.agent.client import import_remote_agents
+        import tempfile
+        from fr_cli.agent import remote as remote_mod
+
+        tmpdir = tempfile.TemporaryDirectory()
+        orig_file = remote_mod.REMOTE_AGENTS_FILE
+        remote_mod.REMOTE_AGENTS_FILE = Path(tmpdir.name) / "remote.json"
+
+        def _make_resp(data_dict):
+            m = MagicMock()
+            m.read.return_value = json.dumps(data_dict).encode("utf-8")
+            m.__enter__ = MagicMock(return_value=m)
+            m.__exit__ = MagicMock(return_value=False)
+            return m
+
+        def mock_response(req, timeout=None):
+            url = req.full_url
+            if "capabilities" in url:
+                return _make_resp({
+                    "service": "fr-cli-agent-api",
+                    "version": "2.2.0",
+                    "agents": [],
+                })
+            elif "agents" in url:
+                return _make_resp({
+                    "agents": [
+                        {"name": "writer", "has_persona": True},
+                        {"name": "coder", "has_persona": True},
+                    ],
+                })
+            return _make_resp({})
+
+        mock_urlopen.side_effect = mock_response
+        imported, errors = import_remote_agents("10.0.0.1", 9090, "abc", prefix="team")
+        self.assertEqual(imported, 2)
+        self.assertEqual(len(errors), 0)
+
+        # 验证已写入配置
+        agents = remote_mod.list_remote_agents()
+        self.assertIn("team_writer", agents)
+        self.assertIn("team_coder", agents)
+        self.assertEqual(agents["team_writer"]["host"], "10.0.0.1")
+
+        remote_mod.REMOTE_AGENTS_FILE = orig_file
+        tmpdir.cleanup()
+
 
 if __name__ == "__main__":
     unittest.main()

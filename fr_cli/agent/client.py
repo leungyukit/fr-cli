@@ -7,7 +7,7 @@ import urllib.request
 import urllib.error
 
 from fr_cli.agent.executor import run_agent
-from fr_cli.agent.remote import list_remote_agents, get_remote_agent
+from fr_cli.agent.remote import list_remote_agents, get_remote_agent, add_remote_agent
 from fr_cli.agent.manager import list_agents as list_local_agents
 
 
@@ -91,3 +91,74 @@ def call_remote_agent(name, user_input, cfg):
         return None, f"远程Agent连接失败: {e.reason}"
     except Exception as e:
         return None, f"远程Agent调用异常: {e}"
+
+
+def scan_remote_host(host, port, token):
+    """
+    扫描远程主机，获取其提供的 Agent 列表和服务能力
+    返回 ({"service": ..., "agents": [...]}, error)
+    """
+    # 1. 获取能力声明
+    cap_url = f"http://{host}:{port}/capabilities"
+    req = urllib.request.Request(
+        cap_url,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            caps = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return None, f"无法获取远程能力声明: {e}"
+
+    # 2. 获取 Agent 列表
+    agents_url = f"http://{host}:{port}/agents"
+    req = urllib.request.Request(
+        agents_url,
+        headers={"Authorization": f"Bearer {token}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            agents_data = json.loads(resp.read().decode("utf-8"))
+    except Exception as e:
+        return None, f"无法获取远程Agent列表: {e}"
+
+    return {
+        "service": caps.get("service", "unknown"),
+        "version": caps.get("version", "unknown"),
+        "agents": agents_data.get("agents", []),
+        "endpoints": caps.get("endpoints", {}),
+        "host": host,
+        "port": port,
+        "token": token,
+    }, None
+
+
+def import_remote_agents(host, port, token, prefix=""):
+    """
+    一键导入远程主机的所有 Agent 到本地配置
+    prefix: 可选前缀，避免与本地Agent重名
+    返回 (imported_count, errors)
+    """
+    info, err = scan_remote_host(host, port, token)
+    if err:
+        return 0, [err]
+
+    imported = 0
+    errors = []
+    for agent in info.get("agents", []):
+        name = agent["name"]
+        if prefix:
+            name = f"{prefix}_{name}"
+        try:
+            add_remote_agent(
+                name,
+                host,
+                port,
+                token,
+                description=f"远程Agent [{agent['name']}] @ {host}:{port}",
+            )
+            imported += 1
+        except Exception as e:
+            errors.append(f"导入 {name} 失败: {e}")
+
+    return imported, errors
