@@ -466,6 +466,51 @@ def _cmd_agent_run(state, parts):
     return False
 
 
+def _cmd_remote_agent_add(state, parts):
+    """添加远程 Agent: /remote_agent_add <name> <host> <port> <token> [description]"""
+    from fr_cli.agent.remote import add_remote_agent
+    if len(parts) < 5:
+        print(f"{YELLOW}用法: /remote_agent_add <name> <host> <port> <token> [description]{RESET}")
+        return False
+    name, host, port, token = parts[1], parts[2], parts[3], parts[4]
+    desc = ' '.join(parts[5:]) if len(parts) > 5 else ""
+    try:
+        port = int(port)
+    except ValueError:
+        print(f"{RED}端口号必须是数字{RESET}")
+        return False
+    add_remote_agent(name, host, port, token, desc)
+    print(f"{GREEN}✅ 远程 Agent [{name}] 已注册: {host}:{port}{RESET}")
+    return False
+
+
+def _cmd_remote_agent_list(state, parts):
+    """列出所有远程 Agent"""
+    from fr_cli.agent.remote import list_remote_agents
+    agents = list_remote_agents()
+    if not agents:
+        print(f"{DIM}暂无远程 Agent。使用 /remote_agent_add 添加。{RESET}")
+        return False
+    print(f"{CYAN}🌐 远程 Agent 列表:{RESET}")
+    for name, cfg in agents.items():
+        print(f"  [{name}] {cfg['host']}:{cfg['port']} — {cfg.get('description', '')}")
+    return False
+
+
+def _cmd_remote_agent_del(state, parts):
+    """删除远程 Agent: /remote_agent_del <name>"""
+    from fr_cli.agent.remote import remove_remote_agent
+    arg1 = parts[1] if len(parts) > 1 else ""
+    if not arg1:
+        print(f"{YELLOW}用法: /remote_agent_del <name>{RESET}")
+        return False
+    if remove_remote_agent(arg1):
+        print(f"{GREEN}✅ 远程 Agent [{arg1}] 已删除。{RESET}")
+    else:
+        print(f"{RED}远程 Agent [{arg1}] 不存在。{RESET}")
+    return False
+
+
 def _cmd_agent_edit(state, parts):
     from fr_cli.agent.manager import agent_exists, save_persona, save_memory, save_skills, save_agent_code
     from fr_cli.agent.workflow import save_workflow

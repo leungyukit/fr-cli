@@ -923,14 +923,12 @@ def _agent_create(deps, **kwargs):
 @register(
     name="agent_run",
     triggers=["运行Agent", "调用Agent", "执行Agent", "run agent"],
-    description="运行指定 Agent",
+    description="运行指定本地 Agent",
     params={"name": str},
     aliases=["/agent_run"],
 )
 def _agent_run(deps, **kwargs):
     from fr_cli.agent.executor import run_agent
-    # run_agent 需要 AppState（state），但 registry 中只有 deps（SimpleNamespace）
-    # 将 deps 包装为兼容对象，补充 executor 和 state 引用
     class _CompatState:
         def __init__(self, d):
             for k, v in d.__dict__.items():
@@ -938,6 +936,26 @@ def _agent_run(deps, **kwargs):
     compat = _CompatState(deps)
     compat.executor = getattr(deps, 'executor', None)
     result, err = run_agent(kwargs["name"], compat)
+    return (result, None) if not err else (None, err)
+
+
+@register(
+    name="agent_call",
+    triggers=["调用Agent", "协作Agent", "agent_call", "召唤Agent"],
+    description="调用Agent（本地或远程）并传入任务描述，实现MasterAgent与其他Agent协作",
+    params={"name": str, "user_input": str},
+    aliases=["/agent_call"],
+)
+def _agent_call(deps, **kwargs):
+    """MasterAgent 调用其他 Agent（支持本地和远程）"""
+    from fr_cli.agent.client import call_agent
+    class _CompatState:
+        def __init__(self, d):
+            for k, v in d.__dict__.items():
+                setattr(self, k, v)
+    compat = _CompatState(deps)
+    compat.executor = getattr(deps, 'executor', None)
+    result, err = call_agent(kwargs["name"], compat, user_input=kwargs.get("user_input", ""))
     return (result, None) if not err else (None, err)
 
 

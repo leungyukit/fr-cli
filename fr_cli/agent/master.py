@@ -184,14 +184,23 @@ class MasterAgent:
     # ---------- 工具描述生成 ----------
 
     def _build_tools_desc(self):
-        """从注册表动态生成工具描述文本"""
+        """从注册表动态生成工具描述文本，同时包含可用Agent列表"""
         from fr_cli.command.registry import get_registry
+        from fr_cli.agent.client import discover_all_agents
         reg = get_registry()
         lines = []
         for t in reg.get_tools():
             params_str = ", ".join(f"{k}:{v.__name__ if hasattr(v, '__name__') else str(v)}"
                                     for k, v in t.get("params", {}).items())
             lines.append(f"- {t['name']}: {t['description']}  参数: {params_str or '无'}")
+
+        # 追加可用 Agent 列表（本地 + 远程）
+        agents = discover_all_agents()
+        if agents:
+            lines.append("\n=== 可协作的独立Agent ===")
+            for a in agents:
+                lines.append(f"- [{a['type']}] {a['name']}: {a['description']}")
+            lines.append("\n调用方式: agent_call({\"name\": \"Agent名\", \"user_input\": \"任务描述\"})")
         return "\n".join(lines)
 
     # ---------- System Prompt 组装 ----------

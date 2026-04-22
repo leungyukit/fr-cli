@@ -77,6 +77,7 @@ def _print_help(state, topic):
         print(f"  {DIM}  Agent: /agent_create /agent_forge /agent_list /agent_run /agent_show /agent_edit /agent_delete{RESET}")
         print(f"  {DIM}  Agent API: /agent_server start [port] | stop | status{RESET}")
         print(f"  {DIM}  Agent 定时: /agent_cron_add <agent> <秒> [输入] | /agent_cron_list | /agent_cron_del <ID>{RESET}")
+        print(f"  {DIM}  远程Agent: /remote_agent_add <name> <host> <port> <token> [desc] | /remote_agent_list | /remote_agent_del <name>{RESET}")
         print(f"  {DIM}  本机应用: /open <路径/URL> | /launch <应用> [目标] | /apps{RESET}")
         print(f"  {DIM}  内置Agent: @local <需求> | @remote [IP] <需求> | @spider <URL> [深度] | @db <需求> | @RAG <问题>{RESET}")
         print(f"  {DIM}  知识库: /rag_dir <目录> | /rag_sync | /rag_watch start/stop/status/log{RESET}")
@@ -413,6 +414,9 @@ from fr_cli.repl.commands import (
     _cmd_agent_run,
     _cmd_agent_edit,
     _cmd_agent_forge,
+    _cmd_remote_agent_add,
+    _cmd_remote_agent_list,
+    _cmd_remote_agent_del,
     _cmd_remote_setup,
     _cmd_db_setup,
     _cmd_agent_cron_add,
@@ -459,6 +463,9 @@ _COMMAND_ROUTES = {
     "/agent_run": _cmd_agent_run,
     "/agent_edit": _cmd_agent_edit,
     "/agent_forge": _cmd_agent_forge,
+    "/remote_agent_add": _cmd_remote_agent_add,
+    "/remote_agent_list": _cmd_remote_agent_list,
+    "/remote_agent_del": _cmd_remote_agent_del,
     "/remote_setup": _cmd_remote_setup,
     "/db_setup": _cmd_db_setup,
     "/agent_cron_add": _cmd_agent_cron_add,
