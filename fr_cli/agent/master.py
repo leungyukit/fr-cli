@@ -20,6 +20,7 @@ from fr_cli.memory.context import extract_recent_turns, build_context_summary, s
 from fr_cli.memory.session import create_session, update_session
 from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
 from fr_cli.ui.ui import RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.lang.i18n import T
 
 MASTER_DIR = Path.home() / ".fr_cli_master"
 PERSONA_FILE = MASTER_DIR / "persona.md"

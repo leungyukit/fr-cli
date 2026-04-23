@@ -11,7 +11,7 @@ psycopg2-binary>=2.9.0
 pyodbc>=4.0.0
 oracledb>=1.3.0
 chromadb>=0.4.0
-sentence-transformers>=2.2.4
+sentence-transformers>=2.2.5
 paramiko>=3.0.0
 selenium>=4.10.0
 bypy
@@ -44,7 +44,7 @@ watchdog>=3.0.0
 
 [rag]
 chromadb>=0.4.0
-sentence-transformers>=2.2.4
+sentence-transformers>=2.2.5
 
 [remote]
 paramiko>=3.0.0

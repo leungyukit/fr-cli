@@ -10,7 +10,7 @@ from fr_cli.ui.ui import (
     print_bye
 )
 from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
-from fr_cli.memory.context import load_context
+from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import (
     list_sessions as list_auto_sessions,
     load_session as load_auto_session,
@@ -18,12 +18,23 @@ from fr_cli.memory.session import (
 )
 from fr_cli.addon.plugin import extract_code
 from fr_cli.core.stream import stream_cnt
+from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.agent.manager import (
     create_agent_dir, save_agent_code, save_persona, save_skills,
     save_memory, agent_exists, list_agents, delete_agent,
     load_persona, load_memory, load_skills,
 )
 from fr_cli.agent.executor import run_agent
+
+
+def _provider_has_key(state, provider_id):
+    """检查指定道统是否已配置 API Key（zhipu 向后兼容顶层 key）"""
+    providers_cfg = state.cfg.get("providers", {})
+    pcfg = providers_cfg.get(provider_id, {})
+    has_key = bool(pcfg.get("key"))
+    if not has_key and provider_id == "zhipu":
+        has_key = bool(state.cfg.get("key", ""))
+    return has_key
 
 
 def _print_help(state, topic):
@@ -104,13 +115,7 @@ def _cmd_model(state, parts):
         if ok:
             print(f"{GREEN}✅ 已切换: [{state.provider}] {state.model_name}{RESET}")
             # 检查新道统是否已配置 API Key，若未配置则引导输入
-            providers_cfg = state.cfg.get("providers", {})
-            pcfg = providers_cfg.get(state.provider, {})
-            # 只检查该道统自己专属的 key；zhipu 向后兼容：未单独配置时回退顶层 key
-            has_key = bool(pcfg.get("key"))
-            if not has_key and state.provider == "zhipu":
-                has_key = bool(state.cfg.get("key", ""))
-            if not has_key:
+            if not _provider_has_key(state, state.provider):
                 print(f"{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
                 k = input(f"👉 请输入 [{state.provider}] 的 API Key: ").strip()
                 if k:
@@ -128,10 +133,7 @@ def _cmd_model(state, parts):
         providers_cfg = state.cfg.get("providers", {})
         for p in list_providers():
             marker = " 👈 当前" if p["id"] == state.provider else ""
-            pcfg = providers_cfg.get(p["id"], {})
-            has_key = bool(pcfg.get("key"))
-            if not has_key and p["id"] == "zhipu":
-                has_key = bool(state.cfg.get("key", ""))
+            has_key = _provider_has_key(state, p["id"])
             key_status = f"{GREEN}✅ 已配置{RESET}" if has_key else f"{RED}❌ 未配置{RESET}"
             print(f"  {CYAN}{p['id']}{RESET} — {p['name']}{DIM} (默认: {p['default_model']}){RESET} {key_status}{marker}")
         print(f"\n{DIM}用法:{RESET}")
@@ -195,10 +197,7 @@ def _cmd_providers(state, parts):
         from fr_cli.core.llm import list_providers, get_provider_info
         print(f"{CYAN}📜 道统配置总览{RESET}")
         for p in list_providers():
-            pcfg = providers_cfg.get(p["id"], {})
-            has_key = bool(pcfg.get("key"))
-            if not has_key and p["id"] == "zhipu":
-                has_key = bool(state.cfg.get("key", ""))
+            has_key = _provider_has_key(state, p["id"])
             key_status = f"{GREEN}✅{RESET}" if has_key else f"{RED}❌{RESET}"
             model = pcfg.get("model", p["default_model"])
             info = get_provider_info(p["id"])
@@ -263,11 +262,7 @@ def _cmd_providers(state, parts):
         if ok:
             print(f"{GREEN}✅ 已切换到: [{state.provider}] {state.model_name}{RESET}")
             # 检查新道统是否已配置 API Key
-            pcfg = providers_cfg.get(state.provider, {})
-            has_key = bool(pcfg.get("key"))
-            if not has_key and state.provider == "zhipu":
-                has_key = bool(state.cfg.get("key", ""))
-            if not has_key:
+            if not _provider_has_key(state, state.provider):
                 print(f"{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
                 k = input(f"👉 请输入 [{state.provider}] 的 API Key: ").strip()
                 if k:

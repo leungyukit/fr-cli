@@ -7,8 +7,6 @@ import asyncio
 import json
 from typing import Dict, List, Any, Optional
 
-from fr_cli.ui.ui import CYAN, GREEN, YELLOW, RED, DIM, RESET
-
 try:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client

@@ -22,6 +22,18 @@ class BaseLLMClient(ABC):
         """
         pass
 
+    @staticmethod
+    def _yield_chunks(response) -> Iterator[dict]:
+        """通用 chunk 解析生成器，供各子类复用"""
+        for chunk in response:
+            content = ""
+            usage = None
+            if chunk.choices and chunk.choices[0].delta:
+                content = chunk.choices[0].delta.content or ""
+            if hasattr(chunk, 'usage') and chunk.usage:
+                usage = chunk.usage.model_dump() if hasattr(chunk.usage, 'model_dump') else vars(chunk.usage)
+            yield {"content": content, "usage": usage}
+
 
 class ZhipuLLMClient(BaseLLMClient):
     """智谱 AI 客户端 (zhipuai SDK)"""
@@ -38,14 +50,7 @@ class ZhipuLLMClient(BaseLLMClient):
             stream=True,
             max_tokens=max_tokens,
         )
-        for chunk in response:
-            content = ""
-            usage = None
-            if chunk.choices and chunk.choices[0].delta:
-                content = chunk.choices[0].delta.content or ""
-            if hasattr(chunk, 'usage') and chunk.usage:
-                usage = chunk.usage.model_dump() if hasattr(chunk.usage, 'model_dump') else vars(chunk.usage)
-            yield {"content": content, "usage": usage}
+        yield from self._yield_chunks(response)
 
 
 class OpenAICompatibleClient(BaseLLMClient):
@@ -66,14 +71,7 @@ class OpenAICompatibleClient(BaseLLMClient):
             stream=True,
             max_tokens=max_tokens,
         )
-        for chunk in response:
-            content = ""
-            usage = None
-            if chunk.choices and chunk.choices[0].delta:
-                content = chunk.choices[0].delta.content or ""
-            if hasattr(chunk, 'usage') and chunk.usage:
-                usage = chunk.usage.model_dump() if hasattr(chunk.usage, 'model_dump') else vars(chunk.usage)
-            yield {"content": content, "usage": usage}
+        yield from self._yield_chunks(response)
 
 
 # 提供商配置表
@@ -140,9 +138,10 @@ def create_llm_client(cfg: dict):
     pcfg = providers_cfg.get(provider, {})
 
     # 向后兼容：如果 providers 中没有当前 provider，从顶层读取 key/model
-    api_key = pcfg.get("key", cfg.get("key", ""))
+    # 使用 'or' 确保空字符串也能正确回退到顶层 key
+    api_key = pcfg.get("key") or cfg.get("key", "")
     default_model = _PROVIDERS.get(provider, _PROVIDERS["zhipu"])["default_model"]
-    model = pcfg.get("model", cfg.get("model", default_model))
+    model = pcfg.get("model") or cfg.get("model", default_model)
 
     info = _PROVIDERS.get(provider, _PROVIDERS["zhipu"])
     client_class = info["client_class"]

@@ -20,6 +20,28 @@ from fr_cli.memory.session import create_session, update_session
 from fr_cli.core.intent import should_force_tool, classify_intent, has_info_fetch_intent, has_save_intent
 
 
+def _fetch_mcp_tools(mcp_manager):
+    """安全获取 MCP 工具列表"""
+    if mcp_manager and hasattr(mcp_manager, "list_all_tools"):
+        try:
+            tools = mcp_manager.list_all_tools()
+            return tools if isinstance(tools, list) else []
+        except Exception:
+            pass
+    return []
+
+
+def _fetch_mcp_desc(mcp_manager):
+    """安全获取 MCP 工具描述文本"""
+    if mcp_manager and hasattr(mcp_manager, "get_server_tools_desc"):
+        try:
+            desc = mcp_manager.get_server_tools_desc()
+            return desc if isinstance(desc, str) and desc else ""
+        except Exception:
+            pass
+    return ""
+
+
 def handle_ai_chat(state, u):
     """处理 AI 正常对话流程"""
     lang = state.lang
@@ -31,14 +53,7 @@ def handle_ai_chat(state, u):
     tools = get_available_tools(state.weapon_tools, state.plugins)
     # 将 MCP 外部神通纳入意图判定视野
     mcp_manager = getattr(state, "mcp", None)
-    mcp_tools_summary = []
-    if mcp_manager and hasattr(mcp_manager, "list_all_tools"):
-        try:
-            _mcp_tools = mcp_manager.list_all_tools()
-            if isinstance(_mcp_tools, list):
-                mcp_tools_summary = _mcp_tools
-        except Exception:
-            pass
+    mcp_tools_summary = _fetch_mcp_tools(mcp_manager)
     if mcp_tools_summary:
         tools.append({
             "name": "mcp_tools",
@@ -74,14 +89,10 @@ def handle_ai_chat(state, u):
             tools_info += f"{i}. {tool['name']}: {tool['description']}\n   可用命令: {', '.join(tool['commands'])}\n"
         # 注入 MCP 外部神通
         mcp_manager = getattr(state, "mcp", None)
-        if mcp_manager and hasattr(mcp_manager, "get_server_tools_desc"):
-            try:
-                mcp_desc = mcp_manager.get_server_tools_desc()
-                if isinstance(mcp_desc, str) and mcp_desc:
-                    tools_info += mcp_desc + "\n"
-                    tools_info += "\n调用 MCP 工具时，请使用格式：【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n"
-            except Exception:
-                pass
+        mcp_desc = _fetch_mcp_desc(mcp_manager)
+        if mcp_desc:
+            tools_info += mcp_desc + "\n"
+            tools_info += "\n调用 MCP 工具时，请使用格式：【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n"
         # 信息获取规范：当用户需要调用外部信息源时，采用双源回答模式
         if has_info_fetch_intent(u):
             tools_info += """\n

@@ -30,7 +30,6 @@ def _sync_manual_to_workspace(vfs):
             return
         manual_dst = Path(vfs.cwd) / "MANUAL.md"
         if not manual_dst.exists():
-            import shutil
             shutil.copy2(manual_src, manual_dst)
     except Exception:
         pass

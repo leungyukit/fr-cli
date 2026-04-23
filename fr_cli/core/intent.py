@@ -66,7 +66,7 @@ def should_force_tool(user_input):
     同时检测中英文关键词，不依赖当前界面语言。"""
     u = user_input.lower()
     for kw in _FORCE_TOOL_KEYWORDS:
-        if kw.lower() in u:
+        if kw in u:
             return True
     return False
 
