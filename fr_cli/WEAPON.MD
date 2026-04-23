@@ -166,3 +166,21 @@
   - cot：先进行问题拆解、假设提出、验证评估、方案整合、自我检查，再将推理结果注入最终回答
   - tot：生成多分支策略树，逐层评估打分，选择最优路径并给出备选方案
   - react：每一步先思考（Thought）再行动（Action），基于观察结果（Observation）循环迭代，直到问题解决
+
+
+## mcp_tools
+- **名称**: MCP 外部神通
+- **功能**: 连接外部 MCP (Model Context Protocol) 服务器，将其工具纳入统一注册表。支持 stdio 传输方式，可动态发现服务器提供的工具并调用。
+- **程序路径**: fr_cli/weapon/mcp.py
+- **调用方式**: 
+  - AI 调用: `mcp_call({"server": "服务器名", "tool": "工具名", "arguments": {...}})`
+  - REPL 管理: `/mcp_list`, `/mcp_add`, `/mcp_del`, `/mcp_enable`, `/mcp_disable`, `/mcp_refresh`
+- **触发关键词**: mcp, 外部工具, 外部神通, 调用工具, use tool, invoke tool
+- **配置持久化**: `~/.zhipu_cli_config.json` 的 `mcp.servers` 字段
+- **示例**:
+  ```
+  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+  /mcp_refresh
+  >>> 用 MCP 工具读取 /tmp/hello.txt
+  🧙 仙人 【调用：mcp_call({"server": "fs", "tool": "read_file", "arguments": {"path": "/tmp/hello.txt"}})】
+  ```

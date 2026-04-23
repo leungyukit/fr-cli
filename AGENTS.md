@@ -40,7 +40,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，201 个测试全部通过 |
+| 测试 | `pytest`，210 个测试全部通过 |
 
 ---
 
@@ -100,7 +100,8 @@ fr-cli/
 │       ├── vision.py           # 图片生成（CogView）与多模态消息构造（GLM-4V）
 │       ├── web.py              # 百度搜索抓取与网页正文抽取
 │       ├── launcher.py         # 本地应用启动器（跨平台调用浏览器/办公/通讯等）
-│       └── dataframe.py        # 数据卷轴读取器（Excel / CSV 读取与分析）
+│       ├── dataframe.py        # 数据卷轴读取器（Excel / CSV 读取与分析）
+│       └── mcp.py              # MCP 外部神通客户端（stdio/SSE 连接、工具发现与调用）
 ├── release/                    # 可分发包目录
 │   ├── fr-cli-installer        # macOS 可执行安装程序
 │   ├── fr-cli-install          # 跨平台 Python 安装脚本
@@ -508,6 +509,48 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 | `set_key` | `{"key": "xxx"}` | 设置 API Key |
 | `set_limit` | `{"limit": 4096}` | 设置 token 上限 |
 | `set_lang` | `{"code": "zh"}` | 切换语言 |
+| `mcp_call` | `{"server": "fs", "tool": "read_file", "arguments": {"path": "/tmp/a.txt"}}` | 调用 MCP 外部神通 |
+| `mcp_list` | `{}` | 列出 MCP 服务器及工具 |
+
+### MCP 外部神通
+
+MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。
+
+**配置格式**（`~/.zhipu_cli_config.json`）：
+```json
+{
+    "mcp": {
+        "servers": [
+            {
+                "name": "fs",
+                "transport": "stdio",
+                "command": "npx",
+                "args": ["-y", "@modelcontextprotocol/server-filesystem", "/tmp"],
+                "env": {},
+                "enabled": true
+            }
+        ]
+    }
+}
+```
+
+**管理命令**：`/mcp_list`, `/mcp_add`, `/mcp_del`, `/mcp_enable`, `/mcp_disable`, `/mcp_refresh`
+
+### 多源信息融合框架
+
+当用户请求涉及信息获取时，系统采用**双源回答与汇总**模式：
+
+1. **第一轮（并行收集）**：
+   - AI 先基于自身知识给出初步回答（直接输出在回复文本中）
+   - 同时调用相应的外部工具（search_web、mcp_call、agent_call 等）获取补充信息
+
+2. **第二轮（融合整理）**：
+   - 系统将所有信息源结构化合并后再次提交给大模型
+   - 大模型基于多源信息整理成完整、准确、结构清晰的最终答案
+   - 若不同来源存在冲突，以最新/最权威来源为准，或明确标注不确定性
+
+3. **保存意图检测**：
+   - 若用户原始请求中包含"保存"关键词，第二轮会追加提示，强制 AI 调用 `write_file` 保存最终内容
 
 ### 自定义插件（命令方式）
 
@@ -531,7 +574,8 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
     "aliases": {},              # 命令别名
     "auto_confirm_forever": False,  # 安全：永久放行
     "mail": {},                 # 邮件配置
-    "disk": {}                  # 网盘配置
+    "disk": {},                 # 网盘配置
+    "mcp": {"servers": []}      # MCP 外部神通服务器列表
 }
 ```
 
@@ -581,7 +625,7 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 - `tests/test_launcher.py` — 本地应用启动器测试
 - `tests/test_builtins.py` — 内置 Agent 测试（远程配置/爬虫工具）
 - `tests/test_dataframe.py` — 数据卷轴测试
-- 总计 **201 个测试全部通过**
+- 总计 **210 个测试全部通过**
 
 测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、Gatekeeper
 
@@ -671,7 +715,7 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 | 添加 RAG 文件类型 | 修改 `agent/builtins/rag.py` 的 `_read_file()` 添加新文件格式解析 |
 | 修改 RAG 检索流程 | 修改 `agent/builtins/rag.py` 的 `query()` — 调整 rerank 模型、候选池大小、大模型判定 prompt |
 | 添加 Excel/CSV 支持 | 修改 `weapon/dataframe.py` 添加新的数据读取/分析方法 |
-| 添加新数据库支持 | 修改 `agent/builtins/db.py` 的 `_connect()` 添加新数据库驱动 |
+| 添加 MCP 传输方式 | 修改 `weapon/mcp.py` 添加新传输协议（如 SSE） |
 | 添加 Agent 工作流 | 在 Agent 目录下创建 `workflow.md`，使用 `## 步骤N` 格式定义步骤 |
 | 启动 Agent HTTP 服务 | 在 CLI 中输入 `/agent_server start [port]`，或直接用 `AgentHTTPServer(state, port=8080).start()` |
 | 添加 Agent HTTP 端点 | 修改 `agent/server.py` 的 `_AgentHTTPHandler`，新增路由和处理逻辑 |

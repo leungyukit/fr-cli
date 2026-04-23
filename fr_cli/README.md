@@ -41,6 +41,9 @@ fr-cli
 /session_load <idx>  加载存档会话
 /mode direct|cot|tot|react  切换思维模式
 /master on|off|status        MasterAgent 主控
+/mcp_list          列出 MCP 服务器及工具
+/mcp_add <名> <命令> [参数]  添加 MCP 服务器
+/mcp_del <名>      删除 MCP 服务器
 /help              查看全部命令
 /exit              退出
 ```

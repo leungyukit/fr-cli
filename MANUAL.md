@@ -1123,7 +1123,36 @@ $ fr-cli                              # 重新进入
 !cat log.txt | 分析这段日志有什么问题
 ```
 
-### 十七、其他命令
+### 十七、MCP 外部神通
+
+MCP (Model Context Protocol) 允许连接外部工具服务器，将其能力纳入 AI 调用范围。
+
+**管理命令**：
+
+| 命令 | 参数 | 说明 |
+|------|------|------|
+| `/mcp_list` | - | 列出所有配置的 MCP 服务器及可用工具 |
+| `/mcp_add <名称> <命令> [参数...]` | 名称、命令、参数 | 添加 stdio 类型的 MCP 服务器 |
+| `/mcp_del <名称>` | 名称 | 删除 MCP 服务器 |
+| `/mcp_enable <名称>` | 名称 | 启用服务器 |
+| `/mcp_disable <名称>` | 名称 | 禁用服务器 |
+| `/mcp_refresh` | - | 手动刷新所有服务器的工具列表 |
+
+**配置示例**：
+```bash
+>>> /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+>>> /mcp_refresh
+>>> /mcp_list
+```
+
+**AI 调用格式**：
+```
+【调用：mcp_call({"server": "服务器名", "tool": "工具名", "arguments": {...}})】
+```
+
+**配置持久化**：MCP 服务器配置保存在 `~/.zhipu_cli_config.json` 的 `mcp.servers` 字段中。
+
+### 十八、其他命令
 
 | 命令 | 说明 |
 |------|------|
@@ -1183,6 +1212,41 @@ AI 会自动识别需求并输出工具调用标记：
 | `read_csv` | `path` | 读取 CSV 文件 |
 | `agent_create` | `name`, `description` | 自动生成 Agent |
 | `agent_run` | `name` | 运行指定 Agent |
+| `mcp_call` | `server`, `tool`, `arguments` | 调用 MCP 外部神通工具 |
+| `mcp_list` | - | 列出 MCP 服务器及可用工具 |
+
+### 多源信息融合框架
+
+当用户请求涉及信息获取（如搜索、查询、读取远程内容、调用 MCP/Agent 工具等）时，系统会自动进入**双源回答与汇总**模式：
+
+**第一轮（并行收集）**：
+1. **大模型初步回答**：AI 先基于自身知识给出初步回答，直接输出在回复文本中。
+2. **工具补充**：同时调用相应的外部工具（search_web、mcp_call、agent_call、read_file 等）获取补充信息。
+
+**第二轮（融合整理）**：
+- 系统将所有信息源结构化合并：
+  - 【来源一：大模型初步回答】
+  - 【来源2：工具执行结果】
+  - 【来源3：工具执行结果】...（如有多个工具）
+- 再次提交给大模型，要求整理成一份完整、准确、结构清晰的最终答案。
+- 若不同来源存在冲突，以最新/最权威来源为准，或明确标注不确定性。
+
+**保存意图检测**：
+- 若用户原始请求中包含"保存到本地"等关键词，第二轮 system prompt 会追加提示，强制 AI 在整理完成后调用 `write_file` 将最终内容保存到文件。
+
+**示例**：
+```
+>>> A2A 是什么,保存到本地
+🧙 仙人 A2A（Agent2Agent）是 Google 推出的智能体间通信协议...
+    【调用：search_web({"query": "A2A Agent2Agent 协议"})】
+
+🤖 自动执行命令:
+✅ 工具调用成功: search_web
+   结果: ...
+
+🧙 仙人 [基于初步回答 + 搜索结果整理后的最终答案]
+    【调用：write_file({"path": "a2a_introduction.md", "content": "..."})】
+```
 
 ### 插件调用（命令方式）
 

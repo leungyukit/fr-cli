@@ -25,6 +25,7 @@ Description-Content-Type: text/markdown
 License-File: LICENSE
 Requires-Dist: zhipuai>=2.0.0
 Requires-Dist: requests>=2.28.0
+Requires-Dist: mcp>=1.6.0
 Provides-Extra: data
 Requires-Dist: pandas>=1.5.0; extra == "data"
 Requires-Dist: openpyxl>=3.0.0; extra == "data"
@@ -92,6 +93,8 @@ Dynamic: license-file
 - 📊 **数据卷轴**：Excel / CSV 读取与智能分析
 - 🗄️ **数据库助手**：MySQL / PostgreSQL / SQL Server / Oracle 智能 SQL 生成
 - 📚 **本地 RAG**：ChromaDB 向量库 + 自动文件监控与向量化
+- 🔗 **MCP 外部神通**：支持 Model Context Protocol，连接外部工具服务器（stdio/SSE）
+- 🧠 **多源信息融合**：大模型初步回答 + 工具结果（搜索/RAG/MCP/Agent）统一汇总整理
 - 🌍 **中英文切换**：完整国际化支持
 
 ## 🚀 快速安装
@@ -134,6 +137,14 @@ fr-cli
 /master off                # 关闭主控Agent
 /master status             # 查看主控状态
 
+# MCP 外部神通
+/mcp_list                   # 列出已配置的 MCP 服务器及工具
+/mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+/mcp_del fs                 # 删除 MCP 服务器
+/mcp_enable fs              # 启用服务器
+/mcp_disable fs             # 禁用服务器
+/mcp_refresh                # 刷新工具列表
+
 # 思维模式切换
 /mode direct               # 直接回答（默认）
 /mode cot                  # CoT 链式思考
@@ -155,8 +166,12 @@ fr-cli
 
 ```
 >>> 搜索一下 Python 最新版本
-🧙 仙人 【调用：search_web({"query": "Python 最新版本"})】
+🧙 仙人 [基于知识初步回答 + 调用 search_web 获取最新信息]
 ...
+🤖 自动执行命令:
+✅ 工具调用成功: search_web
+...
+🧙 仙人 [整理后的最终答案，融合自身知识与搜索结果]
 
 >>> 把刚才的内容保存到文件
 🧙 仙人 【调用：write_file({"path": "python_news.md", "content": "..."})】
