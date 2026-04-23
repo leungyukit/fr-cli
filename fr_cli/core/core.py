@@ -2,7 +2,6 @@
 全局状态管理容器 (AppState)
 统一管理配置、子系统实例、运行时状态，实现依赖注入。
 """
-from zhipuai import ZhipuAI
 from fr_cli.weapon.fs import VFS
 from fr_cli.weapon.mail import MailClient
 from fr_cli.weapon.web import WebRaider
@@ -12,6 +11,7 @@ from fr_cli.command.security import SecurityManager
 from fr_cli.command.executor import CommandExecutor
 from fr_cli.weapon.loader import load_weapon_md
 from fr_cli.weapon.mcp import MCPManager
+from fr_cli.core.llm import create_llm_client, list_providers, get_provider_info, resolve_provider_model
 
 
 class AppState:
@@ -20,15 +20,16 @@ class AppState:
     def __init__(self, cfg):
         self.cfg = cfg
         self.lang = cfg.get("lang", "zh")
-        self.model_name = cfg.get("model", "glm-4-flash")
         self.limit = cfg.get("limit", 4096)
-        self.api_key = cfg.get("key", "")
         self.sn = cfg.get("session_name", "")
         self.aliases = cfg.get("aliases", {})
         self.thinking_mode = cfg.get("thinking_mode", "direct")
 
+        # LLM 客户端统一初始化（万法归一）
+        self.client, self.provider, self.model_name = create_llm_client(cfg)
+        self.api_key = self.client.api_key
+
         # 核心子系统实例化
-        self.client = ZhipuAI(api_key=self.api_key)
         self.vfs = VFS(cfg.get("allowed_dirs", []))
         self.plugins = init_plugins()
         self.mail_c = MailClient(cfg.get("mail", {}))
@@ -63,25 +64,61 @@ class AppState:
         self.gatekeeper = GatekeeperManager()
 
     def reinit_client(self):
-        """API Key 或模型变更后重铸客户端"""
-        self.api_key = self.cfg.get("key", "")
-        self.client = ZhipuAI(api_key=self.api_key)
+        """API Key、提供商或模型变更后重铸客户端"""
+        self.client, self.provider, self.model_name = create_llm_client(self.cfg)
+        self.api_key = self.client.api_key
 
     def save_cfg(self):
         """持久化当前配置"""
         from fr_cli.conf.config import save_config
         save_config(self.cfg)
 
-    def update_model(self, name):
-        """切换法器模型"""
-        self.cfg["model"] = name
-        self.model_name = name
+    def update_provider(self, provider_id):
+        """切换 LLM 提供商（召唤新的道统）"""
+        info = get_provider_info(provider_id)
+        if not info:
+            return False
+        self.cfg["provider"] = provider_id
+        # 如果新提供商没有设置过模型，使用其默认模型
+        providers_cfg = self.cfg.setdefault("providers", {})
+        if provider_id not in providers_cfg or not providers_cfg[provider_id].get("model"):
+            self.cfg["model"] = info["default_model"]
+            self.model_name = info["default_model"]
+        else:
+            self.model_name = providers_cfg[provider_id].get("model", info["default_model"])
+            self.cfg["model"] = self.model_name
         self.save_cfg()
         self.reinit_client()
+        return True
+
+    def update_model(self, arg):
+        """
+        切换法器模型
+        支持格式：
+          - "deepseek-chat"              仅切换模型（保持当前提供商）
+          - "deepseek:deepseek-chat"     同时切换提供商和模型
+        """
+        new_provider, new_model = resolve_provider_model(arg)
+        if new_provider and new_provider != self.provider:
+            # 切换提供商 + 模型
+            if not self.update_provider(new_provider):
+                return False
+        self.cfg["model"] = new_model
+        self.model_name = new_model
+        # 同步到 providers 配置中当前提供商的 model
+        providers_cfg = self.cfg.setdefault("providers", {})
+        pcfg = providers_cfg.setdefault(self.provider, {})
+        pcfg["model"] = new_model
+        self.save_cfg()
+        self.reinit_client()
+        return True
 
     def update_key(self, key):
-        """重铸 API 密钥"""
+        """重铸 API 密钥（针对当前提供商）"""
         self.cfg["key"] = key
+        providers_cfg = self.cfg.setdefault("providers", {})
+        pcfg = providers_cfg.setdefault(self.provider, {})
+        pcfg["key"] = key
         self.save_cfg()
         self.reinit_client()
 

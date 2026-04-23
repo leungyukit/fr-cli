@@ -100,16 +100,79 @@ def _cmd_help(state, parts):
 def _cmd_model(state, parts):
     arg1 = parts[1] if len(parts) > 1 else ""
     if arg1:
-        state.update_model(arg1)
-        print(f"{GREEN}{T('ok_model', state.lang, arg1)}{RESET}")
+        ok = state.update_model(arg1)
+        if ok:
+            print(f"{GREEN}✅ 已切换: [{state.provider}] {state.model_name}{RESET}")
+            # 检查新道统是否已配置 API Key，若未配置则引导输入
+            providers_cfg = state.cfg.get("providers", {})
+            pcfg = providers_cfg.get(state.provider, {})
+            # 只检查该道统自己专属的 key；zhipu 向后兼容：未单独配置时回退顶层 key
+            has_key = bool(pcfg.get("key"))
+            if not has_key and state.provider == "zhipu":
+                has_key = bool(state.cfg.get("key", ""))
+            if not has_key:
+                print(f"{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
+                k = input(f"👉 请输入 [{state.provider}] 的 API Key: ").strip()
+                if k:
+                    state.update_key(k)
+                    print(f"{GREEN}✅ [{state.provider}] API Key 已保存{RESET}")
+                else:
+                    print(f"{RED}❌ 未输入 Key，[{state.provider}] 可能无法正常使用{RESET}")
+        else:
+            print(f"{RED}❌ 无效的提供商或模型: {arg1}{RESET}")
+    else:
+        # 显示当前道统与可用模型及 key 配置状态
+        from fr_cli.core.llm import list_providers
+        print(f"{CYAN}🧠 当前道统: [{state.provider}] {state.model_name}{RESET}")
+        print(f"\n{DIM}可用道统与默认模型:{RESET}")
+        providers_cfg = state.cfg.get("providers", {})
+        for p in list_providers():
+            marker = " 👈 当前" if p["id"] == state.provider else ""
+            pcfg = providers_cfg.get(p["id"], {})
+            has_key = bool(pcfg.get("key"))
+            if not has_key and p["id"] == "zhipu":
+                has_key = bool(state.cfg.get("key", ""))
+            key_status = f"{GREEN}✅ 已配置{RESET}" if has_key else f"{RED}❌ 未配置{RESET}"
+            print(f"  {CYAN}{p['id']}{RESET} — {p['name']}{DIM} (默认: {p['default_model']}){RESET} {key_status}{marker}")
+        print(f"\n{DIM}用法:{RESET}")
+        print(f"  /model <模型名>           — 切换当前道统下的模型")
+        print(f"  /model <道统>:<模型名>    — 同时切换道统和模型")
+        print(f"  示例: /model deepseek:deepseek-chat")
     return False
 
 
 def _cmd_key(state, parts):
+    """
+    设置 API Key
+    用法:
+      /key <key>              — 为当前道统设置 key
+      /key <道统> <key>       — 为指定道统设置 key
+    """
     arg1 = parts[1] if len(parts) > 1 else ""
-    if arg1:
+    arg2 = parts[2] if len(parts) > 2 else ""
+    if arg1 and arg2:
+        # /key <provider> <key>
+        target_provider = arg1
+        from fr_cli.core.llm import get_provider_info
+        if not get_provider_info(target_provider):
+            print(f"{RED}❌ 无效道统: {target_provider}{RESET}")
+            return False
+        # 临时切到目标道统设置 key，再切回来
+        original_provider = state.provider
+        state.update_provider(target_provider)
+        state.update_key(arg2)
+        # 如果原来不是目标道统，切回去
+        if original_provider != target_provider:
+            state.update_provider(original_provider)
+        print(f"{GREEN}✅ [{target_provider}] API Key 已更新{RESET}")
+    elif arg1:
+        # /key <key>
         state.update_key(arg1)
-        print(f"{GREEN}{T('ok_key', state.lang)}{RESET}")
+        print(f"{GREEN}✅ [{state.provider}] API Key 已更新{RESET}")
+    else:
+        print(f"{YELLOW}⚠️ 用法:{RESET}")
+        print(f"  /key <API密钥>              — 为当前道统 [{state.provider}] 设置密钥")
+        print(f"  /key <道统> <API密钥>       — 为指定道统设置密钥")
     return False
 
 

@@ -181,7 +181,7 @@ def main():
     state.context_summary = load_context(state.sn)
 
     # 启动动画
-    print_banner(state.model_name, state.limit, cfg.get("allowed_dirs", [""]), state.sn, state.lang)
+    print_banner(state.model_name, state.limit, cfg.get("allowed_dirs", [""]), state.sn, state.lang, state.provider)
 
     # ================= 主循环 =================
     while True:

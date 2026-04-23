@@ -6,7 +6,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from fr_cli.ui.ui import YELLOW, RED, GREEN, RESET
+from fr_cli.ui.ui import YELLOW, RED, GREEN, RESET, DIM
 
 CONFIG_FILE = Path.home() / ".zhipu_cli_config.json"
 CONFIG_BACKUP = Path.home() / ".zhipu_cli_config.json.bak"
@@ -17,6 +17,7 @@ DEFAULT_LIMIT = 20000
 def _default_config():
     """返回默认配置字典"""
     return {
+        "provider": "zhipu",
         "key": "",
         "model": "glm-4-flash",
         "limit": DEFAULT_LIMIT,
@@ -28,6 +29,7 @@ def _default_config():
         "disk": {},
         "thinking_mode": "direct",
         "mcp": {"servers": []},
+        "providers": {},
     }
 
 
@@ -111,11 +113,32 @@ def init_config():
         save_config(c)
         print(f"{GREEN}✅ 默认洞府已开辟: {DEFAULT_WORKSPACE}{RESET}")
 
-    if not c.get("key"):
+    # 向后兼容：无 provider 字段的旧配置自动补全
+    if "provider" not in c:
+        c["provider"] = "zhipu"
+        save_config(c)
+
+    provider = c.get("provider", "zhipu")
+    providers_cfg = c.get("providers", {})
+    pcfg = providers_cfg.get(provider, {})
+
+    # 检查当前提供商是否已配置 key
+    # 各道统独立管理 key；zhipu 向后兼容：未单独配置时回退顶层 key
+    has_key = bool(pcfg.get("key"))
+    if not has_key and provider == "zhipu":
+        has_key = bool(c.get("key", ""))
+
+    if not has_key:
         print(f"\n{YELLOW}⚠️ API Key Required{RESET}")
-        k = input(f"👉 Enter Zhipu API Key: ").strip()
+        from fr_cli.core.llm import list_providers
+        providers = list_providers()
+        print(f"{DIM}当前道统: {provider}{RESET}")
+        print(f"{DIM}支持道统: {', '.join([p['id'] for p in providers])}{RESET}")
+        k = input(f"👉 Enter API Key for [{provider}]: ").strip()
         if k:
             c["key"] = k
+            providers_cfg.setdefault(provider, {})["key"] = k
+            c["providers"] = providers_cfg
             ok = save_config(c)
             if ok:
                 print(f"{GREEN}✅ API Key 已保存至: {CONFIG_FILE}{RESET}")
