@@ -67,16 +67,3 @@ fr_cli/weapon/mail.py
 fr_cli/weapon/mcp.py
 fr_cli/weapon/vision.py
 fr_cli/weapon/web.py
-tests/test_agent_client.py
-tests/test_agent_server.py
-tests/test_ai_save_file_with_verify.py
-tests/test_all.py
-tests/test_auto_session.py
-tests/test_builtins.py
-tests/test_dataframe.py
-tests/test_gatekeeper.py
-tests/test_integration.py
-tests/test_intent_classification.py
-tests/test_launcher.py
-tests/test_master_agent.py
-tests/test_structured_tools.py

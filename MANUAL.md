@@ -1,6 +1,6 @@
 # 凡人打字机 (fr-cli) 使用与配置说明书
 
-> 版本: v2.1.0  
+> 版本: v2.2.6  
 > 作者: 修仙者联盟  
 > 包名: `fr-cli` (PyPI)  
 > 命令入口: `fr-cli`
@@ -26,10 +26,10 @@
 
 ## 简介
 
-「凡人打字机」是一个基于智谱 AI (ZhipuAI/GLM) 的终极全能终端工具。它将大语言模型与本地环境深度集成，让你可以在终端中通过自然语言与 AI 对话，并让 AI 自动调用各类工具完成实际任务。
+「凡人打字机」是一个支持多模型（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）的终极全能终端工具。它将大语言模型与本地环境深度集成，让你可以在终端中通过自然语言与 AI 对话，并让 AI 自动调用各类工具完成实际任务。
 
 **核心特性：**
-- 🤖 **AI 智能对话** — 基于 GLM-4 系列模型，流式实时响应
+- 🤖 **AI 智能对话** — 支持多模型（智谱 GLM / DeepSeek / Kimi / 通义千问 / StepFun / MiniMax / 讯飞星火），流式实时响应
 - 🧠 **MasterAgent 主控** — 自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化
 - 🧩 **思维模式** — direct / CoT / ToT / ReAct 四种推理模式切换
 - 📁 **安全文件沙盒** — 虚拟文件系统，防止目录穿越攻击
@@ -78,6 +78,7 @@ pip install fr-cli
 
 默认包含的依赖：
 - `zhipuai` — 智谱 AI SDK
+- `openai` — OpenAI 兼容格式 SDK（覆盖 DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞）
 - `requests` — HTTP 请求
 - `pandas` + `openpyxl` — Excel/CSV 数据处理
 - `pymysql` + `psycopg2-binary` + `pyodbc` + `oracledb` — 数据库驱动
@@ -93,10 +94,19 @@ pip install fr-cli
 
 ```
 ⚠️ API Key Required
-👉 Enter Zhipu API Key: sk-xxxxxxxxxxxxxxxx
+当前道统: zhipu
+支持道统: zhipu, deepseek, kimi, qwen, stepfun, minimax, spark
+👉 Enter API Key for [zhipu]: sk-xxxxxxxxxxxxxxxx
 ```
 
-API Key 可在 [智谱开放平台](https://open.bigmodel.cn/) 获取。
+各道统 API Key 获取地址：
+- 智谱 AI: https://open.bigmodel.cn/
+- DeepSeek: https://platform.deepseek.com/
+- Kimi (Moonshot): https://platform.moonshot.cn/
+- 通义千问: https://dashscope.aliyun.com/
+- StepFun: https://platform.stepfun.com/
+- MiniMax: https://www.minimaxi.com/
+- 讯飞星火: https://xinghuo.xfyun.cn/
 
 ---
 
@@ -176,7 +186,9 @@ $ fr-cli
 
 | 配置项 | 类型 | 默认值 | 说明 |
 |--------|------|--------|------|
-| `key` | str | `""` | 智谱 AI API Key |
+| `key` | str | `""` | 当前道统 API Key（向后兼容） |
+| `provider` | str | `"zhipu"` | 当前道统（zhipu/deepseek/kimi/qwen/stepfun/minimax/spark） |
+| `providers` | dict | `{}` | 各道统独立配置：`{"deepseek": {"key": "...", "model": "...", "base_url": "..."}}` |
 | `model` | str | `glm-4-flash` | AI 模型名称 |
 | `limit` | int | `20000` | 单次请求 Token 上限（最小 1000） |
 | `allowed_dirs` | list | `[]` | 允许的目录列表（VFS 安全沙盒） |
@@ -205,8 +217,13 @@ $ fr-cli
 ### 命令行修改配置
 
 ```
-/key sk-xxxxxxxx        # 修改 API Key
-/model glm-4-plus       # 切换模型
+/key sk-xxxxxxxx                # 修改当前道统 API Key
+/key deepseek sk-xxxxxxxx       # 为指定道统设置 Key
+/model glm-4-plus              # 切换当前道统模型
+/model deepseek:deepseek-chat   # 同时切换道统和模型
+/providers                      # 查看所有道统配置
+/providers add deepseek sk-xxx  # 添加/更新道统配置
+/providers use deepseek         # 切换到指定道统
 /limit 4096             # 修改 Token 上限
 /lang zh                # 切换语言
 /alias ll 你好          # 设置别名
@@ -221,8 +238,14 @@ $ fr-cli
 
 | 命令 | 参数 | 说明 |
 |------|------|------|
-| `/model <name>` | 模型名 | 切换 AI 模型（如 `glm-4-flash`、`glm-4-plus`、`glm-4v-plus`） |
-| `/key <key>` | API Key | 修改智谱 AI API Key |
+| `/model <name>` | 模型名 | 切换模型（如 `glm-4-flash`、`deepseek-chat`） |
+| `/model <provider>:<model>` | 道统:模型 | 同时切换道统和模型 |
+| `/key <key>` | API Key | 修改当前道统 API Key |
+| `/key <provider> <key>` | 道统 Key | 为指定道统设置 Key |
+| `/providers` | — | 查看所有道统配置详情 |
+| `/providers add <p> <k> [m]` | 道统 Key [模型] | 添加/更新道统配置 |
+| `/providers del <provider>` | 道统 | 删除道统配置 |
+| `/providers use <provider>` | 道统 | 切换到指定道统 |
 | `/limit <n>` | 数字 | 设置 Token 上限（最小 1000） |
 | `/alias <k> [v]` | 键 [值] | 查看/设置命令别名 |
 | `/lang <zh/en>` | 语言代码 | 切换界面语言 |

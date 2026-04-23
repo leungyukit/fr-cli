@@ -1,14 +1,14 @@
 # 凡人打字机 (fr-cli)
 
-基于智谱 AI (ZhipuAI / GLM) 的终极全能终端工具。
+支持多模型（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）的终极全能终端工具。
 
 **🇨🇳 中文简介**
 
-支持：AI 智能对话、MasterAgent 自我进化主控、思维模式切换（direct/CoT/ToT/ReAct）、文件沙盒操作、联网搜索（SSRF 防护）、图片生成与识别、邮件收发、定时任务（shlex 安全解析）、云盘集成、会话记忆、按日期自动存档、插件进化（子进程隔离）、四阶安全拦截、Shell 管道直通 AI。
+支持：多模型 AI 对话（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）、MasterAgent 自我进化主控、思维模式切换（direct/CoT/ToT/ReAct）、文件沙盒操作、联网搜索（SSRF 防护）、图片生成与识别、邮件收发、定时任务（shlex 安全解析）、云盘集成、会话记忆、按日期自动存档、插件进化（子进程隔离）、四阶安全拦截、Shell 管道直通 AI。
 
 **🇺🇸 English Intro**
 
-The ultimate all-knowing terminal tool based on Zhipu AI. Supports AI chat, MasterAgent self-evolving controller, thinking modes (direct/CoT/ToT/ReAct), virtual filesystem, web search (SSRF-protected), image generation & vision, email, cron jobs (shlex-safe), cloud drive, session memory, auto date-based archiving, self-evolving plugins (subprocess-isolated), and powerful Shell piping.
+The ultimate all-knowing terminal tool supporting multiple LLM providers (Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark). Supports AI chat, MasterAgent self-evolving controller, thinking modes (direct/CoT/ToT/ReAct), virtual filesystem, web search (SSRF-protected), image generation & vision, email, cron jobs (shlex-safe), cloud drive, session memory, auto date-based archiving, self-evolving plugins (subprocess-isolated), and powerful Shell piping.
 
 ---
 
@@ -19,7 +19,7 @@ pip install fr-cli
 fr-cli
 ```
 
-首次运行会引导输入智谱 API Key。
+首次运行会引导输入当前道统的 API Key。
 
 ## 🎮 使用方式
 
@@ -41,6 +41,13 @@ fr-cli
 /session_load <idx>  加载存档会话
 /mode direct|cot|tot|react  切换思维模式
 /master on|off|status        MasterAgent 主控
+/model <模型名>              切换当前道统模型
+/model <道统>:<模型名>       同时切换道统和模型
+/key <key>                   修改当前道统 API Key
+/key <道统> <key>            为指定道统设置 Key
+/providers                   查看所有道统配置
+/providers add <p> <k> [m]   添加/更新道统配置
+/providers use <p>           切换到指定道统
 /mcp_list          列出 MCP 服务器及工具
 /mcp_add <名> <命令> [参数]  添加 MCP 服务器
 /mcp_del <名>      删除 MCP 服务器

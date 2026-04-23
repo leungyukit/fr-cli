@@ -23,8 +23,9 @@
 | 层级 | 技术/依赖 |
 |---|---|
 | 运行时 | Python 3.13（虚拟环境 `.venv/` 已创建） |
-| AI SDK | `zhipuai>=2.0.0` |
-| 默认模型 | `glm-4-flash`（对话）、`glm-4v-plus`（视觉）、`cogview-3-plus`（文生图） |
+| AI SDK | `zhipuai>=2.0.0`（智谱）, `openai>=1.0.0`（兼容 DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞） |
+| 默认模型 | `glm-4-flash`（智谱）、`deepseek-chat`（DeepSeek）、`moonshot-v1-8k`（Kimi）等，支持 7 大道统 |
+| 多模型支持 | zhipu / deepseek / kimi / qwen / stepfun / minimax / spark |
 | HTTP / 网页 | `requests` |
 | 数据 / Excel | `pandas`、`openpyxl` |
 | 数据库 | `pymysql`、`psycopg2-binary`、`pyodbc`、`oracledb` |
@@ -567,7 +568,12 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 ```python
 {
     "key": "",                  # Zhipu API Key
+    "provider": "zhipu",         # 当前道统
     "model": "glm-4-flash",     # 默认模型
+    "providers": {               # 各道统独立配置
+        "deepseek": {"key": "", "model": "deepseek-chat"},
+        "kimi": {"key": "", "model": "moonshot-v1-8k"}
+    },
     "limit": 20000,             # 最大 token 上限
     "allowed_dirs": [],         # VFS 允许的目录列表
     "lang": "zh",               # 界面语言 (zh / en)
@@ -605,7 +611,8 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 ### 导入风格
 
 - 标准库导入放最前，常合并为一行：`import sys, os, re, subprocess`
-- 第三方库次之：`from zhipuai import ZhipuAI`
+- 第三方库次之：`from zhipuai import ZhipuAI`, `from openai import OpenAI`
+- 多模型抽象层：`from fr_cli.core.llm import BaseLLMClient, ZhipuLLMClient, OpenAICompatibleClient`
 - 内部模块使用绝对导入：
   ```python
   from fr_cli.conf.config import load_config, save_config, init_config

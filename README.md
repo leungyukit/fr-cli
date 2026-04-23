@@ -1,10 +1,10 @@
 # 凡人打字机 (fr-cli)
 
-基于智谱 AI (ZhipuAI/GLM) 的终极全能终端工具。
+支持多模型（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）的终极全能终端工具。
 
 ## ✨ 功能特性
 
-- 🤖 **AI 对话**：基于 GLM-4 系列模型的智能对话
+- 🤖 **AI 对话**：支持多模型（智谱 GLM / DeepSeek / Kimi / 通义千问 / StepFun / MiniMax / 讯飞星火）
 - 🧠 **MasterAgent 主控**：自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化
 - 🧩 **思维模式**：direct / CoT / ToT / ReAct 四种推理模式切换
 - 📁 **文件沙盒**：安全的虚拟文件系统，支持读写/目录操作
@@ -34,7 +34,7 @@ pip install fr-cli
 fr-cli
 ```
 
-首次运行会引导输入智谱 API Key。
+首次运行会引导输入当前道统的 API Key。
 
 ## 📝 使用示例
 
