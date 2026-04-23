@@ -146,7 +146,8 @@ def create_llm_client(cfg: dict):
 
     info = _PROVIDERS.get(provider, _PROVIDERS["zhipu"])
     client_class = info["client_class"]
-    base_url = info.get("base_url")
+    # 优先使用用户自定义的 base_url，其次使用内置默认
+    base_url = pcfg.get("base_url") or info.get("base_url")
 
     kwargs = {"api_key": api_key}
     if base_url:

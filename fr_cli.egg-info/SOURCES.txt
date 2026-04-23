@@ -41,6 +41,7 @@ fr_cli/conf/wizard.py
 fr_cli/core/chat.py
 fr_cli/core/core.py
 fr_cli/core/intent.py
+fr_cli/core/llm.py
 fr_cli/core/recommender.py
 fr_cli/core/stream.py
 fr_cli/core/sysmon.py

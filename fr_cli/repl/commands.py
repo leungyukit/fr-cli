@@ -176,6 +176,111 @@ def _cmd_key(state, parts):
     return False
 
 
+def _cmd_providers(state, parts):
+    """
+    多模型道统配置管理
+    用法:
+      /providers                  — 查看所有道统配置
+      /providers add <道统> <key> [模型] — 添加/更新道统配置
+      /providers del <道统>       — 删除道统配置
+      /providers use <道统>       — 切换到指定道统
+    """
+    sub = parts[1] if len(parts) > 1 else ""
+    arg1 = parts[2] if len(parts) > 2 else ""
+    arg2 = parts[3] if len(parts) > 3 else ""
+
+    providers_cfg = state.cfg.setdefault("providers", {})
+
+    if not sub or sub == "list":
+        from fr_cli.core.llm import list_providers, get_provider_info
+        print(f"{CYAN}📜 道统配置总览{RESET}")
+        for p in list_providers():
+            pcfg = providers_cfg.get(p["id"], {})
+            has_key = bool(pcfg.get("key"))
+            if not has_key and p["id"] == "zhipu":
+                has_key = bool(state.cfg.get("key", ""))
+            key_status = f"{GREEN}✅{RESET}" if has_key else f"{RED}❌{RESET}"
+            model = pcfg.get("model", p["default_model"])
+            info = get_provider_info(p["id"])
+            base_url = pcfg.get("base_url") or info.get("base_url", "默认")
+            active = f" {YELLOW}👈 当前使用{RESET}" if p["id"] == state.provider else ""
+            print(f"\n  {key_status} {CYAN}{p['id']}{RESET} — {p['name']}{active}")
+            print(f"      模型: {DIM}{model}{RESET}")
+            print(f"      接口: {DIM}{base_url}{RESET}")
+            if has_key:
+                raw_key = pcfg.get("key", state.cfg.get("key", ""))
+                key_display = raw_key[:8] + "****" if len(raw_key) > 8 else raw_key
+                print(f"      Key:  {DIM}{key_display}{RESET}")
+        print(f"\n{DIM}用法:{RESET}")
+        print(f"  /providers add <道统> <key> [模型] — 添加/更新道统配置")
+        print(f"  /providers del <道统>              — 删除道统配置")
+        print(f"  /providers use <道统>              — 切换到指定道统")
+        return False
+
+    if sub == "add":
+        if not arg1 or not arg2:
+            print(f"{RED}❌ 用法: /providers add <道统> <key> [模型]{RESET}")
+            return False
+        provider_id = arg1
+        from fr_cli.core.llm import get_provider_info
+        info = get_provider_info(provider_id)
+        if not info:
+            print(f"{RED}❌ 无效道统: {provider_id}{RESET}")
+            return False
+        pcfg = providers_cfg.setdefault(provider_id, {})
+        pcfg["key"] = arg2
+        model = parts[4] if len(parts) > 4 else info["default_model"]
+        pcfg["model"] = model
+        # 支持自定义 base_url: /providers add <provider> <key> [model] --base-url <url>
+        for i, token in enumerate(parts):
+            if token in ("--base-url", "--base_url") and i + 1 < len(parts):
+                pcfg["base_url"] = parts[i + 1]
+                break
+        state.cfg["providers"] = providers_cfg
+        state.save_cfg()
+        extra = f" 自定义接口={pcfg.get('base_url')}" if pcfg.get("base_url") else ""
+        print(f"{GREEN}✅ [{provider_id}] 配置已更新: 模型={model}{extra}{RESET}")
+        return False
+
+    if sub == "del":
+        if not arg1:
+            print(f"{RED}❌ 用法: /providers del <道统>{RESET}")
+            return False
+        if arg1 in providers_cfg:
+            del providers_cfg[arg1]
+            state.cfg["providers"] = providers_cfg
+            state.save_cfg()
+            print(f"{GREEN}✅ [{arg1}] 配置已删除{RESET}")
+        else:
+            print(f"{YELLOW}⚠️ [{arg1}] 无配置可删除{RESET}")
+        return False
+
+    if sub == "use":
+        if not arg1:
+            print(f"{RED}❌ 用法: /providers use <道统>{RESET}")
+            return False
+        ok = state.update_provider(arg1)
+        if ok:
+            print(f"{GREEN}✅ 已切换到: [{state.provider}] {state.model_name}{RESET}")
+            # 检查新道统是否已配置 API Key
+            pcfg = providers_cfg.get(state.provider, {})
+            has_key = bool(pcfg.get("key"))
+            if not has_key and state.provider == "zhipu":
+                has_key = bool(state.cfg.get("key", ""))
+            if not has_key:
+                print(f"{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
+                k = input(f"👉 请输入 [{state.provider}] 的 API Key: ").strip()
+                if k:
+                    state.update_key(k)
+                    print(f"{GREEN}✅ [{state.provider}] API Key 已保存{RESET}")
+        else:
+            print(f"{RED}❌ 无效道统: {arg1}{RESET}")
+        return False
+
+    print(f"{RED}❌ 未知子命令: {sub}{RESET}")
+    return False
+
+
 def _cmd_limit(state, parts):
     arg1 = parts[1] if len(parts) > 1 else ""
     if arg1:
