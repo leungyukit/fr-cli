@@ -118,7 +118,41 @@ _PROVIDERS: Dict[str, Dict[str, Any]] = {
         "client_class": OpenAICompatibleClient,
         "base_url": "https://spark-api-open.xf-yun.com/v1",
     },
+    "doubao": {
+        "name": "豆包 (Doubao)",
+        "default_model": "doubao-1-5-pro-32k-250115",
+        "client_class": OpenAICompatibleClient,
+        "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+    },
+    "mimo": {
+        "name": "小米 MiMo",
+        "default_model": "mimo-v2-flash",
+        "client_class": OpenAICompatibleClient,
+        "base_url": "https://api.xiaomimimo.com/v1",
+    },
 }
+
+
+def _resolve_llm_kwargs(provider: str, cfg: dict, override_key: str = None):
+    """
+    根据配置解析创建 LLM 客户端所需的参数。
+    返回: (client_class, kwargs_dict)
+    """
+    providers_cfg = cfg.get("providers", {})
+    pcfg = providers_cfg.get(provider, {})
+
+    # 解析 key：override_key > provider 专属 > 顶层 key（zhipu 向后兼容）
+    api_key = override_key or pcfg.get("key") or cfg.get("key", "")
+
+    info = _PROVIDERS.get(provider, _PROVIDERS["zhipu"])
+    client_class = info["client_class"]
+    base_url = pcfg.get("base_url") or info.get("base_url")
+
+    kwargs = {"api_key": api_key}
+    if base_url:
+        kwargs["base_url"] = base_url
+
+    return client_class, kwargs
 
 
 def create_llm_client(cfg: dict):
@@ -133,25 +167,12 @@ def create_llm_client(cfg: dict):
     """
     provider = cfg.get("provider", "zhipu")
     providers_cfg = cfg.get("providers", {})
-
-    # 获取当前提供商配置
     pcfg = providers_cfg.get(provider, {})
 
-    # 向后兼容：如果 providers 中没有当前 provider，从顶层读取 key/model
-    # 使用 'or' 确保空字符串也能正确回退到顶层 key
-    api_key = pcfg.get("key") or cfg.get("key", "")
     default_model = _PROVIDERS.get(provider, _PROVIDERS["zhipu"])["default_model"]
     model = pcfg.get("model") or cfg.get("model", default_model)
 
-    info = _PROVIDERS.get(provider, _PROVIDERS["zhipu"])
-    client_class = info["client_class"]
-    # 优先使用用户自定义的 base_url，其次使用内置默认
-    base_url = pcfg.get("base_url") or info.get("base_url")
-
-    kwargs = {"api_key": api_key}
-    if base_url:
-        kwargs["base_url"] = base_url
-
+    client_class, kwargs = _resolve_llm_kwargs(provider, cfg)
     return client_class(**kwargs), provider, model
 
 
@@ -166,6 +187,22 @@ def list_providers():
 def get_provider_info(provider_id: str):
     """获取指定提供商信息"""
     return _PROVIDERS.get(provider_id)
+
+
+def create_llm_client_for(provider: str, model: str, cfg: dict, override_key: str = None):
+    """
+    根据全局配置创建指定 provider + model 的 LLM 客户端
+
+    Args:
+        provider: 提供商 ID
+        model: 模型名称
+        cfg: 全局配置字典
+        override_key: 可选的覆盖 key（如 Agent 专属 key）
+
+    返回: (client_instance, provider_id, model_name)
+    """
+    client_class, kwargs = _resolve_llm_kwargs(provider, cfg, override_key)
+    return client_class(**kwargs), provider, model
 
 
 def resolve_provider_model(arg: str) -> tuple:

@@ -65,25 +65,27 @@ def _print_help(state, topic):
     if not mapped:
         print(f"{CYAN}{T('help_title', lang)}{RESET}")
         print(f"  {T('help_cfg', lang)} /model /key /limit /alias /export /update")
+        print(f"  {DIM}  【道统】 /providers | /providers setup | /providers add|del|use{RESET}")
         print(f"  {T('help_fs', lang)} /ls /cat /cd /write /append /delete")
         print(f"  {T('help_sess', lang)} /save /load /del /undo")
-        print(f"  {DIM}  自动存档: /session_list | /session_load <编号> | /session_del <编号>{RESET}")
-        print(f"  {DIM}  主控Agent: /master on|off|status — 启用自我进化型主Agent{RESET}")
+        print(f"  {DIM}  【岁月】 /session_list | /session_load <编号> | /session_del <编号>{RESET}")
+        print(f"  {DIM}  【本命元神】 /master on|off|status — 启用自我进化型主控元神{RESET}")
         print(f"  {T('help_plugin', lang)} /skills (自动进化)")
-        print(f"  {DIM}  思维: /mode <direct|cot|tot|react> — 切换 AI 推理模式{RESET}")
+        print(f"  {DIM}  【悟道】 /mode <direct|cot|tot|react> — 切换 AI 推演模式{RESET}")
         print(f"  {T('help_extra', lang)} /mail_* /cron_* /web /fetch /disk_* /see")
-        print(f"  {DIM}  Agent: /agent_create /agent_forge /agent_list /agent_run /agent_show /agent_edit /agent_delete{RESET}")
-        print(f"  {DIM}  Agent API: /agent_server start [port] | stop | status{RESET}")
-        print(f"  {DIM}  Agent 发布: /agent_publish — 生成对外连接信息{RESET}")
-        print(f"  {DIM}  Agent 定时: /agent_cron_add <agent> <秒> [输入] | /agent_cron_list | /agent_cron_del <ID>{RESET}")
-        print(f"  {DIM}  远程Agent: /remote_agent_add <name> <host> <port> <token> [desc] | /remote_agent_list | /remote_agent_del <name>{RESET}")
-        print(f"  {DIM}  远程发现: /remote_agent_scan <host> <port> <token> | /remote_agent_import <host> <port> <token> [prefix]{RESET}")
-        print(f"  {DIM}  本机应用: /open <路径/URL> | /launch <应用> [目标] | /apps{RESET}")
-        print(f"  {DIM}  内置Agent: @local <需求> | @remote [IP] <需求> | @spider <URL> [深度] | @db <需求> | @RAG <问题>{RESET}")
-        print(f"  {DIM}  知识库: /rag_dir <目录> | /rag_sync | /rag_watch start/stop/status/log{RESET}")
-        print(f"  {DIM}  数据: /read_excel <文件> | /read_csv <文件>{RESET}")
-        print(f"  {DIM}  MCP: /mcp_list | /mcp_add <名称> <命令> [参数...] | /mcp_del <名称> | /mcp_enable <名称> | /mcp_disable <名称> | /mcp_refresh{RESET}")
-        print(f"  {T('help_shell', lang)} {T('shell_tip', lang)}\n                {T('pipe_tip', lang)}")
+        print(f"  {DIM}  【分身】 /agent_create /agent_forge /agent_list /agent_run /agent_show /agent_edit /agent_delete /agent_model{RESET}")
+        print(f"  {DIM}  【分身法阵】 /agent_server start [port] | stop | status{RESET}")
+        print(f"  {DIM}  【诏令】 /agent_publish — 生成对外连接信息{RESET}")
+        print(f"  {DIM}  【劫数】 /agent_cron_add <分身> <秒> [输入] | /agent_cron_list | /agent_cron_del <ID>{RESET}")
+        print(f"  {DIM}  【身外化身】 /remote_agent_add <名> <域> <门> <符> [述] | /remote_agent_list | /remote_agent_del <名>{RESET}")
+        print(f"  {DIM}  【神识探查】 /remote_agent_scan <域> <门> <符> | /remote_agent_import <域> <门> <符> [前缀]{RESET}")
+        print(f"  {DIM}  【驭器】 /open <路径/URL> | /launch <法器> [目标] | /apps{RESET}")
+        print(f"  {DIM}  【先天神通】 @local <需求> | @remote [洞府] <需求> | @spider <URL> [深度] | @db <需求> | @RAG <问题>{RESET}")
+        print(f"  {DIM}  【藏经阁】 /rag_dir <目录> | /rag_sync | /rag_watch start/stop/status/log{RESET}")
+        print(f"  {DIM}  【天机卷】 /read_excel <卷轴> | /read_csv <卷轴>{RESET}")
+        print(f"  {DIM}  【外域法器】 /mcp_list | /mcp_add <名> <咒> [参数...] | /mcp_del <名> | /mcp_enable <名> | /mcp_disable <名> | /mcp_refresh{RESET}")
+        print(f"  {T('help_shell', lang)} {T('shell_tip', lang)}")
+        print(f"  {DIM}  【周天推演】 {T('pipe_tip', lang)}{RESET}")
         print(f"\n{T('help_usage', lang)}")
     elif mapped == "all":
         for t in ["config", "fs", "session", "plugin", "mail", "cron", "web", "disk", "vision", "shell", "tools", "security", "app", "agent", "builtin", "dataframe", "gatekeeper", "mcp"]:
@@ -183,6 +185,7 @@ def _cmd_providers(state, parts):
     多模型道统配置管理
     用法:
       /providers                  — 查看所有道统配置
+      /providers setup            — 交互式配置向导
       /providers add <道统> <key> [模型] — 添加/更新道统配置
       /providers del <道统>       — 删除道统配置
       /providers use <道统>       — 切换到指定道统
@@ -197,6 +200,7 @@ def _cmd_providers(state, parts):
         from fr_cli.core.llm import list_providers, get_provider_info
         print(f"{CYAN}📜 道统配置总览{RESET}")
         for p in list_providers():
+            pcfg = providers_cfg.get(p["id"], {})
             has_key = _provider_has_key(state, p["id"])
             key_status = f"{GREEN}✅{RESET}" if has_key else f"{RED}❌{RESET}"
             model = pcfg.get("model", p["default_model"])
@@ -211,9 +215,65 @@ def _cmd_providers(state, parts):
                 key_display = raw_key[:8] + "****" if len(raw_key) > 8 else raw_key
                 print(f"      Key:  {DIM}{key_display}{RESET}")
         print(f"\n{DIM}用法:{RESET}")
+        print(f"  /providers setup                   — 交互式配置向导（推荐新手）")
         print(f"  /providers add <道统> <key> [模型] — 添加/更新道统配置")
         print(f"  /providers del <道统>              — 删除道统配置")
         print(f"  /providers use <道统>              — 切换到指定道统")
+        return False
+
+    if sub == "setup":
+        # 交互式配置向导
+        from fr_cli.core.llm import list_providers, get_provider_info
+        providers = list_providers()
+        print(f"{CYAN}🧙 大模型配置向导{RESET}")
+        print(f"{DIM}请选择要配置的道统（输入编号）:{RESET}")
+        for i, p in enumerate(providers, 1):
+            print(f"  [{i}] {CYAN}{p['id']}{RESET} — {p['name']} {DIM}(默认模型: {p['default_model']}){RESET}")
+        choice = input(f"{YELLOW}👉 编号 (回车取消): {RESET}").strip()
+        if not choice or not choice.isdigit():
+            print(f"{DIM}已取消。{RESET}")
+            return False
+        idx = int(choice) - 1
+        if idx < 0 or idx >= len(providers):
+            print(f"{RED}❌ 无效编号{RESET}")
+            return False
+        selected = providers[idx]
+        provider_id = selected["id"]
+        info = get_provider_info(provider_id)
+
+        # 输入 API Key
+        print(f"\n{DIM}正在配置 [{provider_id}]{RESET}")
+        k = input(f"{YELLOW}👉 请输入 API Key: {RESET}").strip()
+        if not k:
+            print(f"{RED}❌ API Key 不能为空{RESET}")
+            return False
+
+        # 选择模型
+        default_model = info["default_model"]
+        print(f"\n{DIM}默认模型: {default_model}{RESET}")
+        m = input(f"{YELLOW}👉 模型名 (回车使用默认): {RESET}").strip()
+        model = m if m else default_model
+
+        # 保存配置
+        pcfg = providers_cfg.setdefault(provider_id, {})
+        pcfg["key"] = k
+        pcfg["model"] = model
+        state.cfg["providers"] = providers_cfg
+
+        # 询问是否设为全局默认
+        is_default = input(f"\n{YELLOW}👉 是否设为全局默认? [Y/n]: {RESET}").strip().lower()
+        if is_default in ("", "y", "yes"):
+            state.cfg["provider"] = provider_id
+            state.cfg["model"] = model
+            state.provider = provider_id
+            state.model_name = model
+
+        state.save_cfg()
+        state.reinit_client()
+        print(f"\n{GREEN}✅ [{provider_id}] 配置完成！{RESET}")
+        print(f"   模型: {DIM}{model}{RESET}")
+        if state.provider == provider_id:
+            print(f"   {YELLOW}⭐ 已设为全局默认{RESET}")
         return False
 
     if sub == "add":
@@ -900,6 +960,103 @@ def _cmd_agent_forge(state, parts):
     print(f"{GREEN}✅ Agent [{safe_name}] 铸造完成！{RESET}")
     print(f"{DIM}  路径: {d}{RESET}")
     print(f"{DIM}  运行: /agent_run {safe_name} [参数]{RESET}")
+    return False
+
+
+def _cmd_agent_model(state, parts):
+    """
+    设置/查看 Agent 专属模型配置
+    用法:
+      /agent_model <agent>                  — 查看该 Agent 的模型配置
+      /agent_model <agent> <provider>:<model> — 设置专属模型
+      /agent_model <agent> clear            — 清除专属配置
+      /agent_model <agent> --key <key>      — 设置独立 API Key
+    """
+    from fr_cli.agent.manager import agent_exists, load_agent_config, save_agent_config
+    from fr_cli.core.llm import get_provider_info, list_providers
+
+    arg1 = parts[1] if len(parts) > 1 else ""  # agent_name
+    arg2 = parts[2] if len(parts) > 2 else ""  # provider:model 或 subcommand
+
+    if not arg1:
+        print(f"{YELLOW}用法:{RESET}")
+        print(f"  /agent_model <agent>                    — 查看配置")
+        print(f"  /agent_model <agent> <provider>:<model> — 设置专属模型")
+        print(f"  /agent_model <agent> clear              — 清除专属配置")
+        print(f"  /agent_model <agent> --key <key>        — 设置独立 API Key")
+        return False
+
+    if not agent_exists(arg1):
+        print(f"{RED}Agent [{arg1}] 不存在。{RESET}")
+        return False
+
+    agent_cfg = load_agent_config(arg1)
+
+    # 处理 --key 子命令
+    if arg2 == "--key":
+        key = parts[3] if len(parts) > 3 else ""
+        if not key:
+            print(f"{RED}❌ 请提供 API Key{RESET}")
+            return False
+        agent_cfg["key"] = key
+        save_agent_config(arg1, agent_cfg)
+        print(f"{GREEN}✅ Agent [{arg1}] 独立 API Key 已更新{RESET}")
+        return False
+
+    # 处理 clear 子命令
+    if arg2 == "clear":
+        if agent_cfg:
+            save_agent_config(arg1, {})
+            print(f"{GREEN}✅ Agent [{arg1}] 专属配置已清除，恢复全局默认{RESET}")
+        else:
+            print(f"{DIM}Agent [{arg1}] 无专属配置{RESET}")
+        return False
+
+    # 查看模式（无 arg2）
+    if not arg2:
+        print(f"{CYAN}═══ Agent [{arg1}] 模型配置 ═══{RESET}")
+        if agent_cfg.get("provider") and agent_cfg.get("model"):
+            provider = agent_cfg["provider"]
+            model = agent_cfg["model"]
+            info = get_provider_info(provider)
+            name = info["name"] if info else provider
+            print(f"  专属道统: {CYAN}{provider}{RESET} ({name})")
+            print(f"  专属模型: {CYAN}{model}{RESET}")
+            if agent_cfg.get("key"):
+                raw_key = agent_cfg["key"]
+                key_display = raw_key[:8] + "****" if len(raw_key) > 8 else raw_key
+                print(f"  独立 Key: {DIM}{key_display}{RESET}")
+        else:
+            print(f"  {DIM}使用全局默认: [{state.provider}] {state.model_name}{RESET}")
+        print(f"\n{DIM}可用道统:{RESET}")
+        for p in list_providers():
+            print(f"  {CYAN}{p['id']}{RESET} — {p['name']} {DIM}(默认: {p['default_model']}){RESET}")
+        return False
+
+    # 设置模式：解析 provider:model
+    if ":" in arg2:
+        provider_id, model_name = arg2.split(":", 1)
+    else:
+        # 仅提供模型名，保持当前 provider
+        provider_id = state.provider
+        model_name = arg2
+
+    provider_id = provider_id.strip()
+    model_name = model_name.strip()
+
+    if not get_provider_info(provider_id):
+        print(f"{RED}❌ 无效道统: {provider_id}{RESET}")
+        print(f"{DIM}可用道统: {', '.join([p['id'] for p in list_providers()])}{RESET}")
+        return False
+
+    if not model_name:
+        print(f"{RED}❌ 模型名称不能为空{RESET}")
+        return False
+
+    agent_cfg["provider"] = provider_id
+    agent_cfg["model"] = model_name
+    save_agent_config(arg1, agent_cfg)
+    print(f"{GREEN}✅ Agent [{arg1}] 专属模型已设置: [{provider_id}] {model_name}{RESET}")
     return False
 
 

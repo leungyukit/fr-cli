@@ -28,7 +28,7 @@ I18N = {
         "sec_title": "⚠️ 检测到高危神通，请选择因果:", "sec_opt_y": "[Y]仅此", "sec_opt_a": "[A]本轮", "sec_opt_f": "[F]永世", "sec_opt_n": "[N]拒绝", "sec_denied": "🛑 终止。",
         "sec_read": "读取卷轴", "sec_write": "写入法宝", "sec_exec": "执行法宝", "sec_mount": "开辟洞府", "sec_gen_img": "祭炼画卷", "sec_send_mail": "发送邮件", "sec_fetch_web": "抓取互联网", "sec_upload_disk": "上传至云端", "sec_download_disk": "下载自云端", "sec_shell": "执行系统命令",
         "gen_ing": "🎨 祭炼…", "gen_ok": "✅ 画卷成: {}", "gen_fail": "❌ 破碎: ", "see_warn": "⚠️ 需法器 glm-4v-plus", "see_ing": "👁️ 天眼…",
-        "help_title": "📜 修仙指南:", "help_cfg": "【配置】", "help_fs": "【洞府】", "help_sess": "【轮回】", "help_plugin": "【法宝】", "help_extra": "【神通】", "help_shell": "【破壁】",
+        "help_title": "📜 修仙指南:", "help_cfg": "【天道】", "help_fs": "【洞府】", "help_sess": "【轮回】", "help_plugin": "【法宝】", "help_extra": "【神通】", "help_shell": "【破界】",
         "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
         "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
         "empty": "空空如也…", "none": "无", "no_sess": "无记忆。", "no_plugins": "无技能。",
@@ -42,8 +42,8 @@ I18N = {
         "web_err": "❌ 迷路:", "web_no_res": "无果。", "web_title": "📜 搜魂:",
         "disk_setup": "/disk_setup", "disk_ls": "/disk_ls <盘>", "disk_up": "/disk_up <盘> <路>", "disk_down": "/disk_down <盘> <云> [本]",
         "disk_ok_up": "✅ 飞升: {}", "disk_ok_down": "✅ 降落: {}", "disk_err": "❌ 御剑: ", "disk_no_cfg": "❌ 未配盘", "disk_miss_dep": "❌ 缺库: {} (pip install {})",
-        "shell_tip": "!命令 执行本地Shell(如 !ls)",
-        "pipe_tip": "!命令 | 提示 管道喂给AI(如 !ps aux | 找出占用CPU最高的进程)",
+        "shell_tip": "!命令 调用天地法则(如 !ls)",
+        "pipe_tip": "!命令 | 提示 周天推演喂给仙人(如 !ps aux | 找出占用灵力最高的修士)",
         "pipe_prefix": "[系统管道数据]:\n",
         "artifact_detect": "⚡ 检测到法宝结构，赐名 (回车放弃): ",
         "recommend_title": "💡 推荐功能:",
@@ -72,7 +72,7 @@ I18N = {
         # ---- 详细帮助文本 ----
         "help_detail_config": """📜 【配置】
 
-/model <name>     切换AI模型 (glm-4-flash, glm-4-plus, glm-4v-plus)
+/model <name>     切换AI模型 (glm-4-flash, deepseek-chat, moonshot-v1-8k, doubao-1-5-pro-32k-250115, mimo-v2-flash 等)
 /key <key>        修改智谱AI API Key
 /limit <n>        设置Token上限 (最小1000)
 /lang <zh/en>     切换界面语言
@@ -305,6 +305,8 @@ AI自动输出调用标记, 程序解析并执行:
 /agent_edit <名称> <类型>      编辑 Agent 设定（persona/memory/skills/agent/workflow）
 /agent_run <名称> [参数]       运行指定 Agent
 /agent_delete <名称>           删除 Agent
+/agent_model <名称> [provider:model|clear|--key <key>]
+                               查看/设置 Agent 专属模型（独立 config.json 持久化）
 
 Agent 目录: ~/.fr_cli_agents/<名称>/
   • persona.md  — 角色设定
@@ -312,6 +314,12 @@ Agent 目录: ~/.fr_cli_agents/<名称>/
   • skills.md   — 技能说明
   • agent.py    — 可选自定义执行逻辑（必须包含 run(context, **kwargs)）
   • workflow.md — 可选工作流定义
+  • config.json — 专属模型配置（provider / model / key，可选）
+
+模型绑定示例：
+  /agent_model my_agent deepseek:deepseek-chat   — 绑定专属模型
+  /agent_model my_agent --key sk-own-key         — 设置独立 API Key
+  /agent_model my_agent clear                    — 清除专属配置，恢复全局默认
 
 将已有代码转为 Agent 的方法：
   1. 在对话中让 AI 生成包含 def run(context, **kwargs) 的代码
@@ -496,7 +504,7 @@ Example:
         "rec_pipe": "Pipe command output to AI",
         "help_detail_config": """📜 [Config]
 
-/model <name>     Switch AI model (glm-4-flash, glm-4-plus, glm-4v-plus)
+/model <name>     Switch AI model (glm-4-flash, deepseek-chat, moonshot-v1-8k, doubao-1-5-pro-32k-250115, mimo-v2-flash, etc.)
 /key <key>        Change ZhipuAI API Key
 /limit <n>        Set token limit (min 1000)
 /lang <zh/en>     Switch UI language
@@ -729,6 +737,8 @@ Common app aliases:
 /agent_edit <name> <type>     Edit Agent settings (persona/memory/skills/agent/workflow)
 /agent_run <name> [args]      Run specified Agent
 /agent_delete <name>          Delete Agent
+/agent_model <name> [provider:model|clear|--key <key>]
+                              View/set Agent-specific model (persisted in config.json)
 
 Agent directory: ~/.fr_cli_agents/<name>/
   • persona.md  — Character setting
@@ -736,6 +746,12 @@ Agent directory: ~/.fr_cli_agents/<name>/
   • skills.md   — Skill descriptions
   • agent.py    — Optional custom execution logic (must contain run(context, **kwargs))
   • workflow.md — Optional workflow definition
+  • config.json — Model binding config (provider / model / key, optional)
+
+Model binding examples:
+  /agent_model my_agent deepseek:deepseek-chat  — Bind exclusive model
+  /agent_model my_agent --key sk-own-key        — Set independent API Key
+  /agent_model my_agent clear                   — Clear config, fallback to global default
 
 How to turn existing code into an Agent:
   1. Ask AI to generate code containing def run(context, **kwargs)

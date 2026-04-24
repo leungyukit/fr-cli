@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fr-cli"
-version = "2.2.6"
-description = "凡人打字机 - 支持多模型(Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark)的终极全能终端工具"
+version = "2.2.7"
+description = "凡人打字机 - 支持多模型(Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo)的终极全能终端工具"
 readme = "README.md"
 requires-python = ">=3.8"
 license = "MIT"

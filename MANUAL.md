@@ -26,10 +26,10 @@
 
 ## 简介
 
-「凡人打字机」是一个支持多模型（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）的终极全能终端工具。它将大语言模型与本地环境深度集成，让你可以在终端中通过自然语言与 AI 对话，并让 AI 自动调用各类工具完成实际任务。
+「凡人打字机」是一个支持多模型（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火/豆包/小米MiMo）的终极全能终端工具。它将大语言模型与本地环境深度集成，让你可以在终端中通过自然语言与 AI 对话，并让 AI 自动调用各类工具完成实际任务。
 
 **核心特性：**
-- 🤖 **AI 智能对话** — 支持多模型（智谱 GLM / DeepSeek / Kimi / 通义千问 / StepFun / MiniMax / 讯飞星火），流式实时响应
+- 🤖 **AI 智能对话** — 支持多模型（智谱 GLM / DeepSeek / Kimi / 通义千问 / StepFun / MiniMax / 讯飞星火 / 豆包 / 小米 MiMo），流式实时响应
 - 🧠 **MasterAgent 主控** — 自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化
 - 🧩 **思维模式** — direct / CoT / ToT / ReAct 四种推理模式切换
 - 📁 **安全文件沙盒** — 虚拟文件系统，防止目录穿越攻击
@@ -95,7 +95,7 @@ pip install fr-cli
 ```
 ⚠️ API Key Required
 当前道统: zhipu
-支持道统: zhipu, deepseek, kimi, qwen, stepfun, minimax, spark
+支持道统: zhipu, deepseek, kimi, qwen, stepfun, minimax, spark, doubao, mimo
 👉 Enter API Key for [zhipu]: sk-xxxxxxxxxxxxxxxx
 ```
 
@@ -158,13 +158,26 @@ $ fr-cli
 ```json
 {
     "key": "sk-xxxxxxxxxxxxxxxx",
+    "provider": "zhipu",
     "model": "glm-4-flash",
+    "providers": {
+        "deepseek": {
+            "key": "sk-deepseek-xxxx",
+            "model": "deepseek-chat",
+            "base_url": "https://api.deepseek.com"
+        },
+        "kimi": {
+            "key": "sk-kimi-xxxx",
+            "model": "moonshot-v1-8k"
+        }
+    },
     "limit": 20000,
     "allowed_dirs": [],
     "lang": "zh",
     "aliases": {},
     "auto_confirm_forever": false,
     "session_name": "",
+    "thinking_mode": "direct",
     "mail": {
         "imap_server": "imap.qq.com",
         "smtp_server": "smtp.qq.com",
@@ -222,6 +235,7 @@ $ fr-cli
 /model glm-4-plus              # 切换当前道统模型
 /model deepseek:deepseek-chat   # 同时切换道统和模型
 /providers                      # 查看所有道统配置
+/providers setup                # 交互式配置向导（推荐新手）
 /providers add deepseek sk-xxx  # 添加/更新道统配置
 /providers use deepseek         # 切换到指定道统
 /limit 4096             # 修改 Token 上限
@@ -666,6 +680,49 @@ asyncio — Asynchronous I/O...
 | `/agent_edit <名称> <类型>` | 名称 persona/memory/skills/agent/workflow | 编辑 Agent 设定 |
 | `/agent_run <名称> [参数]` | 名称 [传入参数] | 运行指定 Agent |
 | `/agent_delete <名称>` | Agent 名称 | 删除 Agent |
+| `/agent_model <名称> [provider:model]` | 名称 [道统:模型] | 查看/设置 Agent 专属模型配置 |
+
+#### Agent 模型绑定
+
+每个 Agent 可独立绑定专属大模型，执行时自动切换，不影响全局默认模型。配置保存在 `~/.fr_cli_agents/<名称>/config.json` 中。
+
+**查看配置：**
+```
+>>> /agent_model my_agent
+═══ Agent [my_agent] 模型配置 ═══
+  专属道统: deepseek (DeepSeek)
+  专属模型: deepseek-chat
+```
+
+**设置专属模型：**
+```
+>>> /agent_model my_agent deepseek:deepseek-chat
+✅ Agent [my_agent] 专属模型已设置: [deepseek] deepseek-chat
+```
+
+**设置独立 API Key（覆盖全局）：**
+```
+>>> /agent_model my_agent --key sk-own-key
+✅ Agent [my_agent] 独立 API Key 已更新
+```
+
+**清除专属配置（恢复全局默认）：**
+```
+>>> /agent_model my_agent clear
+✅ Agent [my_agent] 专属配置已清除，恢复全局默认
+```
+
+**配置格式**（`~/.fr_cli_agents/<名称>/config.json`）：
+```json
+{
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "key": ""
+}
+```
+
+- `provider` + `model`：指定该 Agent 使用的道统和模型（必填）
+- `key`：可选的独立 API Key。若为空，则自动使用全局 `providers` 中对应道统的 Key
 
 #### 创建 Agent 的三种方法
 
@@ -894,6 +951,7 @@ SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY);
 | `skills.md` | 技能描述（供 AI 参考） |
 | `agent.py` | 可选自定义执行逻辑（需实现 `run(context, **kwargs)`） |
 | `workflow.md` | 可选工作流定义（多步骤编排） |
+| `config.json` | 专属模型配置（provider / model / key，可选） |
 
 #### Agent HTTP 服务命令
 

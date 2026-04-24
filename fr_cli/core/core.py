@@ -11,7 +11,7 @@ from fr_cli.command.security import SecurityManager
 from fr_cli.command.executor import CommandExecutor
 from fr_cli.weapon.loader import load_weapon_md
 from fr_cli.weapon.mcp import MCPManager
-from fr_cli.core.llm import create_llm_client, list_providers, get_provider_info, resolve_provider_model
+from fr_cli.core.llm import create_llm_client, create_llm_client_for, list_providers, get_provider_info, resolve_provider_model
 
 
 class AppState:
@@ -48,6 +48,9 @@ class AppState:
 
         # 自动会话存档路径（按日期编号）
         self.auto_session_path = None
+
+        # LLM 客户端缓存（供 Agent 专属模型复用）
+        self._client_cache = {}
 
         # 命令执行引擎
         self.executor = CommandExecutor(self)
@@ -146,3 +149,39 @@ class AppState:
         self.cfg["thinking_mode"] = mode
         self.thinking_mode = mode
         self.save_cfg()
+
+    def get_client_for(self, provider: str, model: str, override_key: str = None):
+        """
+        获取指定 provider + model 的 LLM 客户端，带缓存避免重复初始化
+        若提供了 override_key，则优先使用（如 Agent 专属 key）
+        """
+        cache_key = (provider, model, override_key)
+        cached = self._client_cache.get(cache_key)
+        if cached is not None:
+            return cached
+
+        client, _, _ = create_llm_client_for(provider, model, self.cfg, override_key)
+        self._client_cache[cache_key] = client
+        return client
+
+    def resolve_agent_llm(self, agent_name: str):
+        """
+        解析 Agent 的 LLM 配置：优先读取 Agent 的 config.json，
+        若无专属配置则回退到全局默认。
+
+        返回: (client, provider, model)
+        """
+        from fr_cli.agent.manager import load_agent_config
+        agent_cfg = load_agent_config(agent_name)
+
+        provider = agent_cfg.get("provider")
+        model = agent_cfg.get("model")
+        override_key = agent_cfg.get("key") or None
+
+        # 防御性校验：provider 和 model 必须均为非空字符串才生效
+        if provider and model and isinstance(provider, str) and isinstance(model, str):
+            client = self.get_client_for(provider, model, override_key)
+            return client, provider, model
+
+        # 回退到全局默认
+        return self.client, self.provider, self.model_name

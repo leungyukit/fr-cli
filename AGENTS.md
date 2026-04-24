@@ -23,9 +23,9 @@
 | 层级 | 技术/依赖 |
 |---|---|
 | 运行时 | Python 3.13（虚拟环境 `.venv/` 已创建） |
-| AI SDK | `zhipuai>=2.0.0`（智谱）, `openai>=1.0.0`（兼容 DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞） |
-| 默认模型 | `glm-4-flash`（智谱）、`deepseek-chat`（DeepSeek）、`moonshot-v1-8k`（Kimi）等，支持 7 大道统 |
-| 多模型支持 | zhipu / deepseek / kimi / qwen / stepfun / minimax / spark |
+| AI SDK | `zhipuai>=2.0.0`（智谱）, `openai>=1.0.0`（兼容 DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞/豆包/小米MiMo） |
+| 默认模型 | `glm-4-flash`（智谱）、`deepseek-chat`（DeepSeek）、`moonshot-v1-8k`（Kimi）等，支持 9 大道统 |
+| 多模型支持 | zhipu / deepseek / kimi / qwen / stepfun / minimax / spark / doubao / mimo |
 | HTTP / 网页 | `requests` |
 | 数据 / Excel | `pandas`、`openpyxl` |
 | 数据库 | `pymysql`、`psycopg2-binary`、`pyodbc`、`oracledb` |
@@ -271,6 +271,7 @@ Agent 分身系统允许用户创建独立的 AI Agent（分身），每个 Agen
 - **skills.md** —— 技能说明（供 AI 参考）
 - **agent.py** —— 可选的自定义 Python 执行逻辑（必须实现 `run(context, **kwargs)`）
 - **workflow.md** —— 可选的工作流定义（多步骤编排）
+- **config.json** —— 可选的专属模型配置（provider / model / key），Agent 执行时自动切换为该模型
 
 Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 
@@ -291,6 +292,7 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
   - `delete_agent(name)`：抹除分身
   - `load_persona/memory/skills(name)`：读取设定
   - `save_persona/memory/skills(name, content)`：写入设定
+  - `load_agent_config(name)` / `save_agent_config(name, data)`：读取/写入专属模型配置 `config.json`
   - `load_agent_module(name)`：动态加载 `agent.py`
 
 - **`agent/executor.py`** —— 分身执行器
@@ -308,6 +310,31 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
   - `AgentHTTPServer(state, host, port)`：HTTP 守护线程
   - 提供 REST API：`GET /agents`、`GET /agents/<name>`、`POST /agents/<name>/run`、`POST /agents/<name>/workflow`
   - 零额外依赖（标准库 `http.server`）
+
+### Agent 模型绑定
+
+每个独立 Agent 可配置专属大模型，执行时自动切换，不影响全局默认模型。配置持久化在 `~/.fr_cli_agents/<name>/config.json` 中。
+
+**命令：**
+```
+>>> /agent_model my_agent                    # 查看当前配置
+>>> /agent_model my_agent deepseek:deepseek-chat   # 设置专属模型
+>>> /agent_model my_agent --key sk-own-key   # 设置独立 API Key（可选）
+>>> /agent_model my_agent clear              # 清除配置，恢复全局默认
+```
+
+**config.json 格式：**
+```json
+{
+    "provider": "deepseek",
+    "model": "deepseek-chat",
+    "key": ""
+}
+```
+
+- `provider` + `model`：指定道统和模型（两者均非空时生效）
+- `key`：可选的独立 API Key；若为空，回退到全局 `providers` 中对应道统的 Key
+- Agent 代码中通过 `context["provider"]` 和 `context["model"]` 可感知当前绑定的道统
 
 ### 内置 Agent 使用指南
 

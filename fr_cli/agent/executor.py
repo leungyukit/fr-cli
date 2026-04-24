@@ -19,12 +19,17 @@ def run_agent(name, state, **kwargs):
         return None, "agent.py missing run(context, **kwargs)"
     progress = load_progress(name)
     latest = progress.get("latest", {})
+
+    # 解析 Agent 专属 LLM 配置
+    client, provider, model = state.resolve_agent_llm(name)
+
     context = {
         "persona": persona,
         "memory": memory,
         "skills": skills,
-        "client": state.client,
-        "model": state.model_name,
+        "client": client,
+        "provider": provider,
+        "model": model,
         "lang": state.lang,
         "executor": state.executor,
         "state": state,
@@ -34,11 +39,15 @@ def run_agent(name, state, **kwargs):
         "latest_status": latest.get("status", ""),
         "execution_count": progress.get("counter", 0),
     }
+    # 将工具调用的 LLM 上下文切换为 Agent 专属配置
+    state.executor.push_agent_context(client, model)
     try:
         result = mod.run(context, **kwargs)
         return result, None
     except Exception as e:
         return None, str(e)
+    finally:
+        state.executor.pop_agent_context()
 
 
 def delegate_to_agent(name, state, pipeline_input=None, **kwargs):
@@ -53,23 +62,32 @@ def delegate_to_agent(name, state, pipeline_input=None, **kwargs):
         return None, "agent.py not found or load failed"
     if not hasattr(mod, "run"):
         return None, "agent.py missing run(context, **kwargs)"
+
+    # 解析 Agent 专属 LLM 配置
+    client, provider, model = state.resolve_agent_llm(name)
+
     context = {
         "persona": persona,
         "memory": memory,
         "skills": skills,
-        "client": state.client,
-        "model": state.model_name,
+        "client": client,
+        "provider": provider,
+        "model": model,
         "lang": state.lang,
         "executor": state.executor,
         "state": state,
         "agent_name": name,
         "pipeline_input": pipeline_input,
     }
+    # 将工具调用的 LLM 上下文切换为 Agent 专属配置
+    state.executor.push_agent_context(client, model)
     try:
         result = mod.run(context, **kwargs)
         return result, None
     except Exception as e:
         return None, str(e)
+    finally:
+        state.executor.pop_agent_context()
 
 
 def run_multi_agent(names, state, initial_input=None, **kwargs):
