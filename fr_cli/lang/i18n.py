@@ -72,7 +72,7 @@ I18N = {
         # ---- 详细帮助文本 ----
         "help_detail_config": """📜 【配置】
 
-/model <name>     切换AI模型 (glm-4-flash, deepseek-chat, moonshot-v1-8k, doubao-1-5-pro-32k-250115, mimo-v2-flash 等)
+/model <name>     切换AI模型 (glm-4-flash, deepseek-chat, kimi-k2, kimi-code, step-3, minimax-m27, zhipu-coding, longcat 等)
 /key <key>        修改智谱AI API Key
 /limit <n>        设置Token上限 (最小1000)
 /lang <zh/en>     切换界面语言
@@ -504,7 +504,7 @@ Example:
         "rec_pipe": "Pipe command output to AI",
         "help_detail_config": """📜 [Config]
 
-/model <name>     Switch AI model (glm-4-flash, deepseek-chat, moonshot-v1-8k, doubao-1-5-pro-32k-250115, mimo-v2-flash, etc.)
+/model <name>     Switch AI model (glm-4-flash, deepseek-chat, kimi-k2, kimi-code, step-3, minimax-m27, zhipu-coding, longcat, etc.)
 /key <key>        Change ZhipuAI API Key
 /limit <n>        Set token limit (min 1000)
 /lang <zh/en>     Switch UI language

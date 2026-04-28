@@ -67,3 +67,5 @@ fr_cli/weapon/mail.py
 fr_cli/weapon/mcp.py
 fr_cli/weapon/vision.py
 fr_cli/weapon/web.py
+tests/test_integration_real.py
+tests/test_model_config.py

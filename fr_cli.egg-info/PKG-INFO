@@ -1,7 +1,7 @@
 Metadata-Version: 2.4
 Name: fr-cli
-Version: 2.2.6
-Summary: 凡人打字机 - 支持多模型(Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark)的终极全能终端工具
+Version: 2.2.7
+Summary: 凡人打字机 - 支持多模型(Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo)的终极全能终端工具
 Author: FANREN CLI Author
 License-Expression: MIT
 Project-URL: Homepage, https://github.com/yourname/fr-cli

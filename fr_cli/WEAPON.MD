@@ -184,3 +184,80 @@
   >>> 用 MCP 工具读取 /tmp/hello.txt
   🧙 仙人 【调用：mcp_call({"server": "fs", "tool": "read_file", "arguments": {"path": "/tmp/hello.txt"}})】
   ```
+
+---
+
+## a2a_protocol
+- **名称**: Agent2Agent Protocol (A2A) - Agent 互操作协议
+- **功能**: 支持 Agent 之间的互操作，实现 Agent 发现、注册、能力匹配、任务委托和结果返回
+- **程序路径**: fr_cli/agent/a2a.py
+- **调用方式**:
+  - AI 调用: `agent_call({"name": "Agent名", "user_input": "任务描述"})`
+  - 发现: `discover_all_agents()` 获取所有可用 Agent
+  - 注册: `AgentRegistry.register(agent_info)`
+- **触发关键词**: agent, agent_call, A2A, agent互操作, 委托任务, 多agent协作
+
+核心组件:
+  - AgentRegistry: Agent 注册表（单例模式），管理所有 Agent 的注册与发现
+  - AgentInfo: Agent 信息，包含名称、类型、描述、能力列表、端点等
+  - A2AClient: A2A 客户端，用于调用其他 Agent
+  - A2AServer: A2A 服务器，提供 HTTP 接口供远程调用
+  - TaskRequest/TaskResult: 任务请求和结果数据结构
+
+使用示例:
+  ```
+  # MasterAgent 可自动发现并调用其他 Agent
+  >>> 帮我调用 code-agent 生成一个快速排序算法
+  🧙 仙人 【调用：agent_call({"name": "code-agent", "user_input": "生成快速排序算法"})】
+  ```
+
+Agent 能力类型:
+  - code_generation: 代码生成
+  - code_review: 代码审查
+  - data_analysis: 数据分析
+  - web_search: 网络搜索
+  - file_operation: 文件操作
+  - database: 数据库操作
+  - image_processing: 图像处理
+  - text_generation: 文本生成
+  - translation: 翻译
+  - general: 通用能力
+
+---
+
+## provider_management
+- **名称**: 模型提供商管理
+- **功能**: 管理多个 AI 模型提供商（道统），支持配置、切换、查看
+- **程序路径**: fr_cli/core/llm.py, fr_cli/repl/commands.py
+- **调用方式**:
+  - `/providers` - 查看所有道统配置
+  - `/providers add <provider> <key> [model]` - 添加/更新道统
+  - `/providers use <provider>` - 切换到指定道统
+  - `/model <provider>:<model>` - 切换道统和模型
+- **触发关键词**: 道统, provider, 提供商, 配置模型
+
+支持的模型提供商（25+）:
+  - 智谱: zhipu (glm-4-flash)
+  - 智谱 Coding Plan: zhipu-coding (GLM-4.7)
+  - 智谱 Anthropic: zhipu-anthropic (glm-4.6)
+  - DeepSeek: deepseek (deepseek-chat)
+  - Kimi: kimi (moonshot-v1-8k)
+  - Kimi K2: kimi-k2 (kimi-k2-0905-preview) - 代码优化版
+  - Kimi Code: kimi-code (kimi-cache-test) - 代码平台
+  - 通义千问: qwen (qwen-turbo)
+  - 阶跃星辰: stepfun (step-1-8k), step-1, step-2, step-3, step-audio
+  - MiniMax: minimax (MiniMax-Text-01)
+  - MiniMax M2.7: minimax-m27, minimax-m27-fast, minimax-token-plan
+  - 讯飞星火: spark (generalv3.5)
+  - 豆包: doubao (doubao-1-5-pro-32k-250115)
+  - 小米: mimo (mimo-v2-flash)
+  - LongCat (龙猫): longcat (LongCat-Flash-Chat)
+  - LongCat Anthropic: longcat-anthropic (LongCat)
+
+使用示例:
+  ```
+  /providers add zhipu-coding <your-coding-plan-key>
+  /providers add longcat <your-longcat-api-key>
+  /providers use kimi-k2
+  /model step-3
+  ```
