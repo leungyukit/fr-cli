@@ -3,7 +3,6 @@
 将安全状态从 main.py 的闭包中提取为可复用的类
 """
 from fr_cli.security.security import ask
-from fr_cli.conf.config import save_config
 
 
 class SecurityManager:

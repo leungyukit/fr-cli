@@ -12,6 +12,7 @@ MEMORY_FILE = "memory.md"
 SKILLS_FILE = "skills.md"
 AGENT_CODE_FILE = "agent.py"
 PROGRESS_FILE = "progress.json"
+AGENT_CONFIG_FILE = "config.json"
 
 
 def _agent_dir(name: str) -> Path:
@@ -53,6 +54,7 @@ def list_agents() -> list:
                 "has_persona": (d / PERSONA_FILE).exists(),
                 "has_memory": (d / MEMORY_FILE).exists(),
                 "has_skills": (d / SKILLS_FILE).exists(),
+                "has_config": (d / AGENT_CONFIG_FILE).exists(),
             })
     return agents
 
@@ -191,3 +193,28 @@ def get_progress_history(name: str, limit: int = 10) -> list:
     progress = load_progress(name)
     history = progress.get("history", [])
     return history[-limit:] if history else []
+
+
+# ---------- Agent 专属配置读写 ----------
+
+def load_agent_config(name: str) -> dict:
+    """读取 Agent 的专属模型配置（config.json）"""
+    f = _agent_dir(name) / AGENT_CONFIG_FILE
+    if not f.exists():
+        return {}
+    try:
+        return json.loads(f.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+
+
+def save_agent_config(name: str, data: dict):
+    """保存 Agent 的专属模型配置到 config.json"""
+    d = _agent_dir(name)
+    # 确保 Agent 洞府存在，避免在无效目录创建孤立文件
+    d.mkdir(parents=True, exist_ok=True)
+    f = d / AGENT_CONFIG_FILE
+    try:
+        f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+    except Exception:
+        pass

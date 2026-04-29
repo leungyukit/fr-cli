@@ -28,9 +28,9 @@ I18N = {
         "sec_title": "⚠️ 检测到高危神通，请选择因果:", "sec_opt_y": "[Y]仅此", "sec_opt_a": "[A]本轮", "sec_opt_f": "[F]永世", "sec_opt_n": "[N]拒绝", "sec_denied": "🛑 终止。",
         "sec_read": "读取卷轴", "sec_write": "写入法宝", "sec_exec": "执行法宝", "sec_mount": "开辟洞府", "sec_gen_img": "祭炼画卷", "sec_send_mail": "发送邮件", "sec_fetch_web": "抓取互联网", "sec_upload_disk": "上传至云端", "sec_download_disk": "下载自云端", "sec_shell": "执行系统命令",
         "gen_ing": "🎨 祭炼…", "gen_ok": "✅ 画卷成: {}", "gen_fail": "❌ 破碎: ", "see_warn": "⚠️ 需法器 glm-4v-plus", "see_ing": "👁️ 天眼…",
-        "help_title": "📜 修仙指南:", "help_cfg": "【配置】", "help_fs": "【洞府】", "help_sess": "【轮回】", "help_plugin": "【法宝】", "help_extra": "【神通】", "help_shell": "【破壁】",
-        "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
-        "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
+        "help_title": "📜 修仙指南:", "help_cfg": "【天道】", "help_fs": "【洞府】", "help_sess": "【轮回】", "help_plugin": "【法宝】", "help_extra": "【神通】", "help_shell": "【破界】",
+        "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+        "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
         "empty": "空空如也…", "none": "无", "no_sess": "无记忆。", "no_plugins": "无技能。",
         "ctx_dir": "\n[系统：凡人在 {}。]",
         "menu_mail": "【邮差】", "menu_cron": "【结界】", "menu_web": "【游侠】", "menu_disk": "【腾云】",
@@ -42,8 +42,8 @@ I18N = {
         "web_err": "❌ 迷路:", "web_no_res": "无果。", "web_title": "📜 搜魂:",
         "disk_setup": "/disk_setup", "disk_ls": "/disk_ls <盘>", "disk_up": "/disk_up <盘> <路>", "disk_down": "/disk_down <盘> <云> [本]",
         "disk_ok_up": "✅ 飞升: {}", "disk_ok_down": "✅ 降落: {}", "disk_err": "❌ 御剑: ", "disk_no_cfg": "❌ 未配盘", "disk_miss_dep": "❌ 缺库: {} (pip install {})",
-        "shell_tip": "!命令 执行本地Shell(如 !ls)",
-        "pipe_tip": "!命令 | 提示 管道喂给AI(如 !ps aux | 找出占用CPU最高的进程)",
+        "shell_tip": "!命令 调用天地法则(如 !ls)",
+        "pipe_tip": "!命令 | 提示 周天推演喂给仙人(如 !ps aux | 找出占用灵力最高的修士)",
         "pipe_prefix": "[系统管道数据]:\n",
         "artifact_detect": "⚡ 检测到法宝结构，赐名 (回车放弃): ",
         "recommend_title": "💡 推荐功能:",
@@ -72,7 +72,7 @@ I18N = {
         # ---- 详细帮助文本 ----
         "help_detail_config": """📜 【配置】
 
-/model <name>     切换AI模型 (glm-4-flash, glm-4-plus, glm-4v-plus)
+/model <name>     切换AI模型 (glm-4-flash, deepseek-chat, kimi-k2, kimi-code, step-3, minimax-m27, zhipu-coding, longcat 等)
 /key <key>        修改智谱AI API Key
 /limit <n>        设置Token上限 (最小1000)
 /lang <zh/en>     切换界面语言
@@ -119,17 +119,25 @@ I18N = {
 /undo             撤销最近一轮对话
 /export           导出当前会话为Markdown
 
+自动按日期存档:
+  /session_list     列出所有按日期自动保存的会话
+  /session_load <N> 加载指定编号的会话并继续对话
+  /session_del <N>  删除指定编号的自动会话
+
 使用示例:
   /save 项目讨论     保存当前会话
   /load              交互式选择并加载
   /del               交互式选择并删除
   /undo              撤销最近一轮
   /export            导出为 Markdown
+  /session_list      查看自动存档列表
+  /session_load 1    加载今天的第一个会话继续聊
 
 上下文记忆:
   • 自动保留最近5轮对话摘要
   • 按 session_name 持久化到 ~/.zhipu_cli_context.json
   • 加载会话时自动恢复上下文摘要
+  • 每次启动自动创建日期编号会话文件（~/.fr_cli_sessions/）
 """,
         "help_detail_plugin": """📜 【法宝 - 插件系统】
 
@@ -288,6 +296,8 @@ AI自动输出调用标记, 程序解析并执行:
 """,
         "help_detail_agent": """📜 【分身 - Agent 系统】
 
+/master on|off|status          主控 Agent — 自我进化型全能助手（接管所有对话）
+
 /agent_create <名称> <描述>   AI 自动生成完整 Agent（人设/技能/代码）
 /agent_forge <名称>            从最近一次 AI 回复中提取代码，铸造为 Agent
 /agent_list                    列出所有 Agent 分身
@@ -295,6 +305,8 @@ AI自动输出调用标记, 程序解析并执行:
 /agent_edit <名称> <类型>      编辑 Agent 设定（persona/memory/skills/agent/workflow）
 /agent_run <名称> [参数]       运行指定 Agent
 /agent_delete <名称>           删除 Agent
+/agent_model <名称> [provider:model|clear|--key <key>]
+                               查看/设置 Agent 专属模型（独立 config.json 持久化）
 
 Agent 目录: ~/.fr_cli_agents/<名称>/
   • persona.md  — 角色设定
@@ -302,6 +314,12 @@ Agent 目录: ~/.fr_cli_agents/<名称>/
   • skills.md   — 技能说明
   • agent.py    — 可选自定义执行逻辑（必须包含 run(context, **kwargs)）
   • workflow.md — 可选工作流定义
+  • config.json — 专属模型配置（provider / model / key，可选）
+
+模型绑定示例：
+  /agent_model my_agent deepseek:deepseek-chat   — 绑定专属模型
+  /agent_model my_agent --key sk-own-key         — 设置独立 API Key
+  /agent_model my_agent clear                    — 清除专属配置，恢复全局默认
 
 将已有代码转为 Agent 的方法：
   1. 在对话中让 AI 生成包含 def run(context, **kwargs) 的代码
@@ -365,6 +383,25 @@ Agent 分身定时任务:
   • 全局定时任务（/cron_add）修改后自动同步到守护进程配置
   • 守护进程配置存储在 ~/.fr_cli_gatekeeper.json 中
 """,
+        "help_detail_mcp": """📜 【MCP 外部神通】
+
+MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。
+
+管理命令:
+  /mcp_list                列出所有服务器及其可用法宝
+  /mcp_add <名> <命令> [参数...]  添加 stdio 服务器
+  /mcp_del <名>             删除服务器
+  /mcp_enable <名>          启用服务器
+  /mcp_disable <名>         禁用服务器
+  /mcp_refresh              刷新法宝列表
+
+AI 调用格式:
+  【调用：mcp_call({"server": "服务器名", "tool": "工具名", "arguments": {...}})】
+
+示例:
+  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+  /mcp_refresh
+""",
         "help_detail_security": """📜 【安全机制】
 
 四阶安全确认 (Y/A/F/N):
@@ -406,8 +443,27 @@ Agent 分身定时任务:
         "sec_read": "Read file", "sec_write": "Write plugin", "sec_exec": "Run plugin", "sec_mount": "Mount dir", "sec_gen_img": "GenImg", "sec_send_mail": "Mail", "sec_fetch_web": "Fetch", "sec_upload_disk": "Upload", "sec_download_disk": "Download", "sec_shell": "Shell Exec",
         "gen_ing": "🎨 Gen…", "gen_ok": "✅ Saved: {}", "gen_fail": "❌ Fail: ", "see_warn": "⚠️ Need glm-4v-plus", "see_ing": "👁️ See…",
         "help_title": "📜 Help:", "help_cfg": "[Config]", "help_fs": "[FS]", "help_sess": "[Sess]", "help_plugin": "[Plugins]", "help_extra": "[Adv]", "help_shell": "[Matrix]",
-        "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
-        "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, all",
+        "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+        "help_detail_mcp": """📜 [MCP External Tools]
+
+MCP (Model Context Protocol) connects external servers and makes their tools available to AI.
+
+Management:
+  /mcp_list                List all servers and their tools
+  /mcp_add <name> <cmd> [args...]  Add a stdio server
+  /mcp_del <name>          Remove server
+  /mcp_enable <name>       Enable server
+  /mcp_disable <name>      Disable server
+  /mcp_refresh             Refresh tool list
+
+AI call format:
+  【调用：mcp_call({"server": "server_name", "tool": "tool_name", "arguments": {...}})】
+
+Example:
+  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
+  /mcp_refresh
+""",
+        "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
         "empty": "(Empty)", "none": "None", "no_sess": "No sess.", "no_plugins": "No plug.",
         "ctx_dir": "\n[System: User in {}.]",
         "menu_mail": "[Mail]", "menu_cron": "[Cron]", "menu_web": "[Web]", "menu_disk": "[Disk]",
@@ -448,7 +504,7 @@ Agent 分身定时任务:
         "rec_pipe": "Pipe command output to AI",
         "help_detail_config": """📜 [Config]
 
-/model <name>     Switch AI model (glm-4-flash, glm-4-plus, glm-4v-plus)
+/model <name>     Switch AI model (glm-4-flash, deepseek-chat, kimi-k2, kimi-code, step-3, minimax-m27, zhipu-coding, longcat, etc.)
 /key <key>        Change ZhipuAI API Key
 /limit <n>        Set token limit (min 1000)
 /lang <zh/en>     Switch UI language
@@ -495,17 +551,25 @@ Security:
 /undo             Undo last conversation turn
 /export           Export session as Markdown
 
+Auto-save by date:
+  /session_list     List all auto-saved sessions
+  /session_load <N> Load session by index and continue
+  /session_del <N>  Delete auto-saved session by index
+
 Examples:
   /save project      Save current session
   /load              Interactive load
   /del               Interactive delete
   /undo              Undo last turn
   /export            Export to Markdown
+  /session_list      View auto-saved sessions
+  /session_load 1    Load today's first session
 
 Context Memory:
   • Auto-summarize last 5 turns
   • Persisted to ~/.zhipu_cli_context.json by session_name
   • Context restored when loading session
+  • Auto-created date-indexed session file on each launch (~/.fr_cli_sessions/)
 """,
         "help_detail_plugin": """📜 [Plugins]
 
@@ -664,6 +728,8 @@ Common app aliases:
 """,
         "help_detail_agent": """📜 [Agent System]
 
+/master on|off|status         Master Agent — self-evolving universal assistant (takes over all chat)
+
 /agent_create <name> <desc>   Auto-generate a complete Agent (persona/skills/code)
 /agent_forge <name>           Extract code from the latest AI reply and forge as Agent
 /agent_list                   List all Agent instances
@@ -671,6 +737,8 @@ Common app aliases:
 /agent_edit <name> <type>     Edit Agent settings (persona/memory/skills/agent/workflow)
 /agent_run <name> [args]      Run specified Agent
 /agent_delete <name>          Delete Agent
+/agent_model <name> [provider:model|clear|--key <key>]
+                              View/set Agent-specific model (persisted in config.json)
 
 Agent directory: ~/.fr_cli_agents/<name>/
   • persona.md  — Character setting
@@ -678,6 +746,12 @@ Agent directory: ~/.fr_cli_agents/<name>/
   • skills.md   — Skill descriptions
   • agent.py    — Optional custom execution logic (must contain run(context, **kwargs))
   • workflow.md — Optional workflow definition
+  • config.json — Model binding config (provider / model / key, optional)
+
+Model binding examples:
+  /agent_model my_agent deepseek:deepseek-chat  — Bind exclusive model
+  /agent_model my_agent --key sk-own-key        — Set independent API Key
+  /agent_model my_agent clear                   — Clear config, fallback to global default
 
 How to turn existing code into an Agent:
   1. Ask AI to generate code containing def run(context, **kwargs)

@@ -1,0 +1,43 @@
+# Git
+.git/
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+.eggs/
+dist/
+build/
+*.egg
+
+# 虚拟环境
+.venv/
+venv/
+env/
+
+# 测试
+tests/
+.pytest_cache/
+.coverage
+
+# 本地配置（避免打包进镜像）
+*.json
+.zhipu_cli_*
+.fr_cli_*
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# 文档（README.md 需要保留）
+AGENTS.md
+MANUAL.md
+demo_*.py
+setup_mail.py
+structure.py
+workspaces/
+release/
