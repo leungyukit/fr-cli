@@ -375,6 +375,14 @@ class MasterAgent:
         # 3. 智能法宝/Agent 检测
         self._detect_artifacts(final_answer, lang)
 
+        # 4. 自动总结和知识库更新
+        try:
+            from fr_cli.agent.autosummary import get_knowledge_base
+            kb = get_knowledge_base()
+            kb.update_from_conversation(user_input, final_answer)
+        except Exception:
+            pass
+
         return final_answer, True
 
     # ---------- 工具调用解析 ----------
