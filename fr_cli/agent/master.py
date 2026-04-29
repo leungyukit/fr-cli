@@ -378,8 +378,11 @@ class MasterAgent:
         # 4. 自动总结和知识库更新
         try:
             from fr_cli.agent.autosummary import get_knowledge_base
+            from fr_cli.agent.autolearn import get_learner
             kb = get_knowledge_base()
+            learner = get_learner()
             kb.update_from_conversation(user_input, final_answer)
+            learner.learn_from_conversation(user_input, final_answer)
         except Exception:
             pass
 
