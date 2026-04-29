@@ -218,10 +218,10 @@ _PROVIDERS: Dict[str, Dict[str, Any]] = {
         "base_url": "https://api.moonshot.cn/v1",
     },
     "kimi-code": {
-        "name": "Kimi Code (代码平台)",
-        "default_model": "kimi-cache-test",
+        "name": "Kimi Code",
+        "default_model": "kimi-for-coding",
         "client_class": OpenAICompatibleClient,
-        "base_url": "https://api.kimi.com/coding/v1",
+        "base_url": "https://api.moonshot.cn/v1",
     },
     "kimi-code-anthropic": {
         "name": "Kimi Code (Anthropic兼容)",
