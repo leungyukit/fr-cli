@@ -339,6 +339,70 @@ fr acp
 
 ---
 
+## 🌐 Gateway 消息网关
+
+通过 Telegram、Discord 等 IM 工具与 AI 对话！
+
+### 配置 Telegram
+
+```python
+from fr_cli.agent.gateway import GatewayManager
+
+gm = GatewayManager()
+gm.configure_telegram("your-telegram-bot-token")
+```
+
+### 配置 Discord
+
+```python
+from fr_cli.agent.gateway import GatewayManager
+
+gm = GatewayManager()
+gm.configure_discord("your-discord-bot-token")
+```
+
+### 启动网关
+
+```bash
+# 启动 Telegram Bot
+fr gateway start telegram
+
+# 启动 Discord Bot
+fr gateway start discord
+
+# 启动所有平台
+fr gateway start
+```
+
+### 查看已配置平台
+
+```bash
+fr gateway setup
+```
+
+### Gateway 工作原理
+
+```
+用户 (Telegram/Discord)
+    ↓ 发送消息
+fr-cli Gateway
+    ↓
+AI 处理 (fr-cli core)
+    ↓
+回复用户
+```
+
+### 支持的平台
+
+| 平台 | 状态 | 说明 |
+|------|------|------|
+| Telegram | ✅ | Bot 模式 |
+| Discord | ✅ | Bot 模式 |
+| Slack | 🔜 | 计划中 |
+| WhatsApp | 🔜 | 计划中 |
+
+---
+
 ## Agent 系统
 
 ### 创建 Agent
