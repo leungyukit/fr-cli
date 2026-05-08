@@ -2,6 +2,8 @@
 
 **支持 27+ 种 AI 模型（智谱/智谱Coding/DeepSeek/Kimi/Kimi K2/Kimi Code/StepFun/Step-3/MiniMax/M2.7/讯飞星火/豆包/MiMo/LongCat）的终极全能终端工具。**
 
+**集成 Hermes Agent 核心功能：自我进化的 AI 助手。**
+
 ## ✨ 功能特性
 
 ### 🤖 多模型支持
@@ -163,7 +165,72 @@ python3 main.py
 /security        查看安全设置
 ```
 
-## 📦 支持的模型提供商（25+）
+## � Hermes 核心功能
+
+### 📋 任务管理
+```
+from fr_cli.agent.hermes import get_task_manager, get_analytics
+
+# 创建任务
+tm = get_task_manager()
+task = tm.create_task("完成代码审查")
+
+# 记录分析
+an = get_analytics()
+an.record_request("glm-4-flash", 1000, 0.01)
+```
+
+### 🎯 目标追踪
+```
+from fr_cli.agent.hermes import GoalTracker
+
+gt = GoalTracker()
+gt.set_goal("完成项目", ["阶段1", "阶段2", "阶段3"])
+gt.update_progress("已完成阶段1", 0.33)
+```
+
+### ⏰ 定时任务
+```
+from fr_cli.agent.hermes import get_cron_scheduler
+
+cron = get_cron_scheduler()
+cron.add_job("daily-report", "0 9 * * *", "生成日报")
+```
+
+### 🔌 插件系统
+```
+from fr_cli.agent.plugin_system import get_plugin_registry
+
+registry = get_plugin_registry()
+plugins = registry.list_all()
+```
+
+### 🐚 Shell 模式 (Ctrl-X 切换)
+```
+Agent 模式: 输入消息与 AI 对话
+Shell 模式: 直接执行 shell 命令
+
+按 Ctrl-X 切换模式
+```
+
+### 🔗 ACP (Agent Client Protocol)
+```bash
+# 启动 ACP 服务
+fr acp
+
+# 配置到 Zed
+# ~/.config/zed/settings.json
+{
+  "agent_servers": {
+    "fr-cli": {
+      "command": "fr",
+      "args": ["acp"]
+    }
+  }
+}
+```
+
+## �📦 支持的模型提供商（25+）
 
 | 道统 | 默认模型 | API 地址 |
 |------|---------|----------|
