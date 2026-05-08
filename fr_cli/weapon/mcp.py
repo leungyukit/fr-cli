@@ -1,202 +1,186 @@
 """
-MCP (Model Context Protocol) 法宝接口
-连接外部 MCP 服务器，将其工具纳入统一注册表。
-支持 stdio 与 sse 两种传输方式。
+MCP 工具管理器
+参考 kimi-cli 实现的 MCP 支持
 """
-import asyncio
+
+import os
 import json
-from typing import Dict, List, Any, Optional
-
-try:
-    from mcp import ClientSession, StdioServerParameters
-    from mcp.client.stdio import stdio_client
-    _MCP_AVAILABLE = True
-except ImportError:
-    _MCP_AVAILABLE = False
+import subprocess
+import asyncio
+from typing import Dict, List, Optional, Any
+from dataclasses import dataclass, asdict
 
 
-class MCPManager:
-    """MCP 法宝管理器 —— 统御外部神通"""
+@dataclass
+class MCPServer:
+    """MCP 服务器配置"""
+    name: str
+    transport: str  # stdio, http, sse
+    command: Optional[str] = None
+    args: Optional[List[str]] = None
+    url: Optional[str] = None
+    headers: Optional[Dict[str, str]] = None
+    auth_type: Optional[str] = None  # oauth, api_key
+    enabled: bool = True
 
-    def __init__(self, cfg: dict):
-        self.cfg = cfg
-        self._servers = cfg.get("mcp", {}).get("servers", [])
+    def to_dict(self) -> Dict:
+        return asdict(self)
 
-    def _get_server_cfg(self, name: str) -> Optional[dict]:
-        for s in self._servers:
-            if s.get("name") == name:
-                return s
-        return None
+
+class MCPServerManager:
+    """MCP 服务器管理器"""
+
+    def __init__(self, config_path: str = None):
+        if config_path is None:
+            config_path = os.path.expanduser("~/.fr_cli/mcp_servers.json")
+        self.config_path = config_path
+        self.servers: Dict[str, MCPServer] = {}
+        self._processes: Dict[str, subprocess.Popen] = {}
+        self._load()
+
+    def _load(self):
+        """加载配置"""
+        if os.path.exists(self.config_path):
+            try:
+                with open(self.config_path, 'r') as f:
+                    data = json.load(f)
+                    for name, cfg in data.items():
+                        self.servers[name] = MCPServer(name=name, **cfg)
+            except Exception:
+                pass
 
     def _save(self):
-        """持久化到本命配置"""
-        self.cfg["mcp"] = {"servers": self._servers}
-        from fr_cli.conf.config import save_config
-        save_config(self.cfg)
+        """保存配置"""
+        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
+        data = {name: srv.to_dict() for name, srv in self.servers.items()}
+        with open(self.config_path, 'w') as f:
+            json.dump(data, f, indent=2)
 
-    # ── 异步核心 ──
+    def add_server(self, name: str, transport: str, 
+                   command: str = None, args: List[str] = None,
+                   url: str = None, headers: Dict = None, auth_type: str = None):
+        """添加 MCP 服务器"""
+        server = MCPServer(
+            name=name,
+            transport=transport,
+            command=command,
+            args=args,
+            url=url,
+            headers=headers,
+            auth_type=auth_type
+        )
+        self.servers[name] = server
+        self._save()
+        return server
 
-    async def _list_tools_async(self, server_cfg: dict) -> List[dict]:
-        """异步列出单个服务器的法宝"""
-        transport = server_cfg.get("transport", "stdio")
-        tools = []
+    def remove_server(self, name: str) -> bool:
+        """移除 MCP 服务器"""
+        if name in self.servers:
+            self.stop_server(name)
+            del self.servers[name]
+            self._save()
+            return True
+        return False
 
-        if transport == "stdio":
-            params = StdioServerParameters(
-                command=server_cfg["command"],
-                args=server_cfg.get("args", []),
-                env=server_cfg.get("env") or None,
-                cwd=server_cfg.get("cwd") or None,
-            )
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.list_tools()
-                    for tool in result.tools:
-                        tools.append({
-                            "name": tool.name,
-                            "description": tool.description or "",
-                            "input_schema": tool.inputSchema,
-                            "server": server_cfg["name"],
-                        })
-        elif transport == "sse":
-            # SSE 传输待后续扩展
-            pass
-        return tools
+    def list_servers(self) -> List[MCPServer]:
+        """列出所有服务器"""
+        return list(self.servers.values())
 
-    async def _call_tool_async(self, server_cfg: dict, tool_name: str, arguments: dict) -> Any:
-        """异步调用法宝"""
-        transport = server_cfg.get("transport", "stdio")
+    def start_server(self, name: str) -> bool:
+        """启动 MCP 服务器"""
+        if name not in self.servers:
+            return False
 
-        if transport == "stdio":
-            params = StdioServerParameters(
-                command=server_cfg["command"],
-                args=server_cfg.get("args", []),
-                env=server_cfg.get("env") or None,
-                cwd=server_cfg.get("cwd") or None,
-            )
-            async with stdio_client(params) as (read, write):
-                async with ClientSession(read, write) as session:
-                    await session.initialize()
-                    result = await session.call_tool(tool_name, arguments=arguments)
-                    return result
-        elif transport == "sse":
-            raise NotImplementedError("SSE 传输尚未实现")
-        return None
+        if name in self._processes:
+            return True
 
-    # ── 同步入口 ──
-
-    def list_servers(self) -> List[dict]:
-        """列出所有已配置的服务器"""
-        return [s.copy() for s in self._servers]
-
-    def _run_with_timeout(self, coro, timeout=10):
-        """带超时的异步执行包装"""
-        async def wrapper():
-            return await asyncio.wait_for(coro, timeout=timeout)
+        server = self.servers[name]
+        
         try:
-            return asyncio.run(wrapper())
-        except asyncio.TimeoutError:
-            raise TimeoutError("MCP 服务器连接超时")
+            if server.transport == "stdio" and server.command:
+                proc = subprocess.Popen(
+                    [server.command] + (server.args or []),
+                    stdin=subprocess.PIPE,
+                    stdout=subprocess.PIPE,
+                    stderr=subprocess.PIPE
+                )
+                self._processes[name] = proc
+                return True
 
-    def list_all_tools(self) -> List[dict]:
-        """汇聚所有可用服务器的法宝列表"""
-        if not _MCP_AVAILABLE:
-            return []
-        all_tools = []
-        for s in self._servers:
-            if not s.get("enabled", True):
-                continue
-            try:
-                tools = self._run_with_timeout(self._list_tools_async(s), timeout=15)
-                all_tools.extend(tools)
-            except Exception as e:
-                # 单个服务器失败不影响其他
-                pass
-        return all_tools
-
-    def call_tool(self, server_name: str, tool_name: str, arguments: dict) -> tuple:
-        """同步入口：调用 MCP 法宝
-        返回 (result, error)
-        """
-        if not _MCP_AVAILABLE:
-            return None, "MCP SDK 未安装，请执行: pip install mcp"
-
-        server_cfg = self._get_server_cfg(server_name)
-        if not server_cfg:
-            return None, f"MCP 服务器未找到: {server_name}"
-        if not server_cfg.get("enabled", True):
-            return None, f"MCP 服务器已禁用: {server_name}"
-
-        try:
-            result = self._run_with_timeout(self._call_tool_async(server_cfg, tool_name, arguments), timeout=60)
-            if result is None:
-                return None, "MCP 返回空结果"
-
-            if result.isError:
-                content = []
-                for item in result.content:
-                    if hasattr(item, "text"):
-                        content.append(item.text)
-                    else:
-                        content.append(str(item))
-                return None, "MCP 工具执行错误:\n" + "\n".join(content)
-
-            content = []
-            for item in result.content:
-                if hasattr(item, "text"):
-                    content.append(item.text)
-                else:
-                    content.append(str(item))
-            return "\n".join(content), None
         except Exception as e:
-            return None, f"MCP 调用失败: {e}"
+            print(f"启动 MCP 服务器 {name} 失败: {e}")
 
-    def add_server(self, name: str, command: str, args: list = None,
-                   env: dict = None, transport: str = "stdio", cwd: str = None) -> tuple:
-        """添加服务器配置"""
-        if self._get_server_cfg(name):
-            return False, f"服务器 {name} 已存在"
-        self._servers.append({
-            "name": name,
-            "transport": transport,
-            "command": command,
-            "args": args or [],
-            "env": env or {},
-            "cwd": cwd,
-            "enabled": True,
-        })
-        self._save()
-        return True, None
+        return False
 
-    def remove_server(self, name: str) -> tuple:
-        """删除服务器配置"""
-        for i, s in enumerate(self._servers):
-            if s.get("name") == name:
-                self._servers.pop(i)
-                self._save()
-                return True, None
-        return False, f"服务器 {name} 未找到"
+    def stop_server(self, name: str):
+        """停止 MCP 服务器"""
+        if name in self._processes:
+            try:
+                self._processes[name].terminate()
+                self._processes[name].wait(timeout=5)
+            except:
+                self._processes[name].kill()
+            del self._processes[name]
 
-    def toggle_server(self, name: str, enabled: bool) -> tuple:
-        """启用/禁用服务器"""
-        s = self._get_server_cfg(name)
-        if not s:
-            return False, f"服务器 {name} 未找到"
-        s["enabled"] = enabled
-        self._save()
-        return True, None
+    def stop_all(self):
+        """停止所有服务器"""
+        for name in list(self._processes.keys()):
+            self.stop_server(name)
 
-    def get_server_tools_desc(self) -> str:
-        """生成所有 MCP 法宝的描述文本，用于注入 system prompt"""
-        tools = self.list_all_tools()
-        if not tools:
-            return ""
-        lines = ["\n【外部神通 (MCP)】"]
-        for t in tools:
-            lines.append(f"  - {t['name']}: {t['description']}")
-            lines.append(f"    所属服务器: {t['server']}")
-            schema = t.get("input_schema", {})
-            if schema and schema.get("properties"):
-                lines.append(f"    参数: {json.dumps(schema['properties'], ensure_ascii=False)}")
-        return "\n".join(lines)
+    def get_tools(self, name: str) -> List[Dict]:
+        """获取 MCP 工具列表"""
+        # 这里需要实现 MCP 协议来获取工具
+        # 简化版本：返回配置的工具列表
+        return []
+
+    async def call_tool(self, server_name: str, tool_name: str, arguments: Dict) -> Any:
+        """调用 MCP 工具"""
+        # 实现 MCP 协议调用
+        pass
+
+    @staticmethod
+    def from_config_file(config_file: str) -> 'MCPServerManager':
+        """从标准 MCP 配置文件加载"""
+        manager = MCPServerManager()
+        
+        if os.path.exists(config_file):
+            try:
+                with open(config_file, 'r') as f:
+                    config = json.load(f)
+                    
+                servers = config.get("mcpServers", {})
+                for name, cfg in servers.items():
+                    if "command" in cfg:
+                        manager.add_server(
+                            name=name,
+                            transport="stdio",
+                            command=cfg["command"],
+                            args=cfg.get("args", [])
+                        )
+                    elif "url" in cfg:
+                        manager.add_server(
+                            name=name,
+                            transport="http",
+                            url=cfg["url"],
+                            headers=cfg.get("headers")
+                        )
+            except Exception as e:
+                print(f"加载 MCP 配置失败: {e}")
+        
+        return manager
+
+
+# 全局实例
+_mcp_manager = None
+
+def get_mcp_manager() -> MCPServerManager:
+    """获取 MCP 管理器"""
+    global _mcp_manager
+    if _mcp_manager is None:
+        _mcp_manager = MCPServerManager()
+    return _mcp_manager
+
+
+def load_from_config_file(config_file: str) -> MCPServerManager:
+    """从配置文件加载 MCP 服务器"""
+    return MCPServerManager.from_config_file(config_file)
