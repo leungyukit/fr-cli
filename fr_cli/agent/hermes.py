@@ -1,6 +1,16 @@
 """
 Hermes 功能模块
 参考 NousResearch/hermes-agent 实现核心功能
+
+整合:
+- TaskManager: 任务管理
+- Analytics: 分析统计
+- GoalTracker: 目标追踪
+- ConfigManager: 配置管理
+- CronScheduler: 定时任务
+- SkillManager: 技能系统 (见 skills.py)
+- PersonalityManager: 个性系统 (见 personality.py)
+- ContextFilesManager: 上下文文件 (见 context_files.py)
 """
 
 import os
