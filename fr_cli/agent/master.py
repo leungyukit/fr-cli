@@ -378,9 +378,25 @@ class MasterAgent:
         # 4. Hermes 自动学习更新
         try:
             from fr_cli.agent.hermes import get_analytics, get_task_manager
+            from fr_cli.agent.skills import get_skill_manager
+            from fr_cli.agent.personality import get_personality_manager
+
             analytics = get_analytics()
             task_mgr = get_task_manager()
+            skill_mgr = get_skill_manager()
+            personality_mgr = get_personality_manager()
+
             analytics.record_request(self.state.model_name, 100, 0.001)
+
+            if any(kw in user_input for kw in ["学习", "记住", "技能", "skill"]):
+                skill_mgr.learn_from_task(user_input, final_answer)
+
+            if any(kw in user_input for kw in ["切换", "模式", "角色", "个性"]):
+                for p in ["coder", "teacher", "creative", "expert"]:
+                    if p in user_input.lower():
+                        personality_mgr.set_personality(p)
+                        break
+
         except Exception:
             pass
 

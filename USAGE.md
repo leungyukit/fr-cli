@@ -207,86 +207,24 @@ cm.save()
 
 ### 🎯 Skills 技能系统
 
-AI 从经验中学习，创建可重用的技能。
+AI 从经验中学习，自动创建可重用的技能。你只需要告诉 Agent：
 
-```python
-from fr_cli.agent.skills import get_skill_manager, create_skill
-
-# 获取技能管理器
-sm = get_skill_manager()
-
-# 创建技能
-skill = sm.create_skill(
-    name="python-sort",
-    description="Python 排序算法",
-    content="使用 sorted() 或 list.sort() 对列表排序",
-    tags=["python", "算法"]
-)
-
-# 列出所有技能
-skills = sm.list_skills()
-
-# 搜索技能
-results = sm.search_skills("python")
-
-# 记录技能使用
-sm.record_usage("python-sort", success=True)
-
-# 从任务学习
-sm.learn_from_task("如何实现快速排序", result="使用分治法...")
-
-# 构建系统提示
-system_prompt = sm.build_system_prompt()
 ```
+学习这个功能
+把这个技能记下来
+下次遇到这种问题用这个方法
+```
+
+Agent 会自动调用 Skills 系统保存知识。
 
 ### 👤 个性系统
 
-切换 AI 不同的个性风格。
+通过对话切换 AI 个性：
 
-```python
-from fr_cli.agent.personality import get_personality_manager
-
-pm = get_personality_manager()
-
-# 列出所有个性
-personalities = pm.list_personalities()
-
-# 切换个性
-pm.set_personality("coder")  # 编程专家
-pm.set_personality("teacher")  # 编程教师
-pm.set_personality("creative")  # 创意助手
-
-# 获取当前个性
-current = pm.get_current()
-
-# 构建系统提示
-system_prompt = pm.build_system_prompt()
 ```
-
-### 📁 Context Files 上下文文件
-
-项目配置文件自动注入到每次对话。
-
-```python
-from fr_cli.agent.context_files import get_context_manager
-
-cm = get_context_manager()
-
-# 添加匹配模式
-cm.add_pattern("*.py")
-cm.add_pattern("*.md")
-cm.add_pattern("config/*.json")
-
-# 添加排除模式
-cm.add_exclude("*.pyc")
-cm.add_exclude("node_modules/*")
-
-# 构建上下文提示
-context = cm.build_context_prompt(".")
-
-# 列出模式
-patterns = cm.list_patterns()
-```
+切换到编程模式
+我想让你当老师
+用创意助手的风格
 
 ### 定时任务
 
