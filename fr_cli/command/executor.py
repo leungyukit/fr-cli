@@ -5,13 +5,37 @@
 import re
 import json
 import ast
-from fr_cli.command.registry import get_registry, build_deps
+from types import SimpleNamespace
+from fr_cli.command.registry import get_registry
 from fr_cli.addon.plugin import exec_plugin
+
+
+def _build_deps(state, client=None, model_name=None):
+    """根据 AppState 动态构建依赖命名空间（每次调用实时反射，避免快照过时）
+    
+    Args:
+        client: 可选的覆盖 client（如 Agent 专属模型）
+        model_name: 可选的覆盖模型名
+    """
+    return SimpleNamespace(
+        vfs=state.vfs,
+        mail_c=state.mail_c,
+        web_c=state.web_c,
+        disk_c=state.disk_c,
+        plugins=state.plugins,
+        lang=state.lang,
+        security=state.security,
+        cfg=state.cfg,
+        client=client or state.client,
+        model_name=model_name or state.model_name,
+        mcp=getattr(state, "mcp", None),
+    )
 
 
 class CommandExecutor:
     """
     命令执行器：解析 AI 回复中的调用标记，并通过注册表统一调度执行。
+    直接持有 AppState，每次调用时动态构建依赖快照，彻底消除状态过时问题。
 
     公共接口（保持向后兼容）：
       - invoke_tool(tool_name, kwargs, msgs=None): 结构化工具调用
@@ -19,26 +43,37 @@ class CommandExecutor:
       - process_ai_commands(ai_response, msgs=None): 解析并执行 AI 回复中的命令标记
     """
 
-    def __init__(self, vfs, mail_c, web_c, disk_c, plugins, lang, security, cfg, client, model_name):
-        self.vfs = vfs
-        self.mail_c = mail_c
-        self.web_c = web_c
-        self.disk_c = disk_c
-        self.plugins = plugins
-        self.lang = lang
-        self.security = security
-        self.cfg = cfg
-        self.client = client
-        self.model_name = model_name
+    def __init__(self, state):
+        self.state = state
         self._reg = get_registry()
-        self._deps = build_deps(self)
+        # Agent 专属模型上下文覆盖（栈结构，支持嵌套 Agent 调用）
+        self._agent_ctx_stack = []
+
+    # ------------------------------------------------------------------
+    # Agent 上下文覆盖管理
+    # ------------------------------------------------------------------
+    def push_agent_context(self, client, model_name):
+        """临时将工具调用的 LLM 上下文切换为 Agent 专属配置"""
+        self._agent_ctx_stack.append((client, model_name))
+
+    def pop_agent_context(self):
+        """恢复工具调用的 LLM 上下文为全局默认"""
+        if self._agent_ctx_stack:
+            self._agent_ctx_stack.pop()
+
+    def _get_deps(self):
+        """构建依赖命名空间，优先使用 Agent 专属覆盖"""
+        if self._agent_ctx_stack:
+            client, model_name = self._agent_ctx_stack[-1]
+            return _build_deps(self.state, client, model_name)
+        return _build_deps(self.state)
 
     # ------------------------------------------------------------------
     # 第一层：结构化工具调用
     # ------------------------------------------------------------------
     def invoke_tool(self, tool_name, kwargs, msgs=None):
         """根据工具名和结构化参数，通过注册表调度执行。返回 (result, error)"""
-        return self._reg.dispatch(self._deps, tool_name, msgs=msgs, **kwargs)
+        return self._reg.dispatch(self._get_deps(), tool_name, msgs=msgs, **kwargs)
 
     # ------------------------------------------------------------------
     # 第二层：传统命令解析（用户输入 / 插件调用）
@@ -51,12 +86,12 @@ class CommandExecutor:
             return None, "Empty command"
         cmd = parts[0].lstrip("/")
         # 插件命令优先直接处理（保持 mock 路径兼容）
-        if cmd in self.plugins:
+        if cmd in self.state.plugins:
             p_args = ' '.join(parts[1:]) if len(parts) > 1 else ""
-            exec_plugin(cmd, self.plugins[cmd], p_args, self.lang)
+            exec_plugin(cmd, self.state.plugins[cmd], p_args, self.state.lang)
             return f"Plugin {cmd} executed", None
         # 其余命令通过注册表内部接口直接调度，避免 dispatch_cmd 再次 split
-        return self._reg._dispatch_cmd_parts(self._deps, parts, msgs=msgs)
+        return self._reg._dispatch_cmd_parts(self._get_deps(), parts, msgs=msgs)
 
     # ------------------------------------------------------------------
     # 第三层：AI 回复解析

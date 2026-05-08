@@ -22,10 +22,11 @@ _LEGACY_CATEGORIES = {
 }
 
 
-def load_weapon_md():
+def load_weapon_md(mcp_tools=None):
     """
     从统一注册表获取法宝图谱。
     保持返回格式兼容旧接口：(tools:list, trigger_map:dict)
+    :param mcp_tools: MCP 外部神通列表，可选
     """
     reg = get_registry()
     reg_tools = {t["name"]: t for t in reg.get_available_tools(plugins={})}
@@ -61,6 +62,17 @@ def load_weapon_md():
                     unique_triggers.append(t)
             trigger_map[cat_name] = unique_triggers
 
+    # 注入 MCP 外部神通
+    if mcp_tools:
+        mcp_commands = [t["name"] for t in mcp_tools]
+        tools.append({
+            "name": "mcp_tools",
+            "description": "MCP 外部神通: " + ", ".join([t["name"] for t in mcp_tools]),
+            "commands": mcp_commands,
+            "path": "fr_cli/weapon/mcp.py",
+        })
+        trigger_map["mcp_tools"] = ["mcp", "外部工具"]
+
     return tools, trigger_map
 
 
@@ -80,20 +92,7 @@ def get_available_tools(weapon_tools, plugins):
     return tools
 
 
-def should_inject_tools(user_input, weapon_triggers):
-    """
-    程序层面判定是否需要向AI注入工具信息。
-    根据注册表中的触发关键词，只有在明确需要工具时才返回True。
-    """
-    u = user_input.lower().strip()
-    # 用户直接输入/命令，由主循环直接处理，不需要AI介入
-    if u.startswith('/'):
-        return False
-
-    # 基于注册表中的触发关键词做匹配
-    for tool_id, triggers in weapon_triggers.items():
-        for kw in triggers:
-            if kw.lower() in u:
-                return True
-
-    return False
+# should_inject_tools 已移除：
+# 主程序逻辑中从未调用此函数（main.py 使用 _should_force_tool + _classify_intent 做意图判定）。
+# MasterAgent 模式下直接注入全部工具列表，无需触发词匹配。
+# 保留 load_weapon_md 和 get_available_tools 作为兼容层。

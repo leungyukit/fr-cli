@@ -2,7 +2,6 @@
 统一工具注册表
 所有内置命令与AI工具通过装饰器注册，实现单一入口、自动安全确认、参数校验。
 """
-from types import SimpleNamespace
 
 
 # ---- 触发关键词常量（避免同类工具重复定义）----
@@ -253,24 +252,6 @@ def get_registry():
 
 
 # ------------------------------------------------------------------
-# 依赖注入轻量容器（阶段3升级为正式 AppState）
-# ------------------------------------------------------------------
-def build_deps(executor_self):
-    return SimpleNamespace(
-        vfs=executor_self.vfs,
-        mail_c=executor_self.mail_c,
-        web_c=executor_self.web_c,
-        disk_c=executor_self.disk_c,
-        plugins=executor_self.plugins,
-        lang=executor_self.lang,
-        security=executor_self.security,
-        cfg=executor_self.cfg,
-        client=executor_self.client,
-        model_name=executor_self.model_name,
-    )
-
-
-# ------------------------------------------------------------------
 # Helper：确保子系统已配置
 # ------------------------------------------------------------------
 def _ensure_mail(deps):
@@ -391,7 +372,7 @@ def _analyze_image(deps, msgs=None, **kwargs):
     from fr_cli.core.stream import stream_cnt
     if not msgs:
         return None, "No message history available"
-    prep_see_msg(msgs, kwargs["path"], kwargs.get("text", ""))
+    prep_see_msg(msgs, kwargs["path"], kwargs.get("text", ""), vfs=deps.vfs)
     txt, _, response_time = stream_cnt(deps.client, deps.model_name, msgs, deps.lang)
     return f"图片分析结果:\n{txt}\n耗时: {response_time:.2f}秒", None
 
@@ -939,24 +920,41 @@ def _agent_create(deps, **kwargs):
     return f"Agent [{name}] 铸造完成！路径: {d}", None
 
 
-@register(
-    name="agent_run",
-    triggers=["运行Agent", "调用Agent", "执行Agent", "run agent"],
-    description="运行指定 Agent",
-    params={"name": str},
-    aliases=["/agent_run"],
-)
-def _agent_run(deps, **kwargs):
-    from fr_cli.agent.executor import run_agent
-    # run_agent 需要 AppState（state），但 registry 中只有 deps（SimpleNamespace）
-    # 将 deps 包装为兼容对象，补充 executor 和 state 引用
+def _make_compat_state(deps):
+    """将 SimpleNamespace deps 包装为兼容 AppState 的对象，供 Agent executor 使用"""
     class _CompatState:
         def __init__(self, d):
             for k, v in d.__dict__.items():
                 setattr(self, k, v)
     compat = _CompatState(deps)
     compat.executor = getattr(deps, 'executor', None)
-    result, err = run_agent(kwargs["name"], compat)
+    return compat
+
+
+@register(
+    name="agent_run",
+    triggers=["运行Agent", "调用Agent", "执行Agent", "run agent"],
+    description="运行指定本地 Agent",
+    params={"name": str},
+    aliases=["/agent_run"],
+)
+def _agent_run(deps, **kwargs):
+    from fr_cli.agent.executor import run_agent
+    result, err = run_agent(kwargs["name"], _make_compat_state(deps))
+    return (result, None) if not err else (None, err)
+
+
+@register(
+    name="agent_call",
+    triggers=["调用Agent", "协作Agent", "agent_call", "召唤Agent"],
+    description="调用Agent（本地或远程）并传入任务描述，实现MasterAgent与其他Agent协作",
+    params={"name": str, "user_input": str},
+    aliases=["/agent_call"],
+)
+def _agent_call(deps, **kwargs):
+    """MasterAgent 调用其他 Agent（支持本地和远程）"""
+    from fr_cli.agent.client import call_agent
+    result, err = call_agent(kwargs["name"], _make_compat_state(deps), user_input=kwargs.get("user_input", ""))
     return (result, None) if not err else (None, err)
 
 
@@ -989,3 +987,48 @@ def _read_csv(deps, **kwargs):
     from fr_cli.weapon.dataframe import read_csv
     res, err = read_csv(kwargs["path"], lang=deps.lang)
     return (res, None) if not err else (None, err)
+
+
+# ------------------------------------------------------------------
+# ========== MCP 外部神通 ==========
+# ------------------------------------------------------------------
+@register(
+    name="mcp_list",
+    description="列出已配置的 MCP 服务器及其可用工具",
+    params={},
+    aliases=["/mcp_list"],
+)
+def _mcp_list(deps, **kwargs):
+    mcp = getattr(deps, "mcp", None)
+    if not mcp:
+        return None, "MCP 管理器未初始化"
+    servers = mcp.list_servers()
+    if not servers:
+        return "暂无 MCP 服务器配置。", None
+    lines = ["📡 MCP 服务器列表:"]
+    for s in servers:
+        status = f"{GREEN}● 启用{RESET}" if s.get("enabled", True) else f"{RED}● 禁用{RESET}"
+        lines.append(f"  [{s['name']}] {status} | 传输: {s.get('transport', 'stdio')} | 命令: {s.get('command', 'N/A')}")
+    return "\n".join(lines), None
+
+
+@register(
+    name="mcp_call",
+    description="调用指定 MCP 服务器的工具",
+    params={"server": str, "tool": str, "arguments": dict},
+    aliases=["/mcp_call"],
+)
+def _mcp_call(deps, **kwargs):
+    mcp = getattr(deps, "mcp", None)
+    if not mcp:
+        return None, "MCP 管理器未初始化"
+    server = kwargs.get("server", "")
+    tool = kwargs.get("tool", "")
+    arguments = kwargs.get("arguments", {})
+    if isinstance(arguments, str):
+        try:
+            arguments = json.loads(arguments)
+        except Exception:
+            arguments = {}
+    result, err = mcp.call_tool(server, tool, arguments)
+    return (result, None) if not err else (None, err)

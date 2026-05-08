@@ -4,12 +4,37 @@
 依赖: requests (pip install requests)
 """
 import re
+import ipaddress
+from urllib.parse import urlparse
 from fr_cli.lang.i18n import T
 try:
     import requests
     HAS_REQ = True
 except ImportError:
     HAS_REQ = False
+
+
+def _is_private_url(url):
+    """SSRF 防护：拦截内网 IP、私有地址和非 HTTP(S) 协议"""
+    try:
+        parsed = urlparse(url)
+        # 只允许 http/https
+        if parsed.scheme not in ("http", "https"):
+            return True
+        hostname = parsed.hostname or ""
+        # 拦截 localhost 类域名
+        if hostname.lower() in ("localhost", "127.0.0.1", "0.0.0.0", "::1"):
+            return True
+        # 尝试解析为 IP
+        try:
+            ip = ipaddress.ip_address(hostname)
+            if ip.is_private or ip.is_loopback or ip.is_reserved or ip.is_multicast or ip.is_link_local:
+                return True
+        except ValueError:
+            pass
+        return False
+    except Exception:
+        return True
 
 class WebRaider:
     def search(self, q, lang):
@@ -20,6 +45,8 @@ class WebRaider:
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
             # 百度搜索
             url = f"https://www.baidu.com/s?wd={urllib.parse.quote(q)}"
+            if _is_private_url(url):
+                return None, "❌ 禁止访问该 URL"
             res = requests.get(url, headers=headers, timeout=8)
             
             # 简易正则提取结果
@@ -41,6 +68,8 @@ class WebRaider:
     def fetch(self, url, lang):
         """抓取指定 URL 的网页并提取纯文本"""
         if not HAS_REQ: return None, "❌ pip install requests"
+        if _is_private_url(url):
+            return None, "❌ 禁止访问该 URL"
         try:
             headers = {"User-Agent": "Mozilla/5.0"}
             res = requests.get(url, headers=headers, timeout=10)

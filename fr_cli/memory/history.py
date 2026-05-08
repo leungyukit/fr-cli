@@ -26,7 +26,8 @@ def get_sessions():
             with open(f, 'r', encoding='utf-8') as fp:
                 data = json.load(fp)
             sess.append({"file": f.name, "name": data.get("name", f.stem)})
-        except: pass
+        except Exception:
+            pass
     return sess
 
 def save_sess(name, msgs):
@@ -68,8 +69,11 @@ def del_sess(index):
     ss = get_sessions()
     if not ss or index >= len(ss): return
     fp = HIST_DIR / ss[index]["file"]
-    try: os.remove(fp); return True
-    except: return False
+    try:
+        os.remove(fp)
+        return True
+    except Exception:
+        return False
 
 def export_md(msgs, lang, out_dir=None):
     """将当前会话导出为 Markdown 文件

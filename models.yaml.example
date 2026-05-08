@@ -1,0 +1,39 @@
+# 模型配置文件
+# 凡人打字机 fr-cli 模型配置
+# 编辑此文件来添加/修改/删除模型提供商
+
+zhipu:
+  name: "智谱"
+  model: "glm-4-flash"
+  client: "ZhipuLLMClient"
+  base_url: null
+
+kimi:
+  name: "Kimi"
+  model: "moonshot-v1-8k"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.moonshot.cn/v1"
+
+kimi-code:
+  name: "Kimi Code"
+  model: "kimi-for-coding"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.moonshot.cn/v1"
+
+deepseek:
+  name: "DeepSeek"
+  model: "deepseek-chat"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.deepseek.com"
+
+qwen:
+  name: "通义千问"
+  model: "qwen-turbo"
+  client: "OpenAICompatibleClient"
+  base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+
+ernie:
+  name: "文心一言"
+  model: "ernie-bot-4"
+  client: "WenxinLLMClient"
+  base_url: null

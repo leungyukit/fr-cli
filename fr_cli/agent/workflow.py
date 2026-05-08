@@ -4,6 +4,7 @@ Agent workflow engine
 """
 
 import re
+from fr_cli.agent.manager import load_persona, load_memory, load_skills, save_memory
 
 WORKFLOW_FILE = "workflow.md"
 
@@ -101,64 +102,73 @@ def run_workflow(name, state, user_input=None, **kwargs):
     memory = load_memory(name)
     skills = load_skills(name)
 
+    # 解析 Agent 专属 LLM 配置
+    client, provider, model = state.resolve_agent_llm(name)
+
     context = {
         "persona": persona,
         "memory": memory,
         "skills": skills,
-        "client": state.client,
-        "model": state.model_name,
+        "client": client,
+        "provider": provider,
+        "model": model,
         "lang": state.lang,
         "executor": state.executor,
         "state": state,
         "agent_name": name,
     }
 
+    # 将工具调用的 LLM 上下文切换为 Agent 专属配置
+    state.executor.push_agent_context(client, model)
     step_results = []
-    for step in steps:
-        action = step["action"]
-        params = {k: _substitute_vars(v, context, step_results, user_input) for k, v in step["params"].items()}
-        result = None
-        error = None
+    try:
+        for step in steps:
+            action = step["action"]
+            params = {k: _substitute_vars(v, context, step_results, user_input) for k, v in step["params"].items()}
+            result = None
+            error = None
 
-        try:
-            if action in ("invoke_tool", "tool"):
-                tool_name = params.pop("tool", list(params.keys())[0] if params else "")
-                tool_params = params
-                result, error = state.executor.invoke_tool(tool_name, tool_params)
-            elif action in ("execute_cmd", "cmd", "command"):
-                cmd_str = params.get("cmd", "")
-                result, error = state.executor.execute(cmd_str)
-            elif action in ("agent_call", "agent", "call_agent"):
-                target = params.get("target") or params.get("agent") or params.get("to")
-                message = params.get("message", "")
-                result, error = run_agent(target, state, pipeline_input=message, **kwargs)
-            elif action in ("ai_generate", "ai", "generate", "ask"):
-                prompt = params.get("prompt", "")
-                from fr_cli.core.stream import stream_cnt
-                msgs = [{"role": "user", "content": prompt}]
-                result, _, _ = stream_cnt(state.client, state.model_name, msgs, state.lang)
-            elif action in ("save_memory", "memory_append"):
-                mem = params.get("content", "")
-                from fr_cli.agent.manager import save_memory, load_memory
-                old = load_memory(name)
-                save_memory(name, old + "\n" + mem if old else mem)
-                result = "记忆已更新"
-            else:
-                error = f"未知动作: {action}"
-        except Exception as e:
-            error = str(e)
+            try:
+                if action in ("invoke_tool", "tool"):
+                    tool_name = params.pop("tool", list(params.keys())[0] if params else "")
+                    tool_params = params
+                    result, error = state.executor.invoke_tool(tool_name, tool_params)
+                elif action in ("execute_cmd", "cmd", "command"):
+                    cmd_str = params.get("cmd", "")
+                    result, error = state.executor.execute(cmd_str)
+                elif action in ("agent_call", "agent", "call_agent"):
+                    target = params.get("target") or params.get("agent") or params.get("to")
+                    message = params.get("message", "")
+                    result, error = run_agent(target, state, pipeline_input=message, **kwargs)
+                elif action in ("ai_generate", "ai", "generate", "ask"):
+                    prompt = params.get("prompt", "")
+                    from fr_cli.core.stream import stream_cnt
+                    msgs = [{"role": "user", "content": prompt}]
+                    # 使用 context 中的 client/model，已根据 Agent 专属配置解析
+                    result, _, _ = stream_cnt(context["client"], context["model"], msgs, state.lang)
+                elif action in ("save_memory", "memory_append"):
+                    mem = params.get("content", "")
+                    old = load_memory(name)
+                    save_memory(name, old + "\n" + mem if old else mem)
+                    result = "记忆已更新"
+                else:
+                    error = f"未知动作: {action}"
+            except Exception as e:
+                error = str(e)
 
-        step_results.append({
-            "step": step["num"],
-            "title": step["title"],
-            "action": action,
-            "result": result,
-            "error": error,
-        })
+            step_results.append({
+                "step": step["num"],
+                "title": step["title"],
+                "action": action,
+                "result": result,
+                "error": error,
+            })
 
-        if error:
-            return None, f"步骤 {step['num']} ({step['title']}) 失败: {error}", step_results
+            if error:
+                return None, f"步骤 {step['num']} ({step['title']}) 失败: {error}", step_results
 
-    final_result = step_results[-1]["result"] if step_results else None
-    return final_result, None, step_results
+        final_result = step_results[-1]["result"] if step_results else None
+        return final_result, None, step_results
+    finally:
+        state.executor.pop_agent_context()
 

@@ -35,14 +35,24 @@ def gen_img(client, prompt, out_dir, lang):
         return False, T("gen_fail", lang) + "No URL"
     except Exception as e: return False, f"{T('gen_fail', lang)} {e}"
 
-def prep_see_msg(messages, img_path, user_text):
+def prep_see_msg(messages, img_path, user_text, vfs=None):
     """
     为 GLM-4V 准备带图的上下文 (不直接请求，而是构造好 messages 返回给主循环)
+    :param vfs: VFS 实例，若提供则通过沙盒读取本地文件
     """
     msg_content = []
     # 如果是本地文件，转为 base64
-    if os.path.exists(img_path):
-        with open(img_path, "rb") as f:
+    # 优先使用 VFS 沙盒路径解析；若无 VFS 则回退到 os.path（测试兼容）
+    is_local = False
+    if vfs is not None:
+        resolved = vfs._resolve(img_path)
+        is_local = resolved is not None and resolved.exists()
+    else:
+        is_local = os.path.exists(img_path)
+
+    if is_local:
+        fh = vfs._resolve(img_path) if vfs is not None else Path(img_path)
+        with open(fh, "rb") as f:
             b64 = base64.b64encode(f.read()).decode("utf-8")
         msg_content.append({
             "type": "image_url",
