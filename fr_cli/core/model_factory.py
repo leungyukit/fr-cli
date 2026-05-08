@@ -46,7 +46,7 @@ class ModelFactory:
             "kimi": {
                 "name": "Kimi",
                 "model": "moonshot-v1-8k",
-                "client": "OpenAICompatibleClient", 
+                "client": "OpenAICompatibleClient",
                 "base_url": "https://api.moonshot.cn/v1"
             },
             "kimi-code": {
@@ -54,6 +54,54 @@ class ModelFactory:
                 "model": "kimi-for-coding",
                 "client": "OpenAICompatibleClient",
                 "base_url": "https://api.moonshot.cn/v1"
+            },
+            "deepseek": {
+                "name": "DeepSeek",
+                "model": "deepseek-chat",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.deepseek.com"
+            },
+            "qwen": {
+                "name": "通义千问",
+                "model": "qwen-turbo",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+            },
+            "doubao": {
+                "name": "豆包",
+                "model": "doubao-1-5-pro-32k-250115",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://ark.cn-beijing.volces.com/api/v3"
+            },
+            "mimo": {
+                "name": "小米 MiMo",
+                "model": "mimo-v2-flash",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.xiaomimimo.com/v1"
+            },
+            "minimax": {
+                "name": "MiniMax",
+                "model": "MiniMax-Text-01",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.minimax.chat/v1"
+            },
+            "minimax-chat": {
+                "name": "MiniMax Chat",
+                "model": "abab6.5s-chat",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.minimax.chat/v1"
+            },
+            "minimax-m27": {
+                "name": "MiniMax M2.7",
+                "model": "MiniMax-M2.7",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.minimax.chat/v1"
+            },
+            "ernie": {
+                "name": "文心一言",
+                "model": "ernie-bot-4",
+                "client": "WenxinLLMClient",
+                "base_url": None
             }
         }
     

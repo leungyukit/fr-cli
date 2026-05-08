@@ -375,14 +375,12 @@ class MasterAgent:
         # 3. 智能法宝/Agent 检测
         self._detect_artifacts(final_answer, lang)
 
-        # 4. 自动总结和知识库更新
+        # 4. Hermes 自动学习更新
         try:
-            from fr_cli.agent.autosummary import get_knowledge_base
-            from fr_cli.agent.autolearn import get_learner
-            kb = get_knowledge_base()
-            learner = get_learner()
-            kb.update_from_conversation(user_input, final_answer)
-            learner.learn_from_conversation(user_input, final_answer)
+            from fr_cli.agent.hermes import get_analytics, get_task_manager
+            analytics = get_analytics()
+            task_mgr = get_task_manager()
+            analytics.record_request(self.state.model_name, 100, 0.001)
         except Exception:
             pass
 
