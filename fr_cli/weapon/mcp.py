@@ -184,3 +184,5 @@ def get_mcp_manager() -> MCPServerManager:
 def load_from_config_file(config_file: str) -> MCPServerManager:
     """从配置文件加载 MCP 服务器"""
     return MCPServerManager.from_config_file(config_file)
+
+MCPManager = MCPServerManager
