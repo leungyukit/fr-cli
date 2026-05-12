@@ -38,7 +38,7 @@ class AppState:
         self.security = SecurityManager(self.lang, cfg)
 
         # MCP 法宝管理器
-        self.mcp = MCPManager(cfg)
+        self.mcp = MCPManager()
 
         # 运行时消息与上下文
         self.messages = []

@@ -42,6 +42,8 @@ def _sync_manual_to_workspace(vfs):
 
 from fr_cli.repl.commands import (
     _cmd_exit,
+    _cmd_shell,
+    _cmd_hermes_daemon,
     _cmd_help,
     _cmd_model,
     _cmd_key,
@@ -101,6 +103,8 @@ from fr_cli.repl.commands import (
 
 _COMMAND_ROUTES = {
     "/exit": _cmd_exit,
+    "/shell": _cmd_shell,
+    "/hermes": _cmd_hermes_daemon,
     "/quit": _cmd_exit,
     "/help": _cmd_help,
     "/model": _cmd_model,

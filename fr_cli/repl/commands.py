@@ -9,6 +9,7 @@ from fr_cli.ui.ui import (
     CYAN, RED, YELLOW, GREEN, DIM, RESET,
     print_bye
 )
+from fr_cli.agent.shell_mode import ShellMode
 from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
 from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import (
@@ -70,6 +71,8 @@ def _print_help(state, topic):
         print(f"  {T('help_sess', lang)} /save /load /del /undo")
         print(f"  {DIM}  【岁月】 /session_list | /session_load <编号> | /session_del <编号>{RESET}")
         print(f"  {DIM}  【本命元神】 /master on|off|status — 启用自我进化型主控元神{RESET}")
+        print(f"  {DIM}  【蜗壳】 /shell — 进入 Shell 模式，直接执行命令{RESET}")
+        print(f"  {DIM}  【Hermes】 /hermes start|stop|status — 守护进程{RESET}")
         print(f"  {T('help_plugin', lang)} /skills (自动进化)")
         print(f"  {DIM}  【悟道】 /mode <direct|cot|tot|react> — 切换 AI 推演模式{RESET}")
         print(f"  {T('help_extra', lang)} /mail_* /cron_* /web /fetch /disk_* /see")
@@ -102,6 +105,36 @@ def _print_help(state, topic):
 def _cmd_exit(state, parts):
     print_bye()
     return True
+
+
+def _cmd_shell(state, parts):
+    """进入 Shell 模式"""
+    from fr_cli.agent.shell_mode import get_shell_manager
+
+    shell_mgr = get_shell_manager()
+    shell_mgr.current_mode = ShellMode.SHELL if shell_mgr.current_mode == ShellMode.AGENT else ShellMode.AGENT
+
+    if shell_mgr.current_mode == ShellMode.SHELL:
+        print(f"{GREEN}🆗 进入 Shell 模式 - 直接执行命令，输入 exit 返回{RESET}")
+        while shell_mgr.current_mode == ShellMode.SHELL:
+            try:
+                cmd = input("(shell) $ ").strip()
+                if not cmd:
+                    continue
+                if cmd in ['exit', 'quit', 'q']:
+                    print(f"{YELLOW}退出 Shell 模式{RESET}")
+                    break
+                output, code = shell_mgr.execute_command(cmd)
+                print(output)
+                if code != 0:
+                    print(f"[exit {code}]")
+            except (EOFError, KeyboardInterrupt):
+                print(f"\n{YELLOW}退出 Shell 模式{RESET}")
+                break
+        shell_mgr.current_mode = ShellMode.AGENT
+    else:
+        print(f"{GREEN}切换回 Agent 模式{RESET}")
+    return False
 
 
 def _cmd_help(state, parts):
@@ -527,6 +560,43 @@ def _cmd_update(state, parts):
             print(f"{RED}{msg}{RESET}")
     else:
         print(f"{DIM}用法: /update check (检查) | /update run (执行更新){RESET}")
+    return False
+
+
+def _cmd_hermes_daemon(state, parts):
+    """Hermes 守护进程命令"""
+    arg1 = parts[1] if len(parts) > 1 else ""
+
+    if arg1 == "start":
+        port = int(parts[2]) if len(parts) > 2 and parts[2].isdigit() else 8765
+        try:
+            from fr_cli.agent.hermes_daemon import HermesDaemon
+            import threading
+            daemon = HermesDaemon(port=port)
+            state.hermes_daemon = daemon
+            t = threading.Thread(target=daemon.start, daemon=True)
+            t.start()
+            print(f"{GREEN}🧚 Hermes 守护进程已启动: http://127.0.0.1:{port}{RESET}")
+        except Exception as e:
+            print(f"{RED}启动失败: {e}{RESET}")
+
+    elif arg1 == "stop":
+        if hasattr(state, "hermes_daemon") and state.hermes_daemon:
+            state.hermes_daemon.running = False
+            print(f"{GREEN}🛑 守护进程已停止{RESET}")
+        else:
+            print(f"{YELLOW}守护进程未运行{RESET}")
+
+    elif arg1 == "status":
+        if hasattr(state, "hermes_daemon") and state.hermes_daemon:
+            print(f"{CYAN}🧚 守护进程运行中{RESET}")
+            print(f"   端口: {state.hermes_daemon.port}")
+        else:
+            print(f"{DIM}守护进程未运行{RESET}")
+
+    else:
+        print(f"{DIM}用法: /hermes start [port] | /hermes stop | /hermes status{RESET}")
+        print(f"{DIM}示例: /hermes start 8765{RESET}")
     return False
 
 
