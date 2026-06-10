@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import RAG_DB_DIR, RAG_WATCHER_PID_FILE, RAG_WATCHER_STOP_FILE, RAG_WATCHER_LOG_FILE
 """
 @RAG 内置 Agent —— 本地知识库检索增强生成
 使用 ChromaDB 持久化向量存储 + sentence-transformers 嵌入模型。
@@ -48,7 +49,7 @@ class RAGManager:
 
     def __init__(self, kb_dir=None, db_path=None):
         self.kb_dir = Path(kb_dir) if kb_dir else None
-        self.db_path = Path(db_path) if db_path else Path.home() / ".fr_cli_rag_db"
+        self.db_path = Path(db_path) if db_path else RAG_DB_DIR
         self.client = None
         self.collection = None
         self.embedder = None
@@ -288,7 +289,7 @@ Best snippet number: N"""
 
         from fr_cli.core.stream import stream_cnt
         messages = [{"role": "user", "content": judge_prompt}]
-        txt, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=1024, silent=True)
+        txt, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=1024, silent=True)
         # 从回复中提取最佳片段编号
         import re
         match = re.search(r"最佳片段编号[:：]\s*(\d)", txt)
@@ -382,7 +383,7 @@ Instructions:
 
         from fr_cli.core.stream import stream_cnt
         messages = [{"role": "user", "content": prompt}]
-        result, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
+        result, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
         return result, None
 
     # ---------- 后台监控 ----------
@@ -476,13 +477,13 @@ def handle_rag(user_input, state):
 
 import subprocess
 
-RAG_WATCHER_PID_FILE = Path.home() / ".fr_cli_rag_watcher.pid"
-RAG_WATCHER_STOP_FILE = Path.home() / ".fr_cli_rag_watcher.stop"
-RAG_WATCHER_LOG_FILE = Path.home() / ".fr_cli_rag_watcher.log"
+RAG_WATCHER_PID_FILE = RAG_WATCHER_PID_FILE
+RAG_WATCHER_STOP_FILE = RAG_WATCHER_STOP_FILE
+RAG_WATCHER_LOG_FILE = RAG_WATCHER_LOG_FILE
 
 
 class RAGWatcherManager:
-    """RAG 知识库独立守护进程管理器 —— 藏经阁主宰
+    """RAG 知识库独立守护进程管理器 —— 知识库主宰
     负责在主进程之外独立启动/停止/监控知识库文件监听守护进程。
     守护进程脱离终端运行，用户退出 fr-cli 后仍继续工作。
     """
@@ -579,7 +580,7 @@ class RAGWatcherManager:
                 if pid and self._is_pid_alive(pid):
                     return True, f"RAG 守护进程已启动 (PID: {pid})"
                 if proc.poll() is not None:
-                    return False, "守护进程启动后立即退出，请检查日志: ~/.fr_cli_rag_watcher.log"
+                    return False, "守护进程启动后立即退出，请检查日志: ~/.fr_cli/rag/watcher.log"
 
             return True, f"RAG 守护进程已启动 (PID: {proc.pid})"
         except Exception as e:

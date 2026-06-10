@@ -104,11 +104,11 @@ def print_banner(mn, tl, ad, sn, l, provider="zhipu"):
         print(f"  [ Advanced Code Engine v1.0 ]\n")
 
     uf = (l == "zh")
-    ds = f"{GREEN}{ad}{RESET}" if ad else f"{RED}{('未开放洞府' if uf else 'No dir')}{RESET}"
-    ss = f"{MAGENTA}{sn}{RESET}" if sn else f"{DIM}{'全新轮回' if uf else 'New'}{RESET}"
-    pv = f"  {'🏛️ 道统' if uf else 'Provider'}: {CYAN}{provider}{RESET}"
+    ds = f"{GREEN}{ad}{RESET}" if ad else f"{RED}{('未设置目录' if uf else 'No dir')}{RESET}"
+    ss = f"{MAGENTA}{sn}{RESET}" if sn else f"{DIM}{'全新会话' if uf else 'New'}{RESET}"
+    pv = f"  {'🏛️ 提供商' if uf else 'Provider'}: {CYAN}{provider}{RESET}"
     i1 = f"  {'🔮 模型' if uf else 'Model'}: {GREEN}{BOLD}{mn}{RESET}  |  {'🛡️ 上限' if uf else 'Limit'}: {YELLOW}{tl}{RESET}"
-    i2 = f"  {'📂 洞府' if uf else 'Dir'}: {ds}  |  {'⏳ 轮回' if uf else 'Sess'}: {ss}"
+    i2 = f"  {'📂 目录' if uf else 'Dir'}: {ds}  |  {'⏳ 会话' if uf else 'Sess'}: {ss}"
     bl = max(get_display_width(pv), get_display_width(i1), get_display_width(i2)) + 4
     print(f"{MAGENTA}┌{'─'*bl}┐{RESET}\n{MAGENTA}│{RESET}{pv}{' '*(bl-get_display_width(pv)-2)}{MAGENTA}│{RESET}\n{MAGENTA}│{RESET}{i1}{' '*(bl-get_display_width(i1)-2)}{MAGENTA}│{RESET}\n{MAGENTA}│{RESET}{i2}{' '*(bl-get_display_width(i2)-2)}{MAGENTA}│{RESET}\n{MAGENTA}└{'─'*bl}┘{RESET}\n")
 

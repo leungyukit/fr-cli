@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import REGISTRY_FILE
 """
 Agent2Agent Protocol (A2A) - Agent 互操作协议
 
@@ -116,7 +117,7 @@ class AgentRegistry:
             return
         self._agents: Dict[str, AgentInfo] = {}
         self._tasks: Dict[str, TaskResult] = {}
-        self._registry_file = Path.home() / ".fr_cli_agent_registry.json"
+        self._registry_file = REGISTRY_FILE
         self._load_registry()
         self._initialized = True
 

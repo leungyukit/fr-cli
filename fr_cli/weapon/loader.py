@@ -1,5 +1,5 @@
 """
-法宝图谱加载器
+工具列表加载器
 从统一注册表获取工具信息，替代 WEAPON.MD 的文本解析。
 保留 WEAPON.MD 作为人类可读文档，程序逻辑不再依赖其解析。
 """
@@ -24,9 +24,9 @@ _LEGACY_CATEGORIES = {
 
 def load_weapon_md(mcp_tools=None):
     """
-    从统一注册表获取法宝图谱。
+    从统一注册表获取工具列表。
     保持返回格式兼容旧接口：(tools:list, trigger_map:dict)
-    :param mcp_tools: MCP 外部神通列表，可选
+    :param mcp_tools: MCP 外部工具列表，可选
     """
     reg = get_registry()
     reg_tools = {t["name"]: t for t in reg.get_available_tools(plugins={})}
@@ -62,12 +62,12 @@ def load_weapon_md(mcp_tools=None):
                     unique_triggers.append(t)
             trigger_map[cat_name] = unique_triggers
 
-    # 注入 MCP 外部神通
+    # 注入 MCP 外部工具
     if mcp_tools:
         mcp_commands = [t["name"] for t in mcp_tools]
         tools.append({
             "name": "mcp_tools",
-            "description": "MCP 外部神通: " + ", ".join([t["name"] for t in mcp_tools]),
+            "description": "MCP 外部工具: " + ", ".join([t["name"] for t in mcp_tools]),
             "commands": mcp_commands,
             "path": "fr_cli/weapon/mcp.py",
         })

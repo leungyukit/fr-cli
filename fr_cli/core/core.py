@@ -15,7 +15,7 @@ from fr_cli.core.llm import create_llm_client, create_llm_client_for, list_provi
 
 
 class AppState:
-    """应用程序运行时状态容器 —— 本命元神"""
+    """应用程序运行时状态容器 —— 核心状态容器"""
 
     def __init__(self, cfg):
         self.cfg = cfg
@@ -24,6 +24,7 @@ class AppState:
         self.sn = cfg.get("session_name", "")
         self.aliases = cfg.get("aliases", {})
         self.thinking_mode = cfg.get("thinking_mode", "direct")
+        self.ui_mode = cfg.get("ui_mode", "dev")
 
         # LLM 客户端统一初始化（万法归一）
         self.client, self.provider, self.model_name = create_llm_client(cfg)
@@ -37,8 +38,13 @@ class AppState:
         self.disk_c = CloudDisk(cfg.get("disk", {}))
         self.security = SecurityManager(self.lang, cfg)
 
-        # MCP 法宝管理器
+        # MCP 工具管理器
         self.mcp = MCPManager()
+        # 同时从主配置 cfg["mcp"]["servers"] 同步，让两套配置源至少有一处生效
+        try:
+            self.mcp.sync_from_cfg(cfg)
+        except Exception:
+            pass
 
         # 运行时消息与上下文
         self.messages = []
@@ -66,10 +72,33 @@ class AppState:
         from fr_cli.gatekeeper.manager import GatekeeperManager
         self.gatekeeper = GatekeeperManager()
 
+        # 后台预热 LLM 连接（首次调用省 1-2s 冷启动）
+        self._warmup_client_async()
+
     def reinit_client(self):
-        """API Key、提供商或模型变更后重铸客户端"""
+        """API Key、提供商或模型变更后更新客户端"""
         self.client, self.provider, self.model_name = create_llm_client(self.cfg)
         self.api_key = self.client.api_key
+        # 重新预热
+        self._warmup_client_async()
+
+    def _warmup_client_async(self):
+        """后台线程预热 LLM 连接（首次调用省 1-2s 冷启动）"""
+        import threading
+        from fr_cli.core.llm import MockLLMClient
+        if isinstance(self.client, MockLLMClient):
+            return
+        def _warmup():
+            try:
+                list(self.client.stream_chat(
+                    model=self.model_name,
+                    messages=[{"role": "user", "content": "hi"}],
+                    max_tokens=1,
+                ))
+            except Exception:
+                pass  # 预热失败不影响主流程
+        t = threading.Thread(target=_warmup, daemon=True, name="llm-warmup")
+        t.start()
 
     def save_cfg(self):
         """持久化当前配置"""
@@ -77,19 +106,26 @@ class AppState:
         save_config(self.cfg)
 
     def update_provider(self, provider_id):
-        """切换 LLM 提供商（召唤新的道统）"""
+        """切换 LLM 提供商（召唤新的提供商）
+
+        切换时自动同步 model：优先使用 provider 专属配置中保存的 model，
+        否则使用 factory 默认模型，并确保 providers_cfg 和顶层 cfg 保持一致。
+        """
         info = get_provider_info(provider_id)
         if not info:
             return False
         self.cfg["provider"] = provider_id
-        # 如果新提供商没有设置过模型，使用其默认模型
+        self.provider = provider_id
         providers_cfg = self.cfg.setdefault("providers", {})
-        if provider_id not in providers_cfg or not providers_cfg[provider_id].get("model"):
-            self.cfg["model"] = info["default_model"]
-            self.model_name = info["default_model"]
-        else:
-            self.model_name = providers_cfg[provider_id].get("model", info["default_model"])
-            self.cfg["model"] = self.model_name
+        pcfg = providers_cfg.setdefault(provider_id, {})
+
+        default_model = info["default_model"]
+        # 优先使用 provider 配置中已保存的 model，否则使用默认
+        model = pcfg.get("model", default_model)
+
+        self.cfg["model"] = model
+        self.model_name = model
+        pcfg["model"] = model  # 确保 providers_cfg 中始终同步
         self.save_cfg()
         self.reinit_client()
         return True
@@ -98,17 +134,19 @@ class AppState:
         """
         切换法器模型
         支持格式：
-          - "deepseek-chat"              仅切换模型（保持当前提供商）
-          - "deepseek:deepseek-chat"     同时切换提供商和模型
+          - "deepseek-chat"              自动推断 provider 并切换（若模型属于其他 provider）
+          - "deepseek:deepseek-chat"     显式同时切换提供商和模型
+
+        核心原则：provider 与 model 始终强绑定，避免跨 provider 使用错误模型。
         """
         new_provider, new_model = resolve_provider_model(arg)
         if new_provider and new_provider != self.provider:
-            # 切换提供商 + 模型
+            # 模型名推断出了其他 provider，先切换 provider
             if not self.update_provider(new_provider):
                 return False
+        # 同步更新当前 provider 的 model（保持 provider-model 一致性）
         self.cfg["model"] = new_model
         self.model_name = new_model
-        # 同步到 providers 配置中当前提供商的 model
         providers_cfg = self.cfg.setdefault("providers", {})
         pcfg = providers_cfg.setdefault(self.provider, {})
         pcfg["model"] = new_model
@@ -117,7 +155,7 @@ class AppState:
         return True
 
     def update_key(self, key):
-        """重铸 API 密钥（针对当前提供商）"""
+        """更新 API 密钥（针对当前提供商）"""
         self.cfg["key"] = key
         providers_cfg = self.cfg.setdefault("providers", {})
         pcfg = providers_cfg.setdefault(self.provider, {})
@@ -139,7 +177,7 @@ class AppState:
         self.security = SecurityManager(self.lang, self.cfg)
 
     def update_session_name(self, name):
-        """更新轮回名"""
+        """更新会话名"""
         self.sn = name
         self.cfg["session_name"] = name
         self.save_cfg()
@@ -148,7 +186,14 @@ class AppState:
         """切换思维模式"""
         self.cfg["thinking_mode"] = mode
         self.thinking_mode = mode
+
+    def update_ui_mode(self, mode):
+        if mode not in ("chat", "dev", "agent"):
+            return False
+        self.cfg["ui_mode"] = mode
+        self.ui_mode = mode
         self.save_cfg()
+        return True
 
     def get_client_for(self, provider: str, model: str, override_key: str = None):
         """

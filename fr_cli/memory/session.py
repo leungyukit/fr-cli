@@ -1,13 +1,14 @@
 """
-自动会话存档引擎 —— 按日期轮回
+自动会话存档引擎 —— 按日期会话
 每次启动自动创建日期编号会话文件，实时追加对话记录。
 """
 import json
+from fr_cli.conf.paths import SESSIONS_AUTO_DIR
 import os
 from datetime import datetime
 from pathlib import Path
 
-SESSION_DIR = Path.home() / ".fr_cli_sessions"
+SESSION_DIR = SESSIONS_AUTO_DIR  # from fr_cli.conf.paths
 
 
 def _ensure_dir():

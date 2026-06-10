@@ -1,5 +1,6 @@
+from fr_cli.conf.paths import DAEMON_PID_FILE, DAEMON_STOP_FILE, DAEMON_CONFIG_FILE
 """
-Gatekeeper 守护进程 —— 后台结界主宰
+Gatekeeper 守护进程 —— 后台守护进程
 负责在主进程退出后继续维持核心服务运转。
 支持：Agent HTTP 服务、全局定时任务（shell/agent）、配置热重载。
 
@@ -7,7 +8,7 @@ Gatekeeper 守护进程 —— 后台结界主宰
     python -m fr_cli.gatekeeper.daemon
 
 停止方式：
-    创建 ~/.fr_cli_gatekeeper.stop 标记文件，守护进程检测到后自行退出。
+    创建 ~/.fr_cli/daemon/daemon.stop 标记文件，守护进程检测到后自行退出。
 """
 import os
 import sys
@@ -22,9 +23,9 @@ _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-PID_FILE = Path.home() / ".fr_cli_gatekeeper.pid"
-STOP_FILE = Path.home() / ".fr_cli_gatekeeper.stop"
-DAEMON_CONFIG_FILE = Path.home() / ".fr_cli_gatekeeper.json"
+PID_FILE = DAEMON_PID_FILE
+STOP_FILE = DAEMON_STOP_FILE
+DAEMON_CONFIG_FILE = DAEMON_CONFIG_FILE
 
 # 配置热重载间隔（秒）
 RELOAD_INTERVAL = 30

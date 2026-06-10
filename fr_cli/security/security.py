@@ -13,10 +13,14 @@ def ask(k, d, l, fconfirm, sconfirm, config):
     :param d: 具体操作描述 (如文件名或命令)
     :param l: 当前语言
     :param fconfirm: 永久放行状态
-    :param sconfirm: 本次轮回放行状态
+    :param sconfirm: 本次会话放行状态
     :param config: 配置字典对象 (用于持久化永久放行状态)
     :return: tuple (是否放行:bool, 更新后的sconfirm:bool, 更新后的fconfirm:bool)
     """
+    # 批量确认模式（用于脚本/自动化场景）
+    if os.environ.get("FR_CLI_BATCH_CONFIRM") == "1":
+        return True, sconfirm, fconfirm
+
     # 如果已经处于放行状态，直接放行
     if fconfirm or sconfirm:
         return True, sconfirm, fconfirm

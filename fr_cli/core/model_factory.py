@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import MODELS_YAML
 """
 模型工厂 - 从配置文件加载模型
 """
@@ -22,7 +23,7 @@ class ModelFactory:
     def load_config(self, config_path: str = None):
         """从配置文件加载模型配置"""
         if config_path is None:
-            config_path = os.path.expanduser("~/.fr_cli/models.yaml")
+            config_path = MODELS_YAML
         
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
@@ -44,16 +45,28 @@ class ModelFactory:
                 "base_url": None
             },
             "kimi": {
-                "name": "Kimi",
+                "name": "Kimi (Moonshot)",
                 "model": "moonshot-v1-8k",
                 "client": "OpenAICompatibleClient",
                 "base_url": "https://api.moonshot.cn/v1"
             },
-            "kimi-code": {
-                "name": "Kimi Code",
-                "model": "kimi-for-coding",
+            "kimi-k2": {
+                "name": "Kimi K2 (代码优化版)",
+                "model": "kimi-k2-0905-preview",
                 "client": "OpenAICompatibleClient",
                 "base_url": "https://api.moonshot.cn/v1"
+            },
+            "kimi-code": {
+                "name": "Kimi Code (代码平台)",
+                "model": "kimi-for-coding",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.kimi.com/coding/v1"
+            },
+            "kimi-code-anthropic": {
+                "name": "Kimi Code (Anthropic兼容)",
+                "model": "kimi-for-coding",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.kimi.com/coding/"
             },
             "deepseek": {
                 "name": "DeepSeek",
@@ -68,7 +81,7 @@ class ModelFactory:
                 "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
             },
             "doubao": {
-                "name": "豆包",
+                "name": "豆包 (Doubao)",
                 "model": "doubao-1-5-pro-32k-250115",
                 "client": "OpenAICompatibleClient",
                 "base_url": "https://ark.cn-beijing.volces.com/api/v3"
@@ -92,10 +105,52 @@ class ModelFactory:
                 "base_url": "https://api.minimax.chat/v1"
             },
             "minimax-m27": {
-                "name": "MiniMax M2.7",
+                "name": "MiniMax M2.7 (Token Plan)",
                 "model": "MiniMax-M2.7",
                 "client": "OpenAICompatibleClient",
                 "base_url": "https://api.minimax.chat/v1"
+            },
+            "minimax-m27-fast": {
+                "name": "MiniMax M2.7-HighSpeed (Token Plan)",
+                "model": "MiniMax-M2.7-HighSpeed",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.minimax.chat/v1"
+            },
+            "minimax-token-plan": {
+                "name": "MiniMax Token Plan (全模态)",
+                "model": "MiniMax-M2.7",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.minimax.chat/v1"
+            },
+            "stepfun": {
+                "name": "阶跃星辰 (StepFun)",
+                "model": "step-1-8k",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.stepfun.com/v1"
+            },
+            "step-1": {
+                "name": "Step-1 (阶跃星辰)",
+                "model": "step-1-8k",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.stepfun.com/v1"
+            },
+            "step-2": {
+                "name": "Step-2 (阶跃星辰)",
+                "model": "step-2-16k",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.stepfun.com/v1"
+            },
+            "step-3": {
+                "name": "Step-3 (阶跃星辰)",
+                "model": "step-3-auto",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.stepfun.com/v1"
+            },
+            "step-audio": {
+                "name": "Step-Audio (实时语音)",
+                "model": "step-audio-2",
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.stepfun.com/v1"
             },
             "ernie": {
                 "name": "文心一言",

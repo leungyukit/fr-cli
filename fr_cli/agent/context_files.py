@@ -7,6 +7,7 @@ import os
 import glob
 from typing import List, Dict, Optional
 from dataclasses import dataclass
+from fr_cli.conf.paths import CONTEXT_FILES_FILE
 
 
 @dataclass
@@ -34,7 +35,7 @@ class ContextFilesManager:
 
     def __init__(self, config_dir: str = None):
         if config_dir is None:
-            config_dir = os.path.expanduser("~/.fr_cli")
+            config_dir = CONTEXT_FILES_FILE.parent
         self.config_dir = config_dir
         self.context_file = os.path.join(config_dir, "context_files.json")
         self.patterns: List[str] = []

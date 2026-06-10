@@ -43,12 +43,11 @@ class ACPServer:
         """启动 ACP 服务器"""
         self.port = port
         self.running = True
-        
+
         try:
             import uvicorn
-            from fastapi import FastAPI
-            from fastapi.websockets import WebSocket
-            
+            from fastapi import FastAPI, WebSocket
+
             app = FastAPI()
 
             @app.websocket("/acp")
@@ -58,10 +57,10 @@ class ACPServer:
                     while self.running:
                         data = await websocket.receive_text()
                         message = json.loads(data)
-                        
+
                         # 处理 ACP 消息
                         response = await self.handle_message(message)
-                        
+
                         if response:
                             await websocket.send_text(json.dumps(response))
                 except Exception as e:
@@ -79,28 +78,33 @@ class ACPServer:
     async def handle_message(self, message: Dict) -> Optional[Dict]:
         """处理 ACP 消息"""
         msg_type = message.get("type")
-        
+
         if msg_type == "request":
             method = message.get("method")
             params = message.get("params", {})
-            
+
             if method == "chat":
                 result = await self.chat(params)
                 return {"id": message.get("id"), "type": "response", "result": result}
             elif method == "tools":
                 return {"id": message.get("id"), "type": "response", "result": self.get_tools()}
-            
+
         return None
 
     async def chat(self, params: Dict) -> str:
-        """处理聊天请求"""
-        from fr_cli.core.core import ask
+        """处理聊天请求（通过 fr_cli 的统一入口调用 LLM）"""
+        from fr_cli.main import handle_ai_chat
+        from fr_cli.core.core import AppState
+        from fr_cli.conf.config import load_config
         message = params.get("message", "")
         try:
-            result, _ = await asyncio.to_thread(ask, message)
-            return result
-        except:
-            return "Error processing request"
+            cfg = load_config()
+            # 构造一个临时 AppState 用于 LLM 调用（ACP 场景下 executor 可能未初始化）
+            state = AppState(cfg=cfg)
+            result, _ = await asyncio.to_thread(handle_ai_chat, state, message)
+            return result if result else ""
+        except Exception as e:
+            return f"Error processing request: {e}"
 
     def get_tools(self) -> list:
         """获取可用工具列表"""

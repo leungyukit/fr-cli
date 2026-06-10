@@ -10,10 +10,12 @@ from abc import ABC, abstractmethod
 from typing import Iterator, Optional, Dict, Any, List
 
 _PROVIDERS: Dict[str, Dict[str, Any]] = {}
+# 模型名 → Provider 反向映射（用于从模型名推断所属提供商）
+_MODEL_TO_PROVIDER: Dict[str, str] = {}
 
 def _load_providers_from_factory():
-    """从工厂加载 Provider 配置"""
-    global _PROVIDERS
+    """从工厂加载 Provider 配置，同时建立模型名 → Provider 反向映射"""
+    global _PROVIDERS, _MODEL_TO_PROVIDER
     try:
         from fr_cli.core.model_factory import get_model_factory
         factory = get_model_factory()
@@ -31,20 +33,25 @@ def _load_providers_from_factory():
             else:
                 client_cls = OpenAICompatibleClient
 
+            default_model = cfg.get("model", "glm-4-flash")
             _PROVIDERS[pid] = {
                 "name": cfg.get("name", pid),
-                "default_model": cfg.get("model", "glm-4-flash"),
+                "default_model": default_model,
                 "client_class": client_cls,
                 "base_url": cfg.get("base_url"),
             }
+            # 建立反向映射：默认模型名 → provider
+            if default_model:
+                _MODEL_TO_PROVIDER[default_model] = pid
     except Exception as e:
         import warnings
         warnings.warn(f"从工厂加载 Provider 失败: {e}")
 
 def reload_providers():
     """重新加载 Provider 配置"""
-    global _PROVIDERS
+    global _PROVIDERS, _MODEL_TO_PROVIDER
     _PROVIDERS = {}
+    _MODEL_TO_PROVIDER = {}
     _load_providers_from_factory()
 
 def get_provider_list() -> List[str]:
@@ -53,11 +60,11 @@ def get_provider_list() -> List[str]:
         _load_providers_from_factory()
     return list(_PROVIDERS.keys())
 
-def get_provider_info(provider: str) -> Dict[str, Any]:
-    """获取 Provider 信息"""
+def get_provider_info(provider: str) -> Optional[Dict[str, Any]]:
+    """获取 Provider 信息，无效 provider 返回 None"""
     if not _PROVIDERS:
         _load_providers_from_factory()
-    return _PROVIDERS.get(provider, _PROVIDERS.get("zhipu", {}))
+    return _PROVIDERS.get(provider)
 
 def list_providers() -> List[Dict]:
     """列出所有可用的 Provider"""
@@ -146,7 +153,6 @@ class WenxinLLMClient(BaseLLMClient):
         self.secret_key = secret_key or api_key
         self._access_token = None
         self._token_expires_at = 0
-
     def _get_access_token(self):
         """获取 Access Token（自动续期）"""
         import time
@@ -225,8 +231,76 @@ def _resolve_llm_kwargs(provider: str, cfg: dict, override_key: str = None):
     return client_class, kwargs
 
 
+# ============================================================
+# Mock LLM 客户端 —— 零配置试用 / API 不可用时的降级方案
+# ============================================================
+
+class MockLLMClient(BaseLLMClient):
+    """Mock LLM：不调任何远程 API，本地回声式响应
+
+    适用场景：
+    1. 用户首次启动还没配 API Key（init_config 检测到无 key 时切换）
+    2. 远程 API 调用失败（网络/限流/key 错）的临时降级
+    3. 演示 / 测试场景
+    """
+
+    def __init__(self, api_key: str = "mock", **kwargs):
+        super().__init__(api_key, **kwargs)
+        self.model = kwargs.get("model", "mock-echo")
+        self.is_mock = True
+
+    def stream_chat(self, model: str, messages: list, max_tokens: int = 4096) -> Iterator[dict]:
+        """回声响应：把最后一条 user message 包装一下吐出来"""
+        import time as _time
+
+        # 提取最后一条 user 消息
+        last_user = ""
+        for m in reversed(messages):
+            if m.get("role") == "user":
+                last_user = m.get("content", "")
+                break
+
+        # 简单响应模板
+        if not last_user:
+            response = "【Mock 模式】我是本地 mock 客户端，没收到你的输入。配置 API Key 后可启用真实 LLM（/key <your-key>）。"
+        elif last_user.startswith("/"):
+            response = f"【Mock 模式】你输入了命令 {last_user[:60]}。当前在 mock 模式，命令执行仍可工作（不依赖 LLM），只是 AI 回答部分是模拟的。"
+        else:
+            short = last_user[:200]
+            response = (
+                f"【Mock 模式 🧪】当前未配置 API Key 或 LLM 不可用。\n"
+                f"你刚才说的是：{short}\n\n"
+                f"**配置真实 LLM 的方式：**\n"
+                f"- `/key sk-xxx` 设置当前提供商（zhipu）的 key\n"
+                f"- `/providers use deepseek` 切换到其他提供商\n"
+                f"- `/providers setup` 交互式配置\n\n"
+                f"**Mock 模式仍能用的功能：**\n"
+                f"- `/help` / `/cat` / `/ls` / `/web` 等命令\n"
+                f"- `/shell` 执行系统命令\n"
+                f"- `@local` / `@RAG` 等不依赖 LLM 的 Agent\n"
+            )
+
+        # 模拟流式输出：按词切分
+        for word in response.split(" "):
+            yield {"content": word + " ", "usage": None}
+            _time.sleep(0.02)  # 让用户看到流式效果
+
+        # 最后给个 usage
+        yield {"content": "", "usage": {
+            "prompt_tokens": sum(len(m.get("content", "")) for m in messages) // 4,
+            "completion_tokens": len(response) // 4,
+            "total_tokens": (sum(len(m.get("content", "")) for m in messages) + len(response)) // 4,
+        }}
+
+
 def create_llm_client(cfg: dict):
-    """根据配置创建对应的 LLM 客户端"""
+    """根据配置创建对应的 LLM 客户端
+
+    核心原则：provider 与 model 强绑定，始终从当前 provider 的配置中获取 model，
+    不再回退到顶层的 cfg['model']（避免跨 provider 模型名污染）。
+
+    当检测到无 API Key 时，自动回退到 MockLLMClient。
+    """
     if not _PROVIDERS:
         _load_providers_from_factory()
 
@@ -235,17 +309,18 @@ def create_llm_client(cfg: dict):
     pcfg = providers_cfg.get(provider, {})
 
     default_model = _PROVIDERS.get(provider, {}).get("default_model", "glm-4-flash")
-    model = pcfg.get("model") or cfg.get("model", default_model)
+    # 强制从当前 provider 的配置中获取 model，不再回退到顶层 cfg["model"]
+    model = pcfg.get("model", default_model)
+
+    api_key = pcfg.get("key") or cfg.get("key", "")
+
+    # 零配置试用：检测到无 API Key → 自动回退到 Mock
+    if not api_key:
+        client = MockLLMClient(model=model)
+        return client, provider, model
 
     client_class, kwargs = _resolve_llm_kwargs(provider, cfg)
     return client_class(**kwargs), provider, model
-
-
-def get_provider_info_static(provider_id: str):
-    """获取指定提供商信息"""
-    if not _PROVIDERS:
-        _load_providers_from_factory()
-    return _PROVIDERS.get(provider_id)
 
 
 def create_llm_client_for(provider: str, model: str, cfg: dict, override_key: str = None):
@@ -254,12 +329,28 @@ def create_llm_client_for(provider: str, model: str, cfg: dict, override_key: st
     return client_class(**kwargs), provider, model
 
 
+def get_provider_by_model(model_name: str) -> Optional[str]:
+    """根据模型名查找所属 provider（基于 factory 默认配置中的反向映射）"""
+    if not _PROVIDERS:
+        _load_providers_from_factory()
+    return _MODEL_TO_PROVIDER.get(model_name)
+
+
 def resolve_provider_model(arg: str) -> tuple:
-    """解析用户输入的模型参数"""
+    """解析用户输入的模型参数
+
+    支持格式：
+      - provider:model   显式指定 provider 和 model
+      - model            仅模型名，尝试自动推断所属 provider
+
+    返回: (provider_or_None, model)
+    """
     if ":" in arg:
         parts = arg.split(":", 1)
         return parts[0].strip(), parts[1].strip()
-    return None, arg.strip()
+    model = arg.strip()
+    inferred_provider = get_provider_by_model(model)
+    return inferred_provider, model
 
 
 # 初始化加载

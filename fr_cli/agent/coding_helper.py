@@ -479,7 +479,7 @@ class CodeReviewer:
 
             for i, line in enumerate(lines, 1):
                 # 检查常见问题
-                if re.search(r'TODO.*(?:fixme|hack|bug', line, re.I):
+                if re.search(r'TODO.*(?:fixme|hack|bug)\b', line, re.I):
                     self.findings.append(ReviewFinding(
                         severity='medium',
                         file=filepath,

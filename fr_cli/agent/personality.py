@@ -7,6 +7,7 @@ import os
 import json
 from typing import Dict, Optional
 from dataclasses import dataclass
+from fr_cli.conf.paths import PERSONALITIES_FILE
 
 
 @dataclass
@@ -41,7 +42,7 @@ class PersonalityManager:
 
     def __init__(self, config_dir: str = None):
         if config_dir is None:
-            config_dir = os.path.expanduser("~/.fr_cli")
+            config_dir = PERSONALITIES_FILE.parent
         self.config_dir = config_dir
         self.personalities: Dict[str, Personality] = {}
         self.current_personality: Optional[Personality] = None

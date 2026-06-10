@@ -1,335 +1,121 @@
 """
-凡人打字机 - 主脑控制台
-负责状态初始化、命令路由与 AI 交互循环
+凡人打字机 —— 主脑控制台（精简版 v2.4.0+）
+
+主循环本身（~150 行），所有子任务下放：
+- fr_cli.repl.bootstrap —— 启动引导
+- fr_cli.repl.queue    —— 对话队列管理器
+- fr_cli.repl.router   —— 命令路由
+- fr_cli.repl.actions  —— e/r/u 快捷键动作
+
+主循环只做：
+1. 调用 bootstrap() 启动应用
+2. 创建 TUI 输入面板
+3. 循环：打印分隔线 → 读取输入 → 分发到 router 或 queue
+4. 退出
 """
-import sys, os, subprocess, platform, shutil
-from pathlib import Path
+import sys, os
+from datetime import datetime
 
 # 添加项目根目录到 Python 路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from fr_cli.conf.config import init_config, ConfigError
-from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import enable_win_ansi, print_banner, print_bye, CYAN, RED, YELLOW, DIM, RESET
-from fr_cli.core.stream import stream_cnt
-from fr_cli.memory.history import load_sess
-from fr_cli.memory.context import load_context
-from fr_cli.core.core import AppState
-from fr_cli.core.chat import handle_ai_chat
-
-
-def _sync_manual_to_workspace(vfs):
-    """将项目根目录的 MANUAL.md 复制到工作空间，使 AI 可通过 read_file 读取"""
-    if not vfs.cwd:
-        return
-    try:
-        manual_src = Path(__file__).parent.parent / "MANUAL.md"
-        if not manual_src.exists():
-            return
-        manual_dst = Path(vfs.cwd) / "MANUAL.md"
-        if not manual_dst.exists():
-            shutil.copy2(manual_src, manual_dst)
-    except Exception:
-        pass
-
-
-# ------------------------------------------------------------------
-# 命令路由函数（将 main() 中巨大的 if-elif 链提取为字典映射）
-# 返回 True 表示应退出主循环
-# ------------------------------------------------------------------
-
-from fr_cli.repl.commands import (
-    _cmd_exit,
-    _cmd_shell,
-    _cmd_hermes_daemon,
-    _cmd_help,
-    _cmd_model,
-    _cmd_key,
-    _cmd_limit,
-    _cmd_lang,
-    _cmd_dir,
-    _cmd_dirs,
-    _cmd_rmdir,
-    _cmd_save,
-    _cmd_load,
-    _cmd_del,
-    _cmd_session_list,
-    _cmd_session_load,
-    _cmd_session_del,
-    _cmd_see,
-    _cmd_update,
-    _cmd_agent_server,
-    _cmd_mode,
-    _cmd_gatekeeper,
-    _cmd_open,
-    _cmd_launch,
-    _cmd_apps,
-    _cmd_agent_create,
-    _cmd_agent_list,
-    _cmd_agent_delete,
-    _cmd_agent_show,
-    _cmd_agent_run,
-    _cmd_agent_edit,
-    _cmd_agent_forge,
-    _cmd_agent_model,
-    _cmd_remote_agent_add,
-    _cmd_remote_agent_list,
-    _cmd_remote_agent_del,
-    _cmd_agent_publish,
-    _cmd_remote_agent_scan,
-    _cmd_remote_agent_import,
-    _cmd_remote_setup,
-    _cmd_db_setup,
-    _cmd_agent_cron_add,
-    _cmd_agent_cron_list,
-    _cmd_agent_cron_del,
-    _cmd_rag_dir,
-    _cmd_rag_watch,
-    _cmd_rag_sync,
-    _cmd_read_excel,
-    _cmd_read_csv,
-    _cmd_master,
-    _cmd_providers,
-    _cmd_mcp_list,
-    _cmd_mcp_add,
-    _cmd_mcp_del,
-    _cmd_mcp_enable,
-    _cmd_mcp_disable,
-    _cmd_mcp_refresh,
-)
-
-
-_COMMAND_ROUTES = {
-    "/exit": _cmd_exit,
-    "/shell": _cmd_shell,
-    "/hermes": _cmd_hermes_daemon,
-    "/quit": _cmd_exit,
-    "/help": _cmd_help,
-    "/model": _cmd_model,
-    "/key": _cmd_key,
-    "/limit": _cmd_limit,
-    "/lang": _cmd_lang,
-    "/mode": _cmd_mode,
-    "/dir": _cmd_dir,
-    "/dirs": _cmd_dirs,
-    "/rmdir": _cmd_rmdir,
-    "/save": _cmd_save,
-    "/load": _cmd_load,
-    "/del": _cmd_del,
-    "/session_list": _cmd_session_list,
-    "/session_load": _cmd_session_load,
-    "/session_del": _cmd_session_del,
-    "/see": _cmd_see,
-    "/update": _cmd_update,
-    "/agent_server": _cmd_agent_server,
-    "/gatekeeper": _cmd_gatekeeper,
-    "/open": _cmd_open,
-    "/launch": _cmd_launch,
-    "/apps": _cmd_apps,
-    "/agent_create": _cmd_agent_create,
-    "/agent_list": _cmd_agent_list,
-    "/agent_delete": _cmd_agent_delete,
-    "/agent_show": _cmd_agent_show,
-    "/agent_run": _cmd_agent_run,
-    "/agent_edit": _cmd_agent_edit,
-    "/agent_forge": _cmd_agent_forge,
-    "/agent_model": _cmd_agent_model,
-    "/remote_agent_add": _cmd_remote_agent_add,
-    "/remote_agent_list": _cmd_remote_agent_list,
-    "/remote_agent_del": _cmd_remote_agent_del,
-    "/agent_publish": _cmd_agent_publish,
-    "/remote_agent_scan": _cmd_remote_agent_scan,
-    "/remote_agent_import": _cmd_remote_agent_import,
-    "/remote_setup": _cmd_remote_setup,
-    "/db_setup": _cmd_db_setup,
-    "/agent_cron_add": _cmd_agent_cron_add,
-    "/agent_cron_list": _cmd_agent_cron_list,
-    "/agent_cron_del": _cmd_agent_cron_del,
-    "/rag_dir": _cmd_rag_dir,
-    "/rag_watch": _cmd_rag_watch,
-    "/rag_sync": _cmd_rag_sync,
-    "/read_excel": _cmd_read_excel,
-    "/read_csv": _cmd_read_csv,
-    "/master": _cmd_master,
-    "/providers": _cmd_providers,
-    "/mcp_list": _cmd_mcp_list,
-    "/mcp_add": _cmd_mcp_add,
-    "/mcp_del": _cmd_mcp_del,
-    "/mcp_enable": _cmd_mcp_enable,
-    "/mcp_disable": _cmd_mcp_disable,
-    "/mcp_refresh": _cmd_mcp_refresh,
-}
+from fr_cli.ui.ui import enable_win_ansi, print_bye, DIM, RESET, YELLOW, BLUE
+from fr_cli.ui.banner import print_input_separator
+from fr_cli.ui.prompt import create_prompt
+from fr_cli.repl.bootstrap import bootstrap
+from fr_cli.repl.router import dispatch as dispatch_command
+from fr_cli.repl.queue import ChatQueueManager
+from fr_cli.repl.actions import action_edit_last_ai, action_retry_last_user, action_undo_last
 
 
 def main():
     enable_win_ansi()
-    try:
-        cfg = init_config()
-    except ConfigError:
-        print(f"{RED}配置初始化失败，退出。{RESET}")
+    cfg, state = bootstrap()
+    if state is None:
         return
-    state = AppState(cfg)
 
-    # 将 MANUAL.md 同步到工作空间
-    _sync_manual_to_workspace(state.vfs)
+    # 创建 TUI 输入面板
+    prompt = create_prompt(state)
+    state._prompt = prompt  # 供 scenario 等模块使用
+    prompt.update_status(
+        model=state.model_name,
+        provider=state.provider,
+        directory=cfg.get("allowed_dirs", [""])[0] if cfg.get("allowed_dirs") else "",
+        session=state.sn,
+        limit=state.limit,
+        mode=state.thinking_mode,
+    )
 
-    # 加载历史会话或初始化系统提示词
-    sp = T("sys_prompt", state.lang)
-    if state.sn:
-        ok, m, _ = load_sess(0, sp)
-        if ok:
-            state.messages = m
-    if not state.messages:
-        state.messages = [{"role": "system", "content": sp}]
-
-    # 加载当前会话的记忆上下文
-    state.context_summary = load_context(state.sn)
-
-    # 启动动画
-    print_banner(state.model_name, state.limit, cfg.get("allowed_dirs", [""]), state.sn, state.lang, state.provider)
+    # 创建对话队列管理器（普通 AI 对话走队列，支持并发输入）
+    state._queue_mgr = ChatQueueManager(state, prompt)
 
     # ================= 主循环 =================
+    first_iter = True
     while True:
-        try:
-            u = input(f"{CYAN}>>> {RESET}").strip()
-        except (EOFError, KeyboardInterrupt):
+        # 分隔线 ── input ────（Kimi Code 风格：自带"input"标签）
+        print_input_separator()
+
+        # 第一次引导提示（只在 TTY 下显示）
+        prefix_hint = ""
+        if first_iter and (not hasattr(prompt, "_is_tty") or prompt._is_tty):
+            prefix_hint = "首次使用？输入 /tutorial 开始教程，或 /help 查看所有命令"
+        first_iter = False
+
+        u = prompt.get_input(prefix_hint=prefix_hint)
+        if u is None:  # Ctrl+D 退出
+            if state._queue_mgr.is_processing or state._queue_mgr.peek():
+                print(f"{YELLOW}正在处理队列中的问题，请稍候...{RESET}")
+                state._queue_mgr.wait_for_complete()
             print_bye()
             break
-
         if not u:
             continue
 
-        # 替换别名
+        # 时间戳
+        input_time = datetime.now()
+        time_str = input_time.strftime("%H:%M:%S")
+        print(f"{DIM}输入时间: {time_str}{RESET}")
+
+        # 处理 e/r/u 动作（来自 TUI 快捷键）
+        if u == "__ACTION__:edit":
+            action_edit_last_ai(state, prompt)
+            continue
+        if u == "__ACTION__:retry":
+            action_retry_last_user(state, prompt)
+            continue
+        if u == "__ACTION__:undo":
+            action_undo_last(state)
+            continue
+
+        # /undo N 撤销多轮
+        if u.startswith("/undo "):
+            try:
+                n = int(u.split()[1])
+                action_undo_last(state, n=n)
+            except (ValueError, IndexError):
+                print(f"{YELLOW}用法: /undo N（撤销 N 轮对话）{RESET}")
+            continue
+
+        # 别名替换
         if u in state.aliases:
             u = state.aliases[u]
 
-        # ----------------- 内置指令路由 -----------------
+        # 命令分发（/ 开头走 router，普通文本走 AI 对话队列）
         if u.startswith("/"):
-            parts = u.split()
-            cmd = parts[0].lower()
-            arg1 = parts[1] if len(parts) > 1 else ""
-
-            if cmd in _COMMAND_ROUTES:
-                if _COMMAND_ROUTES[cmd](state, parts):
-                    break
-            else:
-                # 其余命令统一委托给执行引擎
-                result, error = state.executor.execute(u, state.messages)
-                if error:
-                    print(f"{RED}{error}{RESET}")
-                elif result is not None:
-                    # 根据命令类型做简单格式化
-                    if cmd == "/cat" and arg1:
-                        print(f"\n{DIM}--- {arg1} ---{RESET}\n{result}\n{DIM}--- EOF ---{RESET}")
-                    elif cmd == "/fetch" and arg1:
-                        print(f"{DIM}--- Fetch ---{RESET}\n{result}\n{DIM}--- EOF ---{RESET}")
-                    elif cmd == "/skills":
-                        print("\n".join([f"{CYAN}{line}{RESET}" for line in result.split("\n")]))
-                    else:
-                        print(result)
-
-        # ----------------- 破壁指令 -----------------
-        elif u.startswith("!"):
-            is_pipe = "|" in u
-            shell_cmd = u[1:].split("|")[0].strip()
-
-            if state.security.check("sec_shell", shell_cmd):
-                try:
-                    if platform.system() == "Windows":
-                        ps_exe = shutil.which("pwsh") or shutil.which("powershell")
-                        if ps_exe:
-                            res = subprocess.run([ps_exe, "-Command", shell_cmd], capture_output=True, text=True, timeout=15)
-                        else:
-                            res = subprocess.run(shell_cmd, shell=True, capture_output=True, text=True, timeout=15)
-                    else:
-                        res = subprocess.run(shell_cmd, shell=True, capture_output=True, text=True, timeout=15)
-                    out = res.stdout + res.stderr
-                    if is_pipe:
-                        pipe_prompt = u.split("|", 1)[1].strip()
-                        final_prompt = f"{T('pipe_prefix', state.lang)}{out}\n\n{pipe_prompt}"
-                        if state.vfs.cwd:
-                            final_prompt += T("ctx_dir", state.lang, state.vfs.cwd)
-                        state.messages.append({"role": "user", "content": final_prompt})
-                        txt, _, response_time = stream_cnt(
-                            state.client, state.model_name, state.messages, state.lang,
-                            max_tokens=state.limit
-                        )
-                        state.messages.append({"role": "assistant", "content": txt})
-
-                        # 自动执行 AI 响应中的命令（与 handle_ai_chat 保持一致）
-                        clean_txt, cmd_results = state.executor.process_ai_commands(txt, state.messages)
-                        if cmd_results:
-                            print(f"\n{CYAN}🤖 自动执行命令:{RESET}")
-                            for result in cmd_results:
-                                print(f"{DIM}{result}{RESET}")
-                            state.messages[-1]["content"] = clean_txt if clean_txt.strip() else "[已执行命令]"
-                            state.messages.append({
-                                "role": "system",
-                                "content": f"命令执行结果:\n" + "\n".join(cmd_results)
-                            })
-                            sys.stdout.write(f"{CYAN}{T('prompt_ai', state.lang)}{RESET} ")
-                            sys.stdout.flush()
-                            final_txt, _, final_response_time = stream_cnt(
-                                state.client, state.model_name, state.messages, state.lang,
-                                custom_prefix="", max_tokens=state.limit
-                            )
-                            state.messages.append({"role": "assistant", "content": final_txt})
-                            response_time += final_response_time
-
-                        print(f"{DIM}📊 {T('stats_model', state.lang)}: {state.model_name} | {T('stats_time', state.lang)}: {response_time:.2f}{T('stats_seconds', state.lang)}{RESET}")
-                    else:
-                        if out.strip():
-                            print(out.strip()[:2000])
-                except subprocess.TimeoutExpired:
-                    print(f"{RED}Timeout{RESET}")
-                except Exception as e:
-                    print(f"{RED}{e}{RESET}")
-
-        # ----------------- 内置 Agent 前缀拦截 -----------------
-        elif u.startswith("@local "):
-            try:
-                from fr_cli.agent.builtins.local import handle_local
-                handle_local(u, state)
-            except Exception as e:
-                print(f"{RED}@local Agent 执行失败: {e}{RESET}")
-
-        elif u.startswith("@remote "):
-            try:
-                from fr_cli.agent.builtins.remote import handle_remote
-                handle_remote(u, state)
-            except Exception as e:
-                print(f"{RED}@remote Agent 执行失败: {e}{RESET}")
-
-        elif u.startswith("@spider "):
-            try:
-                from fr_cli.agent.builtins.spider import handle_spider
-                handle_spider(u, state)
-            except Exception as e:
-                print(f"{RED}@spider Agent 执行失败: {e}{RESET}")
-
-        elif u.startswith("@db "):
-            try:
-                from fr_cli.agent.builtins.db import handle_db
-                handle_db(u, state)
-            except Exception as e:
-                print(f"{RED}@db Agent 执行失败: {e}{RESET}")
-
-        elif u.startswith("@RAG ") or u.startswith("@rag "):
-            try:
-                from fr_cli.agent.builtins.rag import handle_rag
-                handle_rag(u, state)
-            except Exception as e:
-                print(f"{RED}@RAG Agent 执行失败: {e}{RESET}")
-
-        # ----------------- AI 正常对话 -----------------
+            should_break = dispatch_command(state, u)
+            if should_break:
+                # _cmd_exit 已经打印过 print_bye，这里不再重复
+                break
         else:
-            if state.master_agent.is_enabled():
-                reply, _ = state.master_agent.handle(u)
-                print(f"\n{CYAN}{reply}{RESET}")
+            # 普通对话走队列（支持用户在 AI 回答期间继续输入）
+            queue_mgr = state._queue_mgr
+            if queue_mgr.is_processing:
+                print(f"{DIM}▍ {u}{RESET}")
             else:
-                handle_ai_chat(state, u)
+                print(f"{BLUE}▍ {u}{RESET}")
+            queue_mgr.process(u)
 
 
 if __name__ == "__main__":

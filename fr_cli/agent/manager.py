@@ -16,7 +16,7 @@ AGENT_CONFIG_FILE = "config.json"
 
 
 def _agent_dir(name: str) -> Path:
-    """获取指定 Agent 的洞府路径"""
+    """获取指定 Agent 的目录路径"""
     safe_name = "".join(c for c in name if c.isalnum() or c in ("_", "-"))
     if not safe_name:
         safe_name = "unnamed"
@@ -24,7 +24,7 @@ def _agent_dir(name: str) -> Path:
 
 
 def ensure_agents_dir():
-    """确保 Agents 总洞府存在"""
+    """确保 Agents 总目录存在"""
     AGENTS_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -34,10 +34,21 @@ def agent_exists(name: str) -> bool:
 
 
 def create_agent_dir(name: str) -> Path:
-    """为新的 Agent 开辟独立洞府"""
+    """为新的 Agent 添加独立目录，并强制初始化全套默认文件（有漏即补）"""
     ensure_agents_dir()
     d = _agent_dir(name)
     d.mkdir(parents=True, exist_ok=True)
+
+    # 强制初始化全套默认配置文件（若不存在则创建有意义的默认内容）
+    if not (d / PERSONA_FILE).exists():
+        _write_md(d, PERSONA_FILE, f"#{name}\n\n由 AI 对话创建的 Agent 分身。\n")
+    if not (d / SKILLS_FILE).exists():
+        _write_md(d, SKILLS_FILE, "## 技能\n\n- 执行自定义 Python 逻辑\n- 入口: run(context, **kwargs)\n")
+    if not (d / MEMORY_FILE).exists():
+        _write_md(d, MEMORY_FILE, "")
+    if not (d / AGENT_CONFIG_FILE).exists():
+        _write_md(d, AGENT_CONFIG_FILE, "{}")
+
     return d
 
 
@@ -60,7 +71,7 @@ def list_agents() -> list:
 
 
 def delete_agent(name: str) -> bool:
-    """彻底抹除一个分身及其所有记忆"""
+    """彻底删除一个分身及其所有记忆"""
     d = _agent_dir(name)
     if not d.exists():
         return False
@@ -211,7 +222,7 @@ def load_agent_config(name: str) -> dict:
 def save_agent_config(name: str, data: dict):
     """保存 Agent 的专属模型配置到 config.json"""
     d = _agent_dir(name)
-    # 确保 Agent 洞府存在，避免在无效目录创建孤立文件
+    # 确保 Agent 目录存在，避免在无效目录创建孤立文件
     d.mkdir(parents=True, exist_ok=True)
     f = d / AGENT_CONFIG_FILE
     try:

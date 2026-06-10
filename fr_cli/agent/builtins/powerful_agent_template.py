@@ -11,7 +11,7 @@
 - 多轮对话和任务执行
 
 使用方法：
-1. 将此文件复制到 ~/.fr_cli_agents/<your_agent>/agent.py
+1. 将此文件复制到 ~/.fr_cli/agents/<your_agent>/agent.py
 2. 编辑 persona.md, memory.md, skills.md 配置 Agent 角色
 3. 在 config.json 中设置专属模型配置
 
@@ -281,7 +281,7 @@ class MemorySystem:
 
     def __init__(self, agent_name: str, memory_file: str = None):
         self.agent_name = agent_name
-        self.memory_file = memory_file or f"~/.fr_cli_agents/{agent_name}/memory.md"
+        self.memory_file = memory_file or f"~/.fr_cli/agents/{agent_name}/memory.md"
         self.short_term: List[MemoryEntry] = []
         self.long_term: List[MemoryEntry] = []
         self.max_short_term = 50  # 短期记忆最大条数
@@ -913,4 +913,4 @@ if __name__ == "__main__":
     print("可用工具: read_file, write_file, list_files, search_files,")
     print("          web_search, fetch_url, execute_code, run_command,")
     print("          db_query, call_agent, delegate_task")
-    print("\n将此模板复制到 ~/.fr_cli_agents/<your_agent>/agent.py 即可使用")
+    print("\n将此模板复制到 ~/.fr_cli/agents/<your_agent>/agent.py 即可使用")

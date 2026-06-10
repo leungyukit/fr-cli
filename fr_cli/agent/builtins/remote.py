@@ -3,8 +3,9 @@
 支持多机配置、配置向导、AI 生成远程命令。
 """
 from pathlib import Path
+from fr_cli.conf.paths import REMOTE_HOSTS_FILE
 
-REMOTE_CFG_PATH = Path.home() / ".fr_cli_remotes.json"
+REMOTE_CFG_PATH = REMOTE_HOSTS_FILE  # from fr_cli.conf.paths
 
 REMOTE_SYS_PROMPT = """你是一个远程系统命令专家。请根据目标主机的操作系统类型和用户需求，生成最合适的远程命令。
 
@@ -156,7 +157,7 @@ def handle_remote(user_input, state):
     ]
 
     print(f"{CYAN}🧙 正在为 [{alias}]({os_name}) 生成远程命令...{RESET}")
-    cmd_text, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
+    cmd_text, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
     cmd_text = cmd_text.strip()
 
     from fr_cli.agent.builtins._utils import strip_code_blocks

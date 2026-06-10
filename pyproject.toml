@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fr-cli"
-version = "2.3.3"
+version = "2.4.0"
 description = "凡人打字机 - 支持多模型(Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo)的终极全能终端工具"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -34,6 +34,8 @@ dependencies = [
     "requests>=2.28.0",
     "mcp>=1.6.0",
     "pyyaml>=6.0.0",
+    "prompt_toolkit>=3.0.0",  # TUI 输入面板
+    "Pillow>=10.0.0",  # 启动封面图片编码(Kitty / iTerm2 / Sixel)
 ]
 
 [project.optional-dependencies]
@@ -64,8 +66,8 @@ dev = [
 fr-cli = "fr_cli.main:main"
 
 [project.urls]
-Homepage = "https://github.com/yourname/fr-cli"
-Issues = "https://github.com/yourname/fr-cli/issues"
+Homepage = "https://github.com/leungyukit/fr-cli"
+Issues = "https://github.com/leungyukit/fr-cli/issues"
 
 [tool.setuptools.packages.find]
 where = ["."]

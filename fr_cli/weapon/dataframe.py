@@ -1,5 +1,5 @@
 """
-数据卷轴读取器 —— Excel / CSV 分析神通
+数据文件读取器 —— Excel / CSV 分析工具
 支持读取表格文件并提交给大模型进行智能分析。
 """
 
@@ -93,5 +93,5 @@ def analyze_dataframe(path, query, client, model, lang="zh"):
 """
     from fr_cli.core.stream import stream_cnt
     messages = [{"role": "user", "content": prompt}]
-    result, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
+    result, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
     return result, None

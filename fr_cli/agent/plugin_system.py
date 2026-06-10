@@ -129,7 +129,7 @@ class PluginLoader:
                         data = json.load(f)
                         plugin = Plugin(**data)
                         plugins.append(plugin)
-                except:
+                except Exception:
                     pass
 
         return plugins

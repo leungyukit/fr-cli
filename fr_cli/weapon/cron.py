@@ -1,5 +1,5 @@
 """
-结界定时引擎
+定时任务引擎
 使用线程实现轻量级的后台定时任务
 支持 shell 命令和 Agent 分身两种任务类型
 """
@@ -11,25 +11,44 @@ from fr_cli.lang.i18n import T
 
 
 class CronManager:
-    """定时任务管理器 —— 结界掌控者"""
+    """定时任务管理器 —— 任务调度器"""
 
     def __init__(self):
         self.jobs = []
         self._job_id_counter = 0
         self._lock = threading.Lock()
 
-    def _job_runner(self, job_id, cmd, interval, lang, job_type="shell", agent_name=None, agent_input="", state=None):
-        """内部递归执行器，实现每隔 interval 秒执行一次"""
+    def _resolve_state(self, state_provider):
+        """解析最新 state 对象，避免闭包捕获旧引用"""
+        if state_provider is None:
+            return None
+        if callable(state_provider):
+            try:
+                return state_provider()
+            except Exception:
+                return None
+        return state_provider
+
+    def _job_runner(self, job_id, cmd, interval, lang, job_type="shell", agent_name=None, agent_input="", state_provider=None):
+        """内部递归执行器，实现每隔 interval 秒执行一次
+
+        state_provider 必须是可调用对象（lambda/方法），避免在闭包中锁定
+        某个特定 state 引用导致 /model 切换 client 后旧 state 仍被使用。
+        """
         with self._lock:
             job = next((j for j in self.jobs if j["id"] == job_id), None)
         if not job:
             return
+
+        state = self._resolve_state(state_provider)
 
         try:
             if job_type == "agent" and agent_name:
                 # 执行 Agent 分身
                 if state is None:
                     print(f"{RED}[Cron {job_id}] Error: Agent 任务需要 AppState{RESET}")
+                    # 没有 state 就不再重试注册定时器，避免持续刷屏
+                    return
                 else:
                     from fr_cli.agent.executor import run_agent
                     result, err = run_agent(agent_name, state, user_input=agent_input)
@@ -49,16 +68,16 @@ class CronManager:
         except Exception as e:
             print(f"{RED}[Cron {job_id}] Error: {e}{RESET}")
 
-        # 重新注册定时器
+        # 重新注册定时器（仍然传 state_provider，闭包不再持有 state）
         job["timer"] = threading.Timer(
             interval, self._job_runner,
             args=(job_id, cmd, interval, lang),
-            kwargs={"job_type": job_type, "agent_name": agent_name, "agent_input": agent_input, "state": state}
+            kwargs={"job_type": job_type, "agent_name": agent_name, "agent_input": agent_input, "state_provider": state_provider}
         )
         job["timer"].daemon = True
         job["timer"].start()
 
-    def add_job(self, cmd, interval, lang, job_type="shell", agent_name=None, agent_input="", state=None):
+    def add_job(self, cmd, interval, lang, job_type="shell", agent_name=None, agent_input="", state=None, state_provider=None):
         """添加一个定时循环任务
 
         Args:
@@ -68,7 +87,8 @@ class CronManager:
             job_type: "shell" 或 "agent"
             agent_name: Agent 分身名称（agent 类型时有效）
             agent_input: 传递给 Agent 的输入内容（agent 类型时有效）
-            state: AppState 实例（agent 类型时必需）
+            state: AppState 实例（agent 类型时必需，向后兼容）；为 None 时使用 state_provider
+            state_provider: 可调用对象，每次执行时调用以获取最新 state（推荐用法）
         """
         try:
             interval = float(interval)
@@ -76,7 +96,14 @@ class CronManager:
             return None, f"{RED}Invalid seconds{RESET}"
 
         if interval < 5:
-            return None, f"{RED}间隔不能小于 5 秒{RESET}"
+            return None, f"{RED}{T('cron_too_short', lang, min_interval=5)}{RESET}"
+
+        # 如果调用方传了 state 而没传 state_provider，自动包成 lambda
+        # （不直接绑死 state，而是返回 state 的当前引用 —— 调用方有责任在 state
+        # 重建时重新调用 add_job；或者干脆传 state_provider）
+        if state_provider is None and state is not None:
+            state_ref = {"current": state}
+            state_provider = lambda: state_ref["current"]
 
         with self._lock:
             self._job_id_counter += 1
@@ -97,7 +124,7 @@ class CronManager:
         job["timer"] = threading.Timer(
             interval, self._job_runner,
             args=(job_id, cmd, interval, lang),
-            kwargs={"job_type": job_type, "agent_name": agent_name, "agent_input": agent_input, "state": state}
+            kwargs={"job_type": job_type, "agent_name": agent_name, "agent_input": agent_input, "state_provider": state_provider}
         )
         job["timer"].daemon = True
         job["timer"].start()
@@ -129,13 +156,14 @@ class CronManager:
             self.jobs.remove(job)
         return True, T("cron_killed", lang, job_id)
 
-    def sync_jobs(self, job_configs, lang="zh", state=None):
+    def sync_jobs(self, job_configs, lang="zh", state=None, state_provider=None):
         """同步任务列表：根据配置增删任务，保持当前任务与配置一致
 
         Args:
             job_configs: 任务配置列表，每项为 dict，包含 cmd/interval/job_type/agent_name/agent_input
             lang: 界面语言
-            state: AppState 实例（agent 类型任务必需）
+            state: AppState 实例（agent 类型任务必需，向后兼容）
+            state_provider: 可调用对象（推荐），见 add_job
         """
         with self._lock:
             current_ids = {j["id"] for j in self.jobs}
@@ -160,6 +188,7 @@ class CronManager:
                     agent_name=cfg.get("agent_name"),
                     agent_input=cfg.get("agent_input", ""),
                     state=state,
+                    state_provider=state_provider,
                 )
 
     def export_jobs(self):
@@ -178,7 +207,7 @@ class CronManager:
             for j in jobs_copy
         ]
 
-    def import_jobs(self, jobs, lang="zh", state=None):
+    def import_jobs(self, jobs, lang="zh", state=None, state_provider=None):
         """从字典列表恢复定时任务"""
         for job in jobs:
             try:
@@ -190,6 +219,7 @@ class CronManager:
                     agent_name=job.get("agent_name"),
                     agent_input=job.get("agent_input", ""),
                     state=state,
+                    state_provider=state_provider,
                 )
             except Exception:
                 pass

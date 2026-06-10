@@ -33,8 +33,8 @@ _FORCE_TOOL_KEYWORDS = [
     "schedule", "scheduled task", "cron job", "timer",
     "upload", "upload to", "download", "download to",
     "save session", "export session", "switch model", "set key", "set api key",
-    # MCP 外部神通关键词
-    "mcp", "外部工具", "外部神通", "调用工具", "use tool", "invoke tool",
+    # MCP 外部工具关键词
+    "mcp", "外部工具", "外部工具", "调用工具", "use tool", "invoke tool",
 ]
 
 # 保存意图关键词（用于第二轮强制保存检测）
@@ -53,7 +53,7 @@ _INFO_FETCH_KEYWORDS = [
     "search", "look up", "what is", "what are", "introduction to", "latest",
     "news", "wikipedia", "who is", "how to", "define", "explain",
     # 远程/RAG/Agent
-    "远程", "rag", "知识库", "agent", "mcp", "外部工具", "外部神通",
+    "远程", "rag", "知识库", "agent", "mcp", "外部工具", "外部工具",
     "remote", "knowledge base", "external tool",
     # 文件/数据读取
     "读取", "查看内容", "分析文件", "总结", "提取",
@@ -111,7 +111,7 @@ Output only one word: DIRECT or TOOL. No explanation."""
 请只输出一个单词：DIRECT 或 TOOL。不要输出任何解释。"""
 
     messages = [{"role": "user", "content": classify_prompt}]
-    txt, _, _ = stream_cnt(
+    txt, _, _, _ = stream_cnt(
         state.client, state.model_name, messages, lang,
         custom_prefix="", max_tokens=10, silent=True
     )

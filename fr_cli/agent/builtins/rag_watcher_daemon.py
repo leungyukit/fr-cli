@@ -1,12 +1,13 @@
+from fr_cli.conf.paths import RAG_DB_DIR, RAG_WATCHER_PID_FILE, RAG_WATCHER_STOP_FILE, RAG_WATCHER_LOG_FILE
 """
-RAG 知识库守护进程 —— 后台藏经阁守护
+RAG 知识库守护进程 —— 后台知识库守护
 负责在主进程退出后继续监控知识库目录，新文件自动向量化入库。
 
 启动方式（不应由用户直接调用）：
     python -m fr_cli.agent.builtins.rag_watcher_daemon --kb_dir <目录> [--db_path <路径>] [--interval <秒>]
 
 停止方式：
-    创建 ~/.fr_cli_rag_watcher.stop 标记文件，守护进程检测到后自行退出。
+    创建 ~/.fr_cli/rag/watcher.stop 标记文件，守护进程检测到后自行退出。
 """
 import os
 import sys
@@ -22,10 +23,10 @@ _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(
 if _project_root not in sys.path:
     sys.path.insert(0, _project_root)
 
-PID_FILE = Path.home() / ".fr_cli_rag_watcher.pid"
-STOP_FILE = Path.home() / ".fr_cli_rag_watcher.stop"
-LOG_FILE = Path.home() / ".fr_cli_rag_watcher.log"
-DB_PATH = Path.home() / ".fr_cli_rag_db"
+PID_FILE = RAG_WATCHER_PID_FILE
+STOP_FILE = RAG_WATCHER_STOP_FILE
+LOG_FILE = RAG_WATCHER_LOG_FILE
+DB_PATH = RAG_DB_DIR
 
 DEFAULT_INTERVAL = 30
 

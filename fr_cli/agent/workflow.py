@@ -145,7 +145,7 @@ def run_workflow(name, state, user_input=None, **kwargs):
                     from fr_cli.core.stream import stream_cnt
                     msgs = [{"role": "user", "content": prompt}]
                     # 使用 context 中的 client/model，已根据 Agent 专属配置解析
-                    result, _, _ = stream_cnt(context["client"], context["model"], msgs, state.lang)
+                    result, _, _, _ = stream_cnt(context["client"], context["model"], msgs, state.lang)
                 elif action in ("save_memory", "memory_append"):
                     mem = params.get("content", "")
                     old = load_memory(name)

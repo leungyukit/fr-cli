@@ -1,5 +1,5 @@
 """
-互联网游侠
+网络搜索
 零配置的网页搜索与正文抽取
 依赖: requests (pip install requests)
 """

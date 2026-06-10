@@ -2,7 +2,7 @@
 主控 Agent（MasterAgent）—— 自我进化型全能助手
 类似 OpenClaw 的中央控制器，负责理解用户意图、规划执行、调用工具、反思进化。
 
-配置文件体系（~/.fr_cli_master/）：
+配置文件体系（~/.fr_cli/master/）：
   persona.md     — 人设文件（自定义系统人设，覆盖默认 prompt）
   skills.md      — 技能装备文件（特殊能力、高级用法描述）
   memory.json    — 交互记忆（成功/失败记录）
@@ -11,6 +11,7 @@
   status.json    — 状态文件（启用状态、统计、时间戳）
 """
 import json
+from fr_cli.conf.paths import MASTER_DIR, PLUGIN_DIR
 import re
 from datetime import datetime
 from pathlib import Path
@@ -22,7 +23,7 @@ from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
 from fr_cli.ui.ui import RED, YELLOW, GREEN, DIM, RESET
 from fr_cli.lang.i18n import T
 
-MASTER_DIR = Path.home() / ".fr_cli_master"
+# MASTER_DIR 已从 fr_cli.conf.paths 导入，直接使用即可
 PERSONA_FILE = MASTER_DIR / "persona.md"
 SKILLS_FILE = MASTER_DIR / "skills.md"
 MEMORY_FILE = MASTER_DIR / "memory.json"
@@ -34,13 +35,14 @@ STATUS_FILE = MASTER_DIR / "status.json"
 
 _DEFAULT_PERSONA = """# MasterAgent 人设
 
-你是 凡人打字机 的【主控Agent】——一位全能的AI助手兼系统指挥官。
+你是用户的【个人电脑 AI 助手】，常驻于终端，像一位高效的私人助理兼技术搭档。
 
 ## 核心职责
-1. 深入理解用户需求，将复杂任务拆解为可执行的步骤
-2. 调用系统工具完成用户的请求（文件、搜索、邮件、画图、定时任务等）
-3. 观察工具执行结果，必要时进行多轮修正
-4. 用中文向用户汇报最终结果
+1. **日常整理**：帮用户管理文件、整理笔记、归档资料、设置提醒/定时任务
+2. **代码开发**：协助编写、审查、重构代码；管理项目文件；运行测试与构建
+3. **信息获取**：搜索网络、读取文档、总结内容、对比方案
+4. **系统操作**：在虚拟文件系统沙盒内安全地读写文件、执行 shell 命令（经用户确认）
+5. **汇报结果**：用简洁清晰的中文向用户汇报执行结果，避免冗长
 
 ## 执行原则
 - 优先使用已验证成功的工具组合
@@ -48,9 +50,24 @@ _DEFAULT_PERSONA = """# MasterAgent 人设
 - 禁止执行 rm -rf、格式化磁盘等危险操作
 - 不在 Thought 中编造不存在的信息
 - 每次 Action 后等待 Observation 再继续
+- 处理用户文件前先确认路径，避免误操作
 """
 
 _DEFAULT_SKILLS = """# MasterAgent 技能装备
+
+## 日常工作整理
+- 文件管理：列出目录、读取文件内容、写入/追加/删除文件、批量重命名
+- 笔记整理：将零散内容汇总为 Markdown 文档，自动添加标题和目录
+- 资料归档：按日期或主题分类移动文件，创建结构化目录
+- 定时任务：使用 cron_add 帮用户设置周期性提醒或脚本执行
+- 邮件处理：读取收件箱、发送邮件、整理邮件摘要
+
+## 代码开发协助
+- 代码编写：根据需求生成代码并写入指定文件，保持项目结构清晰
+- 代码审查：读取目标文件，分析潜在 bug、性能问题、安全漏洞，输出带行号的审查报告
+- 重构优化：先搜索相关文件确认影响范围，制定最小侵入性修改方案，执行后验证
+- 项目导航：快速定位关键文件（如 main.py、package.json、README 等），理解项目架构
+- 调试辅助：读取日志、分析报错信息、建议修复方案
 
 ## 高级规划
 - 可将复杂任务分解为最多8步的ReAct循环
@@ -193,13 +210,13 @@ class MasterAgent:
                                     for k, v in t.get("params", {}).items())
             lines.append(f"- {t['name']}: {t['description']}  参数: {params_str or '无'}")
 
-        # 追加 MCP 外部神通
+        # 追加 MCP 外部工具
         mcp_manager = getattr(self.state, "mcp", None)
         if mcp_manager:
             try:
                 mcp_tools = mcp_manager.list_all_tools()
                 if mcp_tools:
-                    lines.append("\n=== MCP 外部神通 ===")
+                    lines.append("\n=== MCP 外部工具 ===")
                     for t in mcp_tools:
                         lines.append(f"- {t['name']}: {t['description']}  (服务器: {t['server']})")
                     lines.append("\n调用方式: mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})")
@@ -288,7 +305,7 @@ class MasterAgent:
             from fr_cli.core.stream import stream_cnt
 
             # 调用 LLM 获取 Thought + Action
-            txt, usage, _ = stream_cnt(
+            txt, usage, _, _ = stream_cnt(
                 self.state.client, self.state.model_name, messages, lang,
                 custom_prefix="", max_tokens=2048, silent=True
             )
@@ -330,10 +347,12 @@ class MasterAgent:
             # 达到最大步数仍未收敛，强制要求总结
             messages.append({"role": "user", "content": "已达到最大执行步数，请基于已有观察结果直接给出最终回答，不要再调用工具。"})
             from fr_cli.core.stream import stream_cnt
-            final_answer, _, _ = stream_cnt(
+            final_answer, _, _, _ = stream_cnt(
                 self.state.client, self.state.model_name, messages, lang,
                 custom_prefix="", max_tokens=2048, silent=True
             )
+            # 将 assistant 的最终回答加入消息历史，保证会话连续性
+            messages.append({"role": "assistant", "content": final_answer})
 
         # 保存会话结果
         task = self.session["current_task"]
@@ -372,7 +391,7 @@ class MasterAgent:
         else:
             update_session(self.state.auto_session_path, self.state.messages)
 
-        # 3. 智能法宝/Agent 检测
+        # 3. 智能插件/Agent 检测
         self._detect_artifacts(final_answer, lang)
 
         # 4. Hermes 自动学习更新
@@ -523,7 +542,7 @@ class MasterAgent:
 
         messages = [{"role": "user", "content": prompt}]
         from fr_cli.core.stream import stream_cnt
-        addon, _, _ = stream_cnt(
+        addon, _, _, _ = stream_cnt(
             self.state.client, self.state.model_name, messages, self.state.lang,
             custom_prefix="", max_tokens=512, silent=True
         )
@@ -536,63 +555,15 @@ class MasterAgent:
         self._status_data["evolution_count"] = self._status_data.get("evolution_count", 0) + 1
         _save_json(STATUS_FILE, self._status_data)
 
-    # ---------- 法宝 / Agent 自动检测 ----------
+    # ---------- 插件 / Agent 自动检测 ----------
 
     def _detect_artifacts(self, txt, lang):
         """检测 AI 回复中的插件/Agent 代码结构，提示用户保存"""
         if not txt:
             return
-
-        # 智能法宝进化检测（插件）
-        if "def run(args='')" in txt and "```python" in txt:
-            code = extract_code(txt)
-            if code and "def run" in code and len(code) > 50:
-                try:
-                    pname = input(f"{YELLOW}{T('artifact_detect', lang)}{RESET}").strip()
-                    if pname:
-                        safe_name = "".join(c for c in pname if c.isalnum() or c == '_')
-                        if not safe_name:
-                            print(f"{RED}名称无效，仅允许字母/数字/下划线{RESET}")
-                        elif self.state.security.check("sec_write", f"/{safe_name}"):
-                            PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
-                            p_path = PLUGIN_DIR / f"{safe_name}.py"
-                            p_path.write_text(code, encoding='utf-8')
-                            self.state.plugins[safe_name] = str(p_path)
-                            print(f"{GREEN}{T('ok_forged', lang, safe_name)}{RESET}")
-                except EOFError:
-                    pass
-
-        # 智能 Agent 分身检测
-        if "def run(context," in txt and "```python" in txt:
-            code = extract_code(txt)
-            if code and "def run(context," in code and len(code) > 50:
-                try:
-                    aname = input(f"{YELLOW}⚡ 检测到 Agent 分身结构，赐名 (回车放弃): {RESET}").strip()
-                    if aname:
-                        safe_name = "".join(c for c in aname if c.isalnum() or c == '_')
-                        if not safe_name:
-                            print(f"{RED}名称无效，仅允许字母/数字/下划线{RESET}")
-                        else:
-                            from fr_cli.agent.manager import create_agent_dir, save_agent_code, save_persona, save_skills, agent_exists
-                            if agent_exists(safe_name):
-                                confirm = input(f"{YELLOW}Agent [{safe_name}] 已存在，是否覆盖? [y/N]: {RESET}").strip().lower()
-                                if confirm not in ("y", "yes"):
-                                    print(f"{DIM}已取消。{RESET}")
-                                else:
-                                    d = create_agent_dir(safe_name)
-                                    save_agent_code(safe_name, code)
-                                    print(f"{GREEN}✅ Agent [{safe_name}] 已覆盖更新。{RESET}")
-                                    print(f"{DIM}  路径: {d}{RESET}")
-                            else:
-                                d = create_agent_dir(safe_name)
-                                save_agent_code(safe_name, code)
-                                save_persona(safe_name, f"#{safe_name}\n\n由 AI 对话铸造的 Agent 分身。")
-                                save_skills(safe_name, "## 技能\n\n- 执行自定义 Python 逻辑\n- 入口: run(context, **kwargs)")
-                                print(f"{GREEN}✅ Agent [{safe_name}] 铸造完成！{RESET}")
-                                print(f"{DIM}  路径: {d}{RESET}")
-                                print(f"{DIM}  运行: /agent_run {safe_name} [参数]{RESET}")
-                except EOFError:
-                    pass
+        from fr_cli.agent.artifact_detector import detect_plugin_artifact, detect_agent_artifact
+        detect_plugin_artifact(txt, lang, self.state)
+        detect_agent_artifact(txt, lang, self.state)
 
     # ---------- 状态管理 ----------
 

@@ -124,7 +124,7 @@ class TestKimiProviders:
         assert "kimi-code" in _PROVIDERS
         info = _PROVIDERS["kimi-code"]
         assert info["name"] == "Kimi Code (代码平台)"
-        assert info["default_model"] == "kimi-cache-test"
+        assert info["default_model"] == "kimi-for-coding"
         assert info["base_url"] == "https://api.kimi.com/coding/v1"
 
     def test_kimi_code_anthropic_provider_exists(self):
@@ -132,8 +132,8 @@ class TestKimiProviders:
         assert "kimi-code-anthropic" in _PROVIDERS
         info = _PROVIDERS["kimi-code-anthropic"]
         assert info["name"] == "Kimi Code (Anthropic兼容)"
-        assert info["default_model"] == "kimi-cache-test"
-        assert info["base_url"] == "https://api.kimi.com/coding/Kimi"
+        assert info["default_model"] == "kimi-for-coding"
+        assert info["base_url"] == "https://api.kimi.com/coding/"
 
     def test_kimi_provider_still_exists(self):
         """验证原有 kimi provider 仍然存在"""
@@ -162,9 +162,9 @@ class TestKimiProviders:
                 "kimi-code": {"key": "test-key"}
             }
         }
-        client, provider, model = create_llm_client_for("kimi-code", "kimi-cache-test", cfg)
+        client, provider, model = create_llm_client_for("kimi-code", "kimi-for-coding", cfg)
         assert provider == "kimi-code"
-        assert model == "kimi-cache-test"
+        assert model == "kimi-for-coding"
         assert client.api_key == "test-key"
 
     def test_create_kimi_code_anthropic_client(self):
@@ -174,9 +174,9 @@ class TestKimiProviders:
                 "kimi-code-anthropic": {"key": "test-key"}
             }
         }
-        client, provider, model = create_llm_client_for("kimi-code-anthropic", "kimi-cache-test", cfg)
+        client, provider, model = create_llm_client_for("kimi-code-anthropic", "kimi-for-coding", cfg)
         assert provider == "kimi-code-anthropic"
-        assert model == "kimi-cache-test"
+        assert model == "kimi-for-coding"
         assert client.api_key == "test-key"
 
 

@@ -1,5 +1,5 @@
 """
-Gatekeeper 管理器 —— 结界主宰
+Gatekeeper 管理器 —— 守护进程管理器
 在主进程中控制守护进程的启动、停止与状态查询。
 """
 import os
@@ -9,10 +9,11 @@ import json
 import signal
 import subprocess
 from pathlib import Path
+from fr_cli.conf.paths import DAEMON_PID_FILE, DAEMON_STOP_FILE, DAEMON_CONFIG_FILE
 
-PID_FILE = Path.home() / ".fr_cli_gatekeeper.pid"
-STOP_FILE = Path.home() / ".fr_cli_gatekeeper.stop"
-DAEMON_CONFIG_FILE = Path.home() / ".fr_cli_gatekeeper.json"
+PID_FILE = DAEMON_PID_FILE
+STOP_FILE = DAEMON_STOP_FILE
+DAEMON_CONFIG_FILE = DAEMON_CONFIG_FILE
 
 
 class GatekeeperManager:

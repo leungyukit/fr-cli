@@ -3,11 +3,12 @@
 负责本地技能的扫描、动态落盘与沙盒执行
 """
 import re, subprocess, sys
+from fr_cli.conf.paths import PLUGIN_DIR
 from pathlib import Path
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import RED, DIM, RESET
 
-PLUGIN_DIR = Path.home() / ".zhipu_cli_plugins"
+PLUGIN_DIR = PLUGIN_DIR  # from fr_cli.conf.paths
 
 def init_plugins():
     """扫描并初始化本地插件字典 {名字: 绝对路径}"""

@@ -44,26 +44,39 @@ def _fetch_mcp_desc(mcp_manager):
 
 def handle_ai_chat(state, u):
     """处理 AI 正常对话流程"""
+    # MasterAgent 自我进化主控模式接管（ReAct 循环 + 自主工具调用）
+    if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
+        final_answer, _ = state.master_agent.handle(u)
+        if final_answer:
+            print(final_answer)
+        return
+
     lang = state.lang
     prompt = u
     if state.vfs.cwd:
         prompt += T("ctx_dir", lang, state.vfs.cwd)
 
-    # 意图判定：先快速关键词预检，未命中再让大模型判定
-    tools = get_available_tools(state.weapon_tools, state.plugins)
-    # 将 MCP 外部神通纳入意图判定视野
-    mcp_manager = getattr(state, "mcp", None)
-    mcp_tools_summary = _fetch_mcp_tools(mcp_manager)
-    if mcp_tools_summary:
-        tools.append({
-            "name": "mcp_tools",
-            "description": "MCP 外部神通: " + ", ".join([t["name"] for t in mcp_tools_summary]),
-            "commands": ["mcp_call"],
-        })
-    if should_force_tool(u):
-        intent = "TOOL"
+    # 根据 UI 模式决定是否注入工具
+    if getattr(state, 'ui_mode', 'dev') == 'chat':
+        # 纯对话模式：不注入任何工具
+        intent = "CHAT"
+        tools = []
     else:
-        intent = classify_intent(state, u, tools, lang)
+        # 开发模式：正常注入工具
+        tools = get_available_tools(state.weapon_tools, state.plugins)
+        # 将 MCP 外部工具纳入意图判定视野
+        mcp_manager = getattr(state, "mcp", None)
+        mcp_tools_summary = _fetch_mcp_tools(mcp_manager)
+        if mcp_tools_summary:
+            tools.append({
+                "name": "mcp_tools",
+                "description": "MCP 外部工具: " + ", ".join([t["name"] for t in mcp_tools_summary]),
+                "commands": ["mcp_call"],
+            })
+        if should_force_tool(u):
+            intent = "TOOL"
+        else:
+            intent = classify_intent(state, u, tools, lang)
 
     # ---------- 思维推演（CoT / ToT / ReAct）----------
     reasoning_text = None
@@ -71,15 +84,9 @@ def handle_ai_chat(state, u):
         from fr_cli.core.thinking import ThinkingEngine
         engine = ThinkingEngine()
         if engine.is_valid_mode(state.thinking_mode):
-            # CoT / ToT 需要额外一次非流式调用
+            # CoT / ToT 需要额外一次流式调用（思维过程已展示给用户）
             if state.thinking_mode in ("cot", "tot"):
-                mode_label = "思维链" if state.thinking_mode == "cot" else "思维树"
-                print(f"{DIM}🧠 启用 {mode_label} 推演...{RESET}")
                 reasoning_text = engine.analyze(state, u, state.thinking_mode, intent, lang)
-                if reasoning_text:
-                    # 打印推理摘要（前200字符）
-                    preview = reasoning_text[:200].replace('\n', ' ')
-                    print(f"{DIM}   推演完成: {preview}...{RESET}")
             elif state.thinking_mode == "react":
                 reasoning_text = engine.analyze(state, u, "react", intent, lang)
 
@@ -87,7 +94,7 @@ def handle_ai_chat(state, u):
         tools_info = "\n\n当前可用的工具列表：\n"
         for i, tool in enumerate(tools, 1):
             tools_info += f"{i}. {tool['name']}: {tool['description']}\n   可用命令: {', '.join(tool['commands'])}\n"
-        # 注入 MCP 外部神通
+        # 注入 MCP 外部工具
         mcp_manager = getattr(state, "mcp", None)
         mcp_desc = _fetch_mcp_desc(mcp_manager)
         if mcp_desc:
@@ -112,17 +119,21 @@ def handle_ai_chat(state, u):
    若不同来源存在冲突，请以最新/最权威来源为准，或明确标注不确定性。
 """
         sp = T("sys_prompt", lang)
-        system_content = sp + tools_info + state.context_summary
+
+        # 注入项目级上下文（persona.md / agents/ / config.json）
+        from fr_cli.core.project import build_project_context_injection
+        project_ctx = build_project_context_injection(state)
+
+        system_content = sp + tools_info + state.context_summary + project_ctx
     else:
         sp = T("sys_prompt", lang)
         system_content = sp + state.context_summary
 
     # 注入思维推演结果
-    if reasoning_text:
-        if state.thinking_mode in ("cot", "tot"):
-            system_content += f"\n\n[系统提示：以下是你之前的深度推演结果，请在最终回答中参考这些分析]\n\n{reasoning_text}\n"
-        elif state.thinking_mode == "react":
-            system_content += reasoning_text
+    if reasoning_text and state.thinking_mode == "react":
+        # 只有 react 模式需要注入 system prompt（因为用户看不到）
+        system_content += reasoning_text
+    # cot/tot 的 reasoning_text 已经流式展示给用户，不需要再注入
 
     # 更新系统提示词
     updated_messages = copy.deepcopy(state.messages)
@@ -149,14 +160,23 @@ def handle_ai_chat(state, u):
         return
 
     # 流式调用 AI
-    txt, usage, response_time = stream_cnt(
-        state.client, state.model_name, updated_messages, lang,
-        max_tokens=state.limit
-    )
+    from fr_cli.core.errors import friendly_print
+    try:
+        txt, usage, response_time, _ = stream_cnt(
+            state.client, state.model_name, updated_messages, lang,
+            max_tokens=state.limit
+        )
+    except Exception as e:
+        print(f"{RED}{friendly_print(e)}{RESET}")
+        return
     updated_messages.append({"role": "assistant", "content": txt})
 
     # 自动执行 AI 响应中的命令
-    clean_txt, cmd_results = state.executor.process_ai_commands(txt, updated_messages)
+    try:
+        clean_txt, cmd_results = state.executor.process_ai_commands(txt, updated_messages)
+    except Exception as e:
+        print(f"{RED}{friendly_print(e)}{RESET}")
+        clean_txt, cmd_results = txt, []
 
     # 显示 AI 响应（去除命令标记后的内容）
     if clean_txt.strip():
@@ -164,7 +184,7 @@ def handle_ai_chat(state, u):
 
     # 显示命令执行结果，并再次调用 AI
     if cmd_results:
-        print(f"\n{CYAN}🤖 自动执行命令:{RESET}")
+        print(f"\n{GREEN}自动执行命令:{RESET}")
         for result in cmd_results:
             print(f"{DIM}{result}{RESET}")
 
@@ -198,9 +218,9 @@ def handle_ai_chat(state, u):
             )
             updated_messages.append({"role": "system", "content": save_hint})
 
-        sys.stdout.write(f"{CYAN}{T('prompt_ai', lang)}{RESET} ")
+        sys.stdout.write(f"{GREEN}{T('prompt_ai', lang)} ")
         sys.stdout.flush()
-        final_txt, final_usage, final_response_time = stream_cnt(
+        final_txt, final_usage, final_response_time, _ = stream_cnt(
             state.client, state.model_name, updated_messages, lang,
             custom_prefix="", max_tokens=state.limit
         )
@@ -217,61 +237,21 @@ def handle_ai_chat(state, u):
         input_tokens = usage.get('prompt_tokens', 0)
         output_tokens = usage.get('completion_tokens', 0)
         total_tokens = usage.get('total_tokens', 0)
-        print(f"{DIM}📊 模型: {state.model_name} | 输入: {input_tokens} tokens | 输出: {output_tokens} tokens | 总计: {total_tokens} tokens | 耗时: {response_time:.2f}秒{stats_extra}{RESET}")
+        print(f"{GREEN}模型: {state.model_name} | 输入: {input_tokens} tokens | 输出: {output_tokens} tokens | 总计: {total_tokens} tokens | 耗时: {response_time:.2f}秒{stats_extra}{RESET}")
     else:
-        print(f"{DIM}📊 模型: {state.model_name} | 耗时: {response_time:.2f}秒{stats_extra}{RESET}")
+        print(f"{GREEN}模型: {state.model_name} | 耗时: {response_time:.2f}秒{stats_extra}{RESET}")
 
     # 智能功能推荐
     recommendations = recommend_features(u)
     if recommendations:
-        print(f"{CYAN}💡 推荐功能:{RESET}")
+        print(f"{GREEN}推荐功能:{RESET}")
         for i, rec in enumerate(recommendations[:5], 1):
             print(f"  {DIM}[{i}]{RESET} {CYAN}{rec['cmd']}{RESET} - {rec['desc']}")
 
-    # 智能法宝进化检测（插件）
-    if "def run(args='')" in txt and "```python" in txt:
-        code = extract_code(txt)
-        if code and "def run" in code and len(code) > 50:
-            pname = input(f"{YELLOW}{T('artifact_detect', lang)}{RESET}").strip()
-            if pname:
-                safe_name = "".join(c for c in pname if c.isalnum() or c == '_')
-                if not safe_name:
-                    print(f"{RED}名称无效，仅允许字母/数字/下划线{RESET}")
-                elif state.security.check("sec_write", f"/{safe_name}"):
-                    PLUGIN_DIR.mkdir(parents=True, exist_ok=True)
-                    p_path = PLUGIN_DIR / f"{safe_name}.py"
-                    p_path.write_text(code, encoding='utf-8')
-                    state.plugins[safe_name] = str(p_path)
-                    print(f"{GREEN}{T('ok_forged', lang, safe_name)}{RESET}")
-
-    # 智能 Agent 分身检测
-    if "def run(context," in txt and "```python" in txt:
-        code = extract_code(txt)
-        if code and "def run(context," in code and len(code) > 50:
-            aname = input(f"{YELLOW}⚡ 检测到 Agent 分身结构，赐名 (回车放弃): {RESET}").strip()
-            if aname:
-                safe_name = "".join(c for c in aname if c.isalnum() or c == '_')
-                if not safe_name:
-                    print(f"{RED}名称无效，仅允许字母/数字/下划线{RESET}")
-                else:
-                    from fr_cli.agent.manager import create_agent_dir, save_agent_code, save_persona, save_skills, agent_exists
-                    if agent_exists(safe_name):
-                        confirm = input(f"{YELLOW}Agent [{safe_name}] 已存在，是否覆盖? [y/N]: {RESET}").strip().lower()
-                        if confirm not in ("y", "yes"):
-                            print(f"{DIM}已取消。{RESET}")
-                        else:
-                            d = create_agent_dir(safe_name)
-                            save_agent_code(safe_name, code)
-                            print(f"{GREEN}✅ Agent [{safe_name}] 已覆盖更新。{RESET}")
-                            print(f"{DIM}  路径: {d}{RESET}")
-                    else:
-                        d = create_agent_dir(safe_name)
-                        save_agent_code(safe_name, code)
-                        save_persona(safe_name, f"#{safe_name}\n\n由 AI 对话铸造的 Agent 分身。")
-                        save_skills(safe_name, "## 技能\n\n- 执行自定义 Python 逻辑\n- 入口: run(context, **kwargs)")
-                        print(f"{GREEN}✅ Agent [{safe_name}] 铸造完成！{RESET}")
-                        print(f"{DIM}  路径: {d}{RESET}")
-                        print(f"{DIM}  运行: /agent_run {safe_name} [参数]{RESET}")
+    # 智能插件进化检测 & Agent 分身检测（统一入口）
+    from fr_cli.agent.artifact_detector import detect_plugin_artifact, detect_agent_artifact
+    detect_plugin_artifact(txt, lang, state)
+    detect_agent_artifact(txt, lang, state)
 
     # 更新记忆上下文
     recent = extract_recent_turns(updated_messages, 5)
@@ -286,6 +266,14 @@ def handle_ai_chat(state, u):
         path = create_session(state.messages)
         if path:
             state.auto_session_path = path
-            print(f"{DIM}📁 自动会话已创建: {Path(path).name}{RESET}")
+            print(f"{DIM}自动会话已创建: {Path(path).name}{RESET}")
     else:
         update_session(state.auto_session_path, state.messages)
+
+    # 返回统计信息供底部状态栏使用
+    return {
+        "response_time": response_time,
+        "input_tokens": usage.get('prompt_tokens', 0) if usage else 0,
+        "output_tokens": usage.get('completion_tokens', 0) if usage else 0,
+        "total_tokens": usage.get('total_tokens', 0) if usage else 0,
+    }

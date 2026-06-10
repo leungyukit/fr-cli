@@ -1,2 +1,5 @@
 include fr_cli/WEAPON.MD
 include fr_cli/README.md
+include fr_cli/assets/*.jpeg
+include fr_cli/assets/*.png
+include fr_cli/assets/*.jpg

@@ -1,14 +1,15 @@
 """
-会话轮回管理引擎
+会话会话管理引擎
 负责对话历史的本地保存、加载、删除与 Markdown 导出
 """
 import json, os
+from fr_cli.conf.paths import SESSIONS_MANUAL_DIR
 from pathlib import Path
 from datetime import datetime
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import RED, RESET
 
-HIST_DIR = Path.home() / ".zhipu_cli_history"
+HIST_DIR = SESSIONS_MANUAL_DIR  # from fr_cli.conf.paths
 
 def init_history():
     """确保历史目录存在"""
@@ -31,7 +32,7 @@ def get_sessions():
     return sess
 
 def save_sess(name, msgs):
-    """保存当前对话到轮回石"""
+    """保存当前对话到会话石"""
     init_history()
     safe_name = "".join(c for c in name if c.isalnum() or c in ('_', '-'))
     ts = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -46,7 +47,7 @@ def save_sess(name, msgs):
         return False
 
 def load_sess(index, sp):
-    """从轮回石中加载指定索引的会话"""
+    """从会话石中加载指定索引的会话"""
     ss = get_sessions()
     if not ss or index >= len(ss): return False, None, None
     fp = HIST_DIR / ss[index]["file"]
@@ -65,7 +66,7 @@ def load_sess(index, sp):
         return False, None, None
 
 def del_sess(index):
-    """斩断一段因果(删除会话)"""
+    """删除一段因果(删除会话)"""
     ss = get_sessions()
     if not ss or index >= len(ss): return
     fp = HIST_DIR / ss[index]["file"]

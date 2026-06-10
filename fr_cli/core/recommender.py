@@ -1,10 +1,44 @@
 """
 智能功能推荐系统
-根据用户输入推荐相关功能
+根据用户输入推荐相关功能，按使用频率排序
 """
+import json
+from pathlib import Path
+
+_COMMAND_USAGE_FILE = Path.home() / ".fr_cli" / "command_usage.json"
+
+
+def _load_usage():
+    if _COMMAND_USAGE_FILE.exists():
+        try:
+            with open(_COMMAND_USAGE_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+
+def _save_usage(usage):
+    _COMMAND_USAGE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    with open(_COMMAND_USAGE_FILE, "w", encoding="utf-8") as f:
+        json.dump(usage, f, indent=2, ensure_ascii=False)
+
+
+def record_command_usage(cmd):
+    """记录命令使用频率"""
+    usage = _load_usage()
+    usage[cmd] = usage.get(cmd, 0) + 1
+    _save_usage(usage)
+
+
+def _base_cmd(cmd_str):
+    """提取命令字符串中的基础命令（去掉参数）"""
+    return cmd_str.split()[0] if cmd_str else ""
+
 
 def recommend_features(user_input):
-    """根据用户输入推荐相关功能"""
+    """根据用户输入推荐相关功能，按使用频率排序"""
+    usage = _load_usage()
     recommendations = []
     input_lower = user_input.lower()
 
@@ -68,4 +102,6 @@ def recommend_features(user_input):
         recommendations.append({"cmd": "!<command>", "desc": "执行系统命令"})
         recommendations.append({"cmd": "!<cmd> | <prompt>", "desc": "命令输出管道到AI"})
 
+    # 按使用频率排序（频率高的置顶）
+    recommendations.sort(key=lambda x: usage.get(_base_cmd(x["cmd"]), 0), reverse=True)
     return recommendations

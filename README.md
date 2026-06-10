@@ -13,7 +13,7 @@
 - **DeepSeek**: DeepSeek-Chat 等
 - **Kimi (Moonshot)**: moonshot-v1-8k 等
 - **Kimi K2**: 代码优化版 kimi-k2-0905-preview
-- **Kimi Code**: 代码平台 kimi-cache-test (Kimi 会员)
+- **Kimi Code**: 代码平台 kimi-for-coding (Kimi 会员)
 - **通义千问 (Qwen)**: qwen-turbo 等
 - **阶跃星辰 (StepFun)**: step-1-8k, step-2-16k, step-3-auto 等
 - **Step-Audio**: 实时语音交互
@@ -165,7 +165,7 @@ python3 main.py
 /security        查看安全设置
 ```
 
-## � Hermes 核心功能
+## 🧠 Hermes 核心功能
 
 ### 📋 任务管理
 ```
@@ -230,7 +230,7 @@ fr acp
 }
 ```
 
-## �📦 支持的模型提供商（25+）
+## 🤖 支持的模型提供商（25+）
 
 | 道统 | 默认模型 | API 地址 |
 |------|---------|----------|
@@ -240,7 +240,7 @@ fr acp
 | deepseek | deepseek-chat | api.deepseek.com |
 | kimi | moonshot-v1-8k | api.moonshot.cn |
 | kimi-k2 | kimi-k2-0905-preview | api.moonshot.cn |
-| kimi-code | kimi-cache-test | api.kimi.com/coding/v1 |
+| kimi-code | kimi-for-coding | api.kimi.com/coding/v1 |
 | qwen | qwen-turbo | dashscope.aliyuncs.com |
 | stepfun | step-1-8k | api.stepfun.com |
 | step-1 | step-1-8k | api.stepfun.com |
@@ -292,8 +292,60 @@ fr_cli/
 
 ## 📚 文档
 
-- [NEW_PROVIDERS_GUIDE.md](NEW_PROVIDERS_GUIDE.md) - 新增模型使用指南
-- [A2A_AND_PROVIDERS_GUIDE.md](A2A_AND_PROVIDERS_GUIDE.md) - A2A 协议文档
+- [AGENTS.md](AGENTS.md) - 面向 AI 编码助手的项目架构与开发指南
+
+## 📂 配置目录
+
+| 路径 | 说明 |
+|------|------|
+| `~/.zhipu_cli_config.json` | 主配置文件 |
+| `~/.zhipu_cli_history/` | 会话历史记录 |
+| `~/.zhipu_cli_plugins/` | 用户插件目录 |
+| `~/.zhipu_cli_context.json` | 上下文记忆 |
+| `~/.fr_cli_agents/` | Agent 分身目录 |
+| `~/.fr_cli_sessions/` | 按日期自动存档的会话 |
+| `~/.fr_cli_master/` | MasterAgent 记忆与进化记录 |
+| `~/.fr_cli_remotes.json` | 远程主机配置 |
+| `~/.fr_cli_databases.json` | 数据库连接配置 |
+| `~/.fr_cli_rag_db/` | RAG 向量库（ChromaDB）|
+
+## ❓ 常见问题
+
+**Q: 如何切换思维模式?**
+```bash
+/mode direct   # 直接回复
+/mode cot      # 思维链
+/mode tot      # 思维树
+/mode react    # ReAct
+```
+
+**Q: 如何保存会话?**
+```bash
+/save my-session
+/load
+/export
+```
+
+**Q: 如何查看历史记录?**
+```bash
+/history
+/session_list
+```
+
+**Q: 邮件发送失败?**
+- QQ/163 邮箱需使用「授权码」而非登录密码
+- 授权码在邮箱设置 → 账户 → 开启 IMAP/SMTP 服务后生成
+
+**Q: 搜索功能无法使用?**
+```bash
+pip install requests
+```
+
+**Q: 云盘功能无法使用?**
+```bash
+pip install aligo   # 阿里云盘
+```
+首次使用需运行 `/disk_setup` 完成扫码登录。
 
 ## 📄 License
 

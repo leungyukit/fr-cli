@@ -1,5 +1,5 @@
 """
-天眼视觉引擎
+图像视觉引擎
 对接智谱 CogView 画图与 GLM-4V 看图能力
 """
 from fr_cli.lang.i18n import T

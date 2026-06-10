@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import DAEMON_TOKEN_FILE
 #!/usr/bin/env python3
 """
 Hermes 守护进程 - 后台服务接收终端命令
@@ -8,9 +9,14 @@ import os
 import sys
 import json
 import time
+import secrets
 import subprocess
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
+
+# 需要鉴权的写操作端点（POST/PUT）
+_PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+
 
 class HermesDaemon:
     """Hermes 守护进程 - 后台服务"""
@@ -23,12 +29,36 @@ class HermesDaemon:
         self.goals = []
         self.analytics = {"requests": 0, "tokens": 0, "cost": 0.0}
         self.running = True
+        # 启动时生成 Bearer Token，持久化到 ~/.fr_cli_hermes.token
+        self.token = self._load_or_create_token()
+
+    @staticmethod
+    def _load_or_create_token() -> str:
+        token_file = DAEMON_TOKEN_FILE
+        if os.path.exists(token_file):
+            try:
+                with open(token_file, "r") as f:
+                    tok = f.read().strip()
+                    if tok:
+                        return tok
+            except Exception:
+                pass
+        tok = secrets.token_urlsafe(24)
+        try:
+            with open(token_file, "w") as f:
+                f.write(tok)
+            os.chmod(token_file, 0o600)
+        except Exception:
+            pass
+        return tok
 
     def start(self):
         """启动守护进程"""
         server = HTTPServer((self.host, self.port), HermesHandler)
         server.daemon = self
         print(f"🧚 Hermes 守护进程已启动: http://{self.host}:{self.port}")
+        print(f"🔑 Bearer Token: {self.token}")
+        print(f"   (已保存到 ~/.fr_cli_hermes.token，权限 600)")
         print("📡 监听命令中...")
 
         while self.running:
@@ -50,9 +80,29 @@ class HermesHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode())
 
+    def _check_auth(self) -> bool:
+        """校验 Bearer Token，写操作端点必须鉴权。"""
+        if self.command not in _PROTECTED_METHODS:
+            return True
+        # /health 等只读 GET 不在此处处理；/info GET 也不需要
+        expected = getattr(self.server.daemon, "token", "")
+        if not expected:
+            return False
+        auth = self.headers.get("Authorization", "")
+        if not auth.startswith("Bearer "):
+            self.send_json(401, {"error": "Missing Authorization: Bearer <token>"})
+            return False
+        provided = auth[len("Bearer "):].strip()
+        # 恒定时间比较，避免时序攻击
+        if not secrets.compare_digest(provided, expected):
+            self.send_json(403, {"error": "Invalid token"})
+            return False
+        return True
+
     def do_GET(self):
         daemon = self.server.daemon
 
+        # 健康检查和能力清单是公开的，方便外部探测
         if self.path == "/health":
             self.send_json(200, {"status": "ok", "daemon": "hermes", "version": "2.3.2"})
         elif self.path == "/info":
@@ -93,6 +143,8 @@ class HermesHandler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not Found", "hint": "访问 /capabilities 查看所有端点"})
 
     def do_POST(self):
+        if not self._check_auth():
+            return
         daemon = self.server.daemon
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode() if length > 0 else "{}"
@@ -132,15 +184,28 @@ class HermesHandler(BaseHTTPRequestHandler):
             self.send_json(200, {"id": goal_id, "status": "created"})
 
         elif self.path == "/execute":
-            cmd = data.get("command", "")
+            import shlex
+            cmd = data.get("command", "").strip()
+            if not cmd:
+                self.send_json(400, {"error": "command is required"})
+                return
             try:
-                result = subprocess.run(cmd, shell=True, capture_output=True, text=True, timeout=30)
+                try:
+                    cmd_list = shlex.split(cmd)
+                except ValueError as ve:
+                    self.send_json(400, {"error": f"命令解析失败: {ve}"})
+                    return
+                if not cmd_list:
+                    self.send_json(400, {"error": "空命令"})
+                    return
+                result = subprocess.run(cmd_list, shell=False, capture_output=True, text=True, timeout=30)
                 self.send_json(200, {
                     "output": result.stdout,
                     "error": result.stderr,
                     "returncode": result.returncode,
-                    "duration": f"{result.returncode}s"
                 })
+            except subprocess.TimeoutExpired:
+                self.send_json(408, {"error": "命令执行超时（30秒）"})
             except Exception as e:
                 self.send_json(500, {"error": str(e)})
 
@@ -163,6 +228,8 @@ class HermesHandler(BaseHTTPRequestHandler):
             self.send_json(404, {"error": "Not Found"})
 
     def do_PUT(self):
+        if not self._check_auth():
+            return
         daemon = self.server.daemon
         length = int(self.headers.get("Content-Length", 0))
         body = self.rfile.read(length).decode() if length > 0 else "{}"

@@ -1,5 +1,5 @@
 """
-Agent 生成器 —— 分身铸造炉
+Agent 生成器 —— 分身创建炉
 利用大模型能力，根据用户需求自动生成完整的 Agent（人设、技能、代码）
 """
 import sys
@@ -34,7 +34,7 @@ Agent 名称: {name}
    - 'memory': str — 记忆文本
    - 'skills': str — 技能文本
    - 'client': LLM 客户端实例（已根据 Agent 专属配置或全局默认初始化）
-   - 'provider': str — 当前使用的道统/提供商 ID（如 'zhipu', 'deepseek'）
+   - 'provider': str — 当前使用的提供商/提供商 ID（如 'zhipu', 'deepseek'）
    - 'model': str — 模型名称
    - 'lang': str — 语言代码（'zh' 或 'en'）
    - 'executor': CommandExecutor 实例（可使用 invoke_tool/execute 调用工具）
@@ -81,9 +81,9 @@ def generate_agent(client, model, name: str, description: str, lang: str = "zh")
     prompt = GENERATION_PROMPT_ZH.format(name=name, description=description)
     messages = [{"role": "user", "content": prompt}]
 
-    sys.stdout.write("🧙 正在铸造分身... ")
+    sys.stdout.write("🧙 正在创建分身... ")
     sys.stdout.flush()
-    raw, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
+    raw, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
 
     persona = _extract_section(raw, "---PERSONA_START---", "---PERSONA_END---")
     skills = _extract_section(raw, "---SKILLS_START---", "---SKILLS_END---")

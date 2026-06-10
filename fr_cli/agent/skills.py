@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import SKILLS_DIR
 """
 Skills 系统 - 参考 Hermes Agent 实现
 技能是 AI 自我学习的核心机制
@@ -59,7 +60,7 @@ class SkillManager:
 
     def __init__(self, skills_dir: str = None):
         if skills_dir is None:
-            skills_dir = os.path.expanduser("~/.fr_cli/skills")
+            skills_dir = SKILLS_DIR
         self.skills_dir = skills_dir
         self.skills: Dict[str, Skill] = {}
         self._load_skills()

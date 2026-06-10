@@ -15,10 +15,10 @@ kimi:
   base_url: "https://api.moonshot.cn/v1"
 
 kimi-code:
-  name: "Kimi Code"
+  name: "Kimi Code (代码平台)"
   model: "kimi-for-coding"
   client: "OpenAICompatibleClient"
-  base_url: "https://api.moonshot.cn/v1"
+  base_url: "https://api.kimi.com/coding/v1"
 
 deepseek:
   name: "DeepSeek"

@@ -4,11 +4,12 @@
 让每个会话拥有独立的短期记忆
 """
 import json
+from fr_cli.conf.paths import CONTEXT_FILE
 import re
 from pathlib import Path
 from datetime import datetime
 
-CONTEXT_FILE = Path.home() / ".zhipu_cli_context.json"
+CONTEXT_FILE = CONTEXT_FILE  # from fr_cli.conf.paths
 
 
 def extract_recent_turns(messages, n=5):

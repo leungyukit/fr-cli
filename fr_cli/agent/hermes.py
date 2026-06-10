@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import DAEMON_HERMES_CONFIG_FILE
 """
 Hermes 功能模块
 参考 NousResearch/hermes-agent 实现核心功能
@@ -224,7 +225,7 @@ class ConfigManager:
     def _load_config_file(self):
         """从配置文件加载"""
         config_paths = [
-            os.path.expanduser("~/.fr_cli/config.json"),
+            DAEMON_HERMES_CONFIG_FILE,
             os.path.expanduser("~/.hermes/config.json"),
             "./config.json"
         ]
@@ -235,7 +236,7 @@ class ConfigManager:
                     with open(path) as f:
                         data = json.load(f)
                         self.config.update(data)
-                except:
+                except Exception:
                     pass
 
     def get(self, key: str, default=None):
@@ -259,7 +260,7 @@ class ConfigManager:
 
     def save(self):
         """保存配置"""
-        path = os.path.expanduser("~/.fr_cli/config.json")
+        path = DAEMON_HERMES_CONFIG_FILE
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, 'w') as f:
             json.dump(self.config, f, indent=2)

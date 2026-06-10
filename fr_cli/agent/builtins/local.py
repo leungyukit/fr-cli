@@ -5,6 +5,7 @@
 import platform
 import shutil
 import subprocess
+import shlex
 
 LOCAL_SYS_PROMPT = """你是一个系统命令专家。请根据用户的操作系统类型和需求，生成最合适、最安全的系统命令。
 
@@ -56,7 +57,7 @@ def handle_local(user_input, state):
     ]
 
     print(f"{CYAN}🧙 正在分析本地操作...{RESET}")
-    cmd_text, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
+    cmd_text, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
     cmd_text = cmd_text.strip()
 
     # 清理可能的代码块
@@ -85,9 +86,9 @@ def handle_local(user_input, state):
             if ps_exe:
                 res = subprocess.run([ps_exe, "-Command", cmd_text], capture_output=True, text=True, timeout=30)
             else:
-                res = subprocess.run(cmd_text, shell=True, capture_output=True, text=True, timeout=30)
+                res = _run_cmd_safely(cmd_text, timeout=30, allow_shell=True)
         else:
-            res = subprocess.run(cmd_text, shell=True, capture_output=True, text=True, timeout=30)
+            res = _run_cmd_safely(cmd_text, timeout=30)
         out = res.stdout + res.stderr
         if out.strip():
             print(f"\n{GREEN}{out.strip()[:3000]}{RESET}")
@@ -103,3 +104,17 @@ def handle_local(user_input, state):
         print(f"{RED}⏱️ 命令执行超时（30秒）{RESET}")
     except Exception as e:
         print(f"{RED}❌ 执行失败: {e}{RESET}")
+
+
+def _run_cmd_safely(cmd_text: str, timeout: int = 30, allow_shell: bool = False):
+    """安全执行命令：POSIX 用 shlex.split + shell=False；仅在显式 allow_shell=True 时降级。"""
+    try:
+        cmd_list = shlex.split(cmd_text)
+    except ValueError:
+        # shlex 解析失败（包含未闭合引号等）—— 视情况降级
+        if allow_shell:
+            return subprocess.run(cmd_text, shell=True, capture_output=True, text=True, timeout=timeout)
+        return subprocess.CompletedProcess(args=cmd_text, returncode=1, stdout="", stderr="命令解析失败")
+    if not cmd_list:
+        return subprocess.CompletedProcess(args=cmd_text, returncode=1, stdout="", stderr="空命令")
+    return subprocess.run(cmd_list, shell=False, capture_output=True, text=True, timeout=timeout)

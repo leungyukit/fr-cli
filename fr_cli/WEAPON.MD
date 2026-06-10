@@ -243,7 +243,7 @@ Agent 能力类型:
   - DeepSeek: deepseek (deepseek-chat)
   - Kimi: kimi (moonshot-v1-8k)
   - Kimi K2: kimi-k2 (kimi-k2-0905-preview) - 代码优化版
-  - Kimi Code: kimi-code (kimi-cache-test) - 代码平台
+  - Kimi Code: kimi-code (kimi-for-coding) - 代码平台
   - 通义千问: qwen (qwen-turbo)
   - 阶跃星辰: stepfun (step-1-8k), step-1, step-2, step-3, step-audio
   - MiniMax: minimax (MiniMax-Text-01)

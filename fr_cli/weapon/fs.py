@@ -156,7 +156,7 @@ class VFS:
             return False, f"{RED}{e}{RESET}"
 
     def list_dirs(self, l):
-        """列出所有已挂载的工作目录（洞府）
+        """列出所有已挂载的工作目录（目录）
         
         Returns:
             (列表, None) 或 (None, 错误信息)

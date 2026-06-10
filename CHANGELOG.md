@@ -73,7 +73,7 @@
 | DeepSeek | deepseek | deepseek-chat |
 | Kimi | kimi | moonshot-v1-8k |
 | Kimi K2 | kimi-k2 | kimi-k2-0905-preview |
-| Kimi Code | kimi-code | kimi-cache-test |
+| Kimi Code | kimi-code | kimi-for-coding |
 | 通义千问 | qwen | qwen-turbo |
 | 阶跃星辰 | stepfun | step-1-8k |
 | Step-3 | step-3 | step-3-auto |

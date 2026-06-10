@@ -1,5 +1,5 @@
 """
-云端腾云引擎
+云盘引擎
 支持阿里云盘（aligo）的文件及目录结构获取、上传、下载
 """
 import os
@@ -90,7 +90,7 @@ class CloudDisk:
 
         self._cwd = file_info["file_id"]
         self._cwd_stack.append((file_info["file_id"], path))
-        return True, f"{GREEN}✅ 已穿梭至: {path}{RESET}"
+        return True, f"{GREEN}✅ 已切换至: {path}{RESET}"
 
     def up(self, local_path, cloud_name, lang):
         """本地文件上传至当前云盘目录"""

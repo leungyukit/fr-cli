@@ -1,7 +1,7 @@
 """
 远程 Agent 管理 —— 配置其他用户电脑中已启用 API 的 fr-cli Agent
 
-配置文件: ~/.fr_cli_remote_agents.json
+配置文件: ~/.fr_cli/remote/agents.json
 格式:
 {
     "agent_name": {
@@ -13,9 +13,10 @@
 }
 """
 import json
+from fr_cli.conf.paths import REMOTE_AGENTS_FILE
 from pathlib import Path
 
-REMOTE_AGENTS_FILE = Path.home() / ".fr_cli_remote_agents.json"
+REMOTE_AGENTS_FILE = REMOTE_AGENTS_FILE  # from fr_cli.conf.paths
 
 
 def _load_remote_agents():

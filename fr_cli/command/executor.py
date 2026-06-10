@@ -71,9 +71,53 @@ class CommandExecutor:
     # ------------------------------------------------------------------
     # 第一层：结构化工具调用
     # ------------------------------------------------------------------
-    def invoke_tool(self, tool_name, kwargs, msgs=None):
-        """根据工具名和结构化参数，通过注册表调度执行。返回 (result, error)"""
-        return self._reg.dispatch(self._get_deps(), tool_name, msgs=msgs, **kwargs)
+    def invoke_tool(self, tool_name, kwargs, msgs=None, skip_security=False):
+        """根据工具名和结构化参数，通过注册表调度执行。返回 (result, error)
+
+        Args:
+            skip_security: 跳过安全确认。默认为 False（走 sec_* 检查）。
+        """
+        return self._reg.dispatch(
+            self._get_deps(), tool_name, msgs=msgs, skip_security=skip_security, **kwargs
+        )
+
+    def peek_ai_commands(self, ai_response):
+        """Dry-run：解析 AI 响应中所有调用标记，返回人类可读的描述列表（不执行）。
+
+        用于在执行前让用户先看到 AI 想做什么（尤其适用于 ! shell | prompt 这类
+        半可信上下文的递归 LLM 调用），避免提示词注入触发破坏性操作。
+
+        Returns:
+            list[str]: 每个元素形如 "tool_name 关键参数摘要"，为空列表表示无命令。
+        """
+        descriptions = []
+
+        # 格式 1：【调用：...】
+        for tool_name, arg_str, _marker in self._extract_tool_calls(ai_response):
+            kwargs = self._parse_tool_kwargs(arg_str)
+            if kwargs is None:
+                descriptions.append(f"{tool_name} (参数解析失败)")
+                continue
+            # 高亮关键参数
+            key_params = []
+            for k in ("path", "url", "query", "to", "name", "prompt", "command", "subject"):
+                if k in kwargs and kwargs[k]:
+                    val = str(kwargs[k])
+                    if len(val) > 50:
+                        val = val[:47] + "..."
+                    key_params.append(f"{k}={val}")
+            extra = "  ".join(key_params) if key_params else str(arg_str)[:50]
+            descriptions.append(f"{tool_name}({extra})")
+
+        # 格式 2：【命令：...】
+        for m in re.finditer(r'【命令：(.*?)】', ai_response):
+            descriptions.append(f"/{m.group(1).strip()[:80]}")
+
+        # 格式 3：file_operations/xxx
+        for m in re.finditer(r'file_operations\s*/(\w+)\s+(\S+)', ai_response):
+            descriptions.append(f"/{m.group(1)} {m.group(2)[:60]}")
+
+        return descriptions
 
     # ------------------------------------------------------------------
     # 第二层：传统命令解析（用户输入 / 插件调用）
@@ -145,7 +189,7 @@ class CommandExecutor:
             val_str = val_str.replace('\\r', '\r')
             val_str = val_str.replace(QUOTE_PH, '"')
             result[key] = val_str
-        return result if result is not None else None
+        return result
 
     def _parse_tool_kwargs(self, arg_str):
         """安全解析工具参数字符串（JSON 或 Python dict）"""
@@ -225,7 +269,7 @@ class CommandExecutor:
             i = end + 1
         return calls
 
-    def process_ai_commands(self, ai_response, msgs=None):
+    def process_ai_commands(self, ai_response, msgs=None, skip_security=False):
         """
         解析AI响应中的调用标记并自动执行
         支持三种格式：
@@ -233,9 +277,15 @@ class CommandExecutor:
           2. 【命令：/command args】（插件 / 兼容命令）
           3. file_operations/xxx（兼容旧模型输出）
         返回 (clean_response, cmd_results)
+
+        Args:
+            skip_security: 跳过安全确认。默认 False（会走 sec_* 检查）。
+                调用方在已经做过人工确认后传 True。
         """
         results = []
         markers_to_remove = []
+        # 记录已覆盖的 span，用于格式 3 中 plain 模式去重 quoted 模式已匹配的文本
+        markers_to_remove_spans = []
 
         # ===== 格式1：【调用：...】 =====
         for tool_name, arg_str, marker in self._extract_tool_calls(ai_response):
@@ -244,7 +294,7 @@ class CommandExecutor:
                 results.append(f"❌ 参数解析失败: {tool_name}\n   原始参数: {arg_str}")
                 markers_to_remove.append(marker)
                 continue
-            result, error = self.invoke_tool(tool_name, kwargs, msgs)
+            result, error = self.invoke_tool(tool_name, kwargs, msgs, skip_security=skip_security)
             if error:
                 results.append(f"❌ 工具调用失败: {tool_name}\n   {error}")
             else:
@@ -256,6 +306,8 @@ class CommandExecutor:
         for m in re.finditer(pattern_cmd, ai_response):
             cmd_str = m.group(1).strip()
             marker = m.group(0)
+            # 【命令：...】 走 execute → _dispatch_cmd_parts → 内部 skip_security=True
+            # 这是历史行为（AI 命令串默认放行），保留兼容；调用方已可通过 peek_ai_commands 提前确认
             result, error = self.execute(cmd_str, msgs)
             if error:
                 results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
@@ -277,12 +329,18 @@ class CommandExecutor:
             else:
                 results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {result}")
             markers_to_remove.append(m.group(0))
+            markers_to_remove_spans.append(m.span())
         for m in re.finditer(pattern2_plain, ai_response, re.MULTILINE):
             action = m.group(1)
             args = m.group(2).strip()
             if args.startswith('"') and args.endswith('"'):
                 args = args[1:-1]
-            already = any(m.group(0) in mk for mk in markers_to_remove)
+            # 用 span 判定是否已被前面的 quoted 模式覆盖，避免重复执行
+            m_span = m.span()
+            already = any(
+                (mk_span[0] <= m_span[0] and mk_span[1] >= m_span[1])
+                for mk_span in markers_to_remove_spans
+            )
             if already:
                 continue
             cmd_str = f"/{action} {args}"
@@ -292,6 +350,7 @@ class CommandExecutor:
             else:
                 results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {result}")
             markers_to_remove.append(m.group(0))
+            markers_to_remove_spans.append(m_span)
 
         # 清理回复文本：移除命令标记后，仅压缩因移除标记产生的连续多余空行，并去除首尾空白
         clean_response = ai_response

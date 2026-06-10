@@ -3,8 +3,9 @@
 支持 MySQL / PostgreSQL / SQL Server / Oracle 的 Schema 分析和 SQL 生成。
 """
 from pathlib import Path
+from fr_cli.conf.paths import DATABASE_FILE
 
-DB_CFG_PATH = Path.home() / ".fr_cli_databases.json"
+DB_CFG_PATH = DATABASE_FILE  # from fr_cli.conf.paths
 
 DB_SYS_PROMPT = """你是一个数据库专家。请根据以下数据库 Schema 信息和用户需求，生成最合适的 SQL 语句。
 
@@ -104,8 +105,12 @@ def _get_schema_info(conn, db_type):
         cursor.execute("SELECT table_name FROM information_schema.tables WHERE table_type = 'BASE TABLE'")
         tables = [r[0] for r in cursor.fetchall()]
         for table in tables:
+            # 防御：表名可能含特殊字符（罕见但合法），用参数化
             info.append(f"\n表: {table}")
-            cursor.execute(f"SELECT column_name, data_type FROM information_schema.columns WHERE table_name = '{table}'")
+            cursor.execute(
+                "SELECT column_name, data_type FROM information_schema.columns WHERE table_name = ?",
+                (table,),
+            )
             for col in cursor.fetchall():
                 info.append(f"  {col[0]} {col[1]}")
     elif db_type == "oracle":
@@ -113,19 +118,57 @@ def _get_schema_info(conn, db_type):
         tables = [r[0] for r in cursor.fetchall()]
         for table in tables:
             info.append(f"\n表: {table}")
-            cursor.execute(f"SELECT column_name, data_type FROM user_tab_columns WHERE table_name = '{table}' ORDER BY column_id")
+            # Oracle: 表名是 Oracle 标识符；用绑定变量同样安全
+            cursor.execute(
+                "SELECT column_name, data_type FROM user_tab_columns WHERE table_name = :t ORDER BY column_id",
+                {"t": table},
+            )
             for col in cursor.fetchall():
                 info.append(f"  {col[0]} {col[1]}")
 
     return "\n".join(info)
 
 
+def _has_multiple_statements(sql: str) -> bool:
+    """检测 SQL 是否包含多条语句（启发式：去掉字符串字面量后是否还有 ;）
+
+    用于阻断 SELECT 1; DELETE FROM users 这类多语句注入。
+    末尾的 ; 不算（先 rstrip 掉）。
+    """
+    # 先去掉末尾空白和分号
+    sql_stripped = sql.rstrip(" \t\r\n;")
+
+    cleaned = []
+    in_string = False
+    escape = False
+    quote_char = None
+    for ch in sql_stripped:
+        if escape:
+            escape = False
+            continue
+        if ch == "\\" and in_string:
+            escape = True
+            continue
+        if in_string:
+            if ch == quote_char:
+                in_string = False
+            continue
+        if ch in ("'", '"'):
+            in_string = True
+            quote_char = ch
+            continue
+        cleaned.append(ch)
+    return ";" in "".join(cleaned)
+
+
 def _exec_sql(conn, sql, db_type):
     """执行 SQL 并返回结果"""
     cursor = conn.cursor()
     try:
-        # 限制只执行单条语句，防止注入
-        sql = sql.strip().rstrip(";")
+        sql = sql.strip()
+        if _has_multiple_statements(sql):
+            return None, "禁止执行多条 SQL 语句（检测到语句分隔符 ';'）"
+        sql = sql.rstrip(";")
         cursor.execute(sql)
 
         # 如果是 SELECT，返回结果集
@@ -199,7 +242,7 @@ def handle_db(user_input, state):
         ]
 
         print(f"{CYAN}🧙 正在生成 SQL...{RESET}")
-        sql_text, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
+        sql_text, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
         sql_text = sql_text.strip()
 
         from fr_cli.agent.builtins._utils import strip_code_blocks

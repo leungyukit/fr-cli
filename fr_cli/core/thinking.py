@@ -181,30 +181,36 @@ class ThinkingEngine:
             return self._get_react_enhancement(lang)
 
     def _run_cot(self, state, user_input, lang):
-        """执行思维链推演（额外一次 LLM 调用）"""
+        """执行思维链推演（额外一次 LLM 调用，流式输出）"""
         from fr_cli.core.stream import stream_cnt
+        from fr_cli.ui.ui import DIM, RESET
 
         prompt_template = COT_PROMPT_ZH if lang == "zh" else COT_PROMPT_EN
         prompt = prompt_template.format(question=user_input)
         messages = [{"role": "user", "content": prompt}]
 
-        txt, _, _ = stream_cnt(
+        hint = "🧠 正在深度思考..." if lang == "zh" else "🧠 Deep thinking..."
+        print(f"{DIM}{hint}{RESET}")
+        txt, _, _, _ = stream_cnt(
             state.client, state.model_name, messages, lang,
-            custom_prefix="", max_tokens=2048, silent=True
+            custom_prefix="", max_tokens=2048, silent=False
         )
         return txt.strip() if txt else None
 
     def _run_tot(self, state, user_input, lang):
-        """执行思维树推演（额外一次 LLM 调用）"""
+        """执行思维树推演（额外一次 LLM 调用，流式输出）"""
         from fr_cli.core.stream import stream_cnt
+        from fr_cli.ui.ui import DIM, RESET
 
         prompt_template = TOT_PROMPT_ZH if lang == "zh" else TOT_PROMPT_EN
         prompt = prompt_template.format(question=user_input)
         messages = [{"role": "user", "content": prompt}]
 
-        txt, _, _ = stream_cnt(
+        hint = "🧠 正在深度思考..." if lang == "zh" else "🧠 Deep thinking..."
+        print(f"{DIM}{hint}{RESET}")
+        txt, _, _, _ = stream_cnt(
             state.client, state.model_name, messages, lang,
-            custom_prefix="", max_tokens=2048, silent=True
+            custom_prefix="", max_tokens=2048, silent=False
         )
         return txt.strip() if txt else None
 

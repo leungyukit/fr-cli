@@ -1,3 +1,4 @@
+from fr_cli.conf.paths import GATEWAY_FILE
 """
 Gateway 功能 - 多平台消息网关
 参考 Hermes Agent 实现
@@ -34,7 +35,7 @@ class GatewayManager:
     """网关管理器"""
 
     def __init__(self):
-        self.config_file = os.path.expanduser("~/.fr_cli/gateway.json")
+        self.config_file = GATEWAY_FILE
         self.platforms: Dict[str, GatewayConfig] = {}
         self._load_config()
         self._running = False

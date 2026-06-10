@@ -1,5 +1,5 @@
 """
-邮差精灵 (IMAP/SMTP)
+邮件客户端 (IMAP/SMTP)
 """
 import re
 from html.parser import HTMLParser

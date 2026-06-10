@@ -41,7 +41,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，210 个测试全部通过 |
+| 测试 | `pytest`，137 个测试全部通过 |
 
 ---
 
@@ -64,7 +64,19 @@ fr-cli/
 │   │   ├── manager.py          # Agent 生命周期管理（创建/删除/列出/读写 MD 设定）
 │   │   ├── executor.py         # Agent 执行器（加载 persona/memory/skills 并调用 run）
 │   │   ├── workflow.py         # 工作流引擎（解析 workflow.md，步骤调度，模板变量）
-│   │   └── server.py           # HTTP 服务（将 Agent 发布为 REST API）
+│   │   ├── server.py           # HTTP 服务（将 Agent 发布为 REST API）
+│   │   ├── master.py           # MasterAgent 自我进化主控（ReAct 循环）
+│   │   ├── artifact_detector.py # AI 回复产物检测器（插件/Agent 自动检测）
+│   │   ├── workflow_system/    # 工作流系统（已模块化拆分）
+│   │   │   ├── models.py       # 数据结构（Node/Edge/Execution）
+│   │   │   ├── engine.py       # 工作流引擎核心
+│   │   │   ├── manager.py      # 工作流管理器
+│   │   │   ├── executor.py     # 工作流执行器
+│   │   │   ├── monitor.py      # 监控与可视化
+│   │   │   └── tools.py        # 模板与工具函数
+│   │   ├── image_and_parallel.py # 图片生成与并行执行
+│   │   ├── coding_helper.py    # 代码辅助助手（理解/编辑/计划/Git/审查/辅导）
+│   │   └── a2a.py              # A2A（Agent-to-Agent）协议实现
 │   ├── repl/
 │   │   └── commands.py         # 40 个命令处理器（从 main.py 提取，架构解耦）
 │   ├── addon/
@@ -84,7 +96,10 @@ fr-cli/
 │   │   ├── recommender.py      # 功能推荐引擎
 │   │   └── sysmon.py           # 系统状态监控
 │   ├── lang/
-│   │   └── i18n.py             # 国际化：硬编码 zh/en 双语字典
+│   │   ├── i18n.py             # 国际化核心（T() 函数）
+│   │   └── translations/       # 翻译数据（已模块化拆分）
+│   │       ├── zh.py           # 中文翻译字典
+│   │       └── en.py           # 英文翻译字典
 │   ├── memory/
 │   │   ├── history.py          # 会话历史保存、加载、删除、导出 Markdown
 │   │   └── context.py          # 上下文记忆：最近 5 轮摘要注入 system prompt
@@ -111,13 +126,12 @@ fr-cli/
 │   ├── fr_cli-2.0.0-py3-none-any.whl
 │   └── fr-cli-README.md
 ├── tests/
-│   ├── test_all.py             # 单元测试
-│   ├── test_integration.py     # 集成测试
-│   ├── test_structured_tools.py # 结构化工具调用测试
-│   ├── test_agent_server.py    # Agent HTTP 服务测试
-│   ├── test_builtins.py        # 内置 Agent 测试
-│   ├── test_dataframe.py       # 数据卷轴测试
-│   ├── test_launcher.py        # 本地应用启动器测试
+│   ├── test_a2a_and_providers.py   # A2A 协议与多提供商测试
+│   ├── test_integration_real.py    # 集成测试（配置/LLM/Agent/工作流）
+│   ├── test_master_prompt_fix.py   # MasterAgent Prompt 格式修复测试
+│   ├── test_model_config.py        # 模型配置与 LLM 客户端测试
+│   ├── test_new_features.py        # 新特性测试（图片/并行/工作流）
+│   ├── test_new_providers.py       # 新提供商测试（MiniMax/Kimi）
 │   └── run_live_demo.py
 ├── structure.py                # 打包脚本（旧版，与当前源码不同步）
 └── .venv/                      # Python 3.13 虚拟环境
@@ -652,14 +666,13 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 
 项目已有完整测试套件：
 
-- `tests/test_all.py` — 单元测试
-- `tests/test_integration.py` — 集成测试
-- `tests/test_structured_tools.py` — 结构化工具调用测试
-- `tests/test_agent_server.py` — Agent HTTP 服务测试（启动/停止/Agent 执行/工作流/CORS）
-- `tests/test_launcher.py` — 本地应用启动器测试
-- `tests/test_builtins.py` — 内置 Agent 测试（远程配置/爬虫工具）
-- `tests/test_dataframe.py` — 数据卷轴测试
-- 总计 **210 个测试全部通过**
+- `tests/test_a2a_and_providers.py` — A2A 协议与多提供商测试
+- `tests/test_integration_real.py` — 集成测试（配置/LLM/Agent/工作流）
+- `tests/test_master_prompt_fix.py` — MasterAgent Prompt 格式修复测试
+- `tests/test_model_config.py` — 模型配置与 LLM 客户端测试
+- `tests/test_new_features.py` — 新特性测试（图片/并行/工作流）
+- `tests/test_new_providers.py` — 新提供商测试（MiniMax/Kimi）
+- 总计 **137 个测试全部通过**
 
 测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、Gatekeeper
 
