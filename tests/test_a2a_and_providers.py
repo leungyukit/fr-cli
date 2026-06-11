@@ -27,6 +27,8 @@ class TestStepFunProviders:
         assert info["name"] == "阶跃星辰 (StepFun)"
         assert info["default_model"] == "step-1-8k"
         assert info["base_url"] == "https://api.stepfun.com/v1"
+        assert info["token_plan_base_url"] == "https://api.stepfun.com/step_plan/v1"
+        assert info["is_token_plan"] is False
 
     def test_step_1_provider_exists(self):
         """验证 step-1 provider 存在"""
@@ -59,6 +61,29 @@ class TestStepFunProviders:
         assert info["name"] == "Step-Audio (实时语音)"
         assert info["default_model"] == "step-audio-2"
         assert info["base_url"] == "https://api.stepfun.com/v1"
+
+    def test_stepfun_step_plan_provider_exists(self):
+        """验证 stepfun-step-plan provider 存在"""
+        assert "stepfun-step-plan" in _PROVIDERS
+        info = _PROVIDERS["stepfun-step-plan"]
+        assert info["name"] == "阶跃星辰 Step Plan"
+        assert info["default_model"] == "step-3-auto"
+        assert info["base_url"] == "https://api.stepfun.com/step_plan/v1"
+        assert info["token_plan_base_url"] == "https://api.stepfun.com/step_plan/v1"
+        assert info["is_token_plan"] is True
+
+    def test_create_stepfun_step_plan_client(self):
+        """测试创建 StepFun Step Plan 客户端"""
+        cfg = {
+            "providers": {
+                "stepfun-step-plan": {"key": "test-key"}
+            }
+        }
+        client, provider, model = create_llm_client_for("stepfun-step-plan", "step-3-auto", cfg)
+        assert provider == "stepfun-step-plan"
+        assert model == "step-3-auto"
+        assert client.api_key == "test-key"
+        assert str(client._client.base_url).rstrip('/') == "https://api.stepfun.com/step_plan/v1"
 
     def test_create_stepfun_client(self):
         """测试创建 StepFun 客户端"""
@@ -98,6 +123,7 @@ class TestStepFunProviderManagement:
         assert "step-2" in provider_ids
         assert "step-3" in provider_ids
         assert "step-audio" in provider_ids
+        assert "stepfun-step-plan" in provider_ids
 
     def test_get_stepfun_provider_info(self):
         """验证可以获取 StepFun provider 的信息"""

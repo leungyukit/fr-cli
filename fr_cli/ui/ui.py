@@ -3,11 +3,21 @@
 """
 import sys, time, platform, os
 
-# ANSI 颜色与样式常量
-RESET = '\033[0m'; BOLD = '\033[1m'; DIM = '\033[2m'
-RED = '\033[91m'; GREEN = '\033[92m'; YELLOW = '\033[93m'
-BLUE = '\033[94m'; MAGENTA = '\033[95m'; CYAN = '\033[96m'; WHITE = '\033[97m'
-CODE_BG = '\033[48;5;236m'; CODE_FG = '\033[38;5;255m'
+# ── NO_COLOR 支持 ──
+# 若环境变量 NO_COLOR 设置（非空），则禁用所有 ANSI 颜色
+# 同时检测非 TTY 环境（管道/重定向）自动禁用
+_NO_COLOR = os.environ.get("NO_COLOR") or not sys.stdout.isatty()
+
+if _NO_COLOR:
+    RESET = BOLD = DIM = ""
+    RED = GREEN = YELLOW = BLUE = MAGENTA = CYAN = WHITE = ""
+    CODE_BG = CODE_FG = ""
+else:
+    RESET = '\033[0m'; BOLD = '\033[1m'; DIM = '\033[2m'
+    RED = '\033[91m'; GREEN = '\033[92m'; YELLOW = '\033[93m'
+    BLUE = '\033[94m'; MAGENTA = '\033[95m'; CYAN = '\033[96m'; WHITE = '\033[97m'
+    MAROON = '\033[38;5;88m'  # 酒红色 / Burgundy
+    CODE_BG = '\033[48;5;236m'; CODE_FG = '\033[38;5;255m'
 
 # 动画用的字符集
 C_HALF = r"!@#$%^&*()_+-=[]{}|;:<>?/~0123456789ABCDEFabcdef"
@@ -31,8 +41,9 @@ def safe_clear():
     sys.stdout.flush()
 
 def is_wide(c):
-    """判断字符是否为全角字符（用于动画对齐）"""
-    return len(c.encode('utf-8')) > 1
+    """判断字符是否为全角字符（用于显示宽度计算）"""
+    import unicodedata
+    return unicodedata.east_asian_width(c) in ('F', 'W')
 
 def get_display_width(text):
     """计算字符串的实际显示宽度，考虑ANSI颜色代码和全角字符"""
@@ -47,70 +58,6 @@ def get_display_width(text):
         else:
             width += 1
     return width
-
-def print_banner(mn, tl, ad, sn, l, provider="zhipu"):
-    """打印启动时的小乌龟从左向右爬行动画"""
-
-    # 乌龟身体（6行）
-    turtle_body = [
-        '      _____',
-        "   .-' o o '-.",
-        '  /           \\',
-        ' |     ___     |',
-        '  \\   /   \\   /',
-        "   `-._____.-'",
-    ]
-
-    # 三帧腿部姿态（每帧2行腿部）
-    turtle_frames = [
-        turtle_body + ['    /  \\   /  \\ ', '   /    \\ /    \\'],
-        turtle_body + ['    |  |   |  |  ', '   /    \\ /    \\'],
-        turtle_body + ['    \\  /   \\  / ', '   /    \\ /    \\'],
-    ]
-
-    total_lines = len(turtle_frames[0])  # 8 行
-
-    # 爬行路径：从左到右，共 8 个位置，每步 3 格
-    positions = [0, 3, 6, 9, 12, 15, 18, 21]
-
-    # 打印初始空白占位
-    print("\n" * total_lines)
-
-    # 爬行动画：每个位置循环三帧腿部
-    for pos in positions:
-        for frame in turtle_frames:
-            sys.stdout.write(f"\033[{total_lines}A")
-            for line in frame:
-                # 整体右移 pos 格，加绿色
-                padded = " " * pos + line
-                sys.stdout.write(f"\033[K{GREEN}{padded}{RESET}\n")
-            sys.stdout.flush()
-            time.sleep(0.15)
-
-    # 最终定格：再显示一帧（停顿一下）
-    sys.stdout.write(f"\033[{total_lines}A")
-    for line in turtle_frames[0]:
-        padded = " " * positions[-1] + line
-        sys.stdout.write(f"\033[K{GREEN}{padded}{RESET}\n")
-    sys.stdout.flush()
-    time.sleep(0.3)
-
-    # 显示标题
-    if l == "zh":
-        print(f"\n{CYAN}{BOLD}  凡 人 打 字 机 {RESET}")
-        print(f"  【 修 仙 者 的 编 码 引 擎 】\n")
-    else:
-        print(f"\n{CYAN}{BOLD}  F A N R E N  C L I  T O O L{RESET}")
-        print(f"  [ Advanced Code Engine v1.0 ]\n")
-
-    uf = (l == "zh")
-    ds = f"{GREEN}{ad}{RESET}" if ad else f"{RED}{('未设置目录' if uf else 'No dir')}{RESET}"
-    ss = f"{MAGENTA}{sn}{RESET}" if sn else f"{DIM}{'全新会话' if uf else 'New'}{RESET}"
-    pv = f"  {'🏛️ 提供商' if uf else 'Provider'}: {CYAN}{provider}{RESET}"
-    i1 = f"  {'🔮 模型' if uf else 'Model'}: {GREEN}{BOLD}{mn}{RESET}  |  {'🛡️ 上限' if uf else 'Limit'}: {YELLOW}{tl}{RESET}"
-    i2 = f"  {'📂 目录' if uf else 'Dir'}: {ds}  |  {'⏳ 会话' if uf else 'Sess'}: {ss}"
-    bl = max(get_display_width(pv), get_display_width(i1), get_display_width(i2)) + 4
-    print(f"{MAGENTA}┌{'─'*bl}┐{RESET}\n{MAGENTA}│{RESET}{pv}{' '*(bl-get_display_width(pv)-2)}{MAGENTA}│{RESET}\n{MAGENTA}│{RESET}{i1}{' '*(bl-get_display_width(i1)-2)}{MAGENTA}│{RESET}\n{MAGENTA}│{RESET}{i2}{' '*(bl-get_display_width(i2)-2)}{MAGENTA}│{RESET}\n{MAGENTA}└{'─'*bl}┘{RESET}\n")
 
 def print_bye():
     """打印退出动画"""

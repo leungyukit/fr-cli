@@ -1001,8 +1001,9 @@ class TestBoundaryAndEdgeCases:
             CONFIG_BACKUP.write_text("{also bad", encoding="utf-8")
 
             loaded = load_config()
-            assert loaded["provider"] == "zhipu"
-            assert loaded["model"] == "glm-4-flash"
+            # provider/model 默认不写入配置，由用户显式配置
+            assert "provider" not in loaded
+            assert "model" not in loaded
             assert "providers" in loaded
         finally:
             if original_file is not None:

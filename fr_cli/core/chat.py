@@ -17,6 +17,7 @@ from fr_cli.core.recommender import recommend_features
 from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
+from fr_cli.ui.markdown import render_markdown
 from fr_cli.core.intent import should_force_tool, classify_intent, has_info_fetch_intent, has_save_intent
 
 
@@ -42,8 +43,24 @@ def _fetch_mcp_desc(mcp_manager):
     return ""
 
 
+def _fold_result(text: str, max_lines: int = 30, head: int = 15, tail: int = 5) -> str:
+    """长结果自动折叠：超过 max_lines 时只显示头部和尾部"""
+    lines = text.splitlines()
+    if len(lines) <= max_lines:
+        return text
+    head_lines = lines[:head]
+    tail_lines = lines[-tail:]
+    omitted = len(lines) - head - tail
+    return "\n".join(head_lines) + f"\n{DIM}  ... ({omitted} 行已折叠，使用 /cat 查看完整内容) ...{RESET}\n" + "\n".join(tail_lines)
+
+
 def handle_ai_chat(state, u):
     """处理 AI 正常对话流程"""
+    # 模型未配置时阻止调用
+    if not state.model_name:
+        print(f"{YELLOW}⚠️ 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
+        return
+
     # MasterAgent 自我进化主控模式接管（ReAct 循环 + 自主工具调用）
     if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
         final_answer, _ = state.master_agent.handle(u)
@@ -178,15 +195,16 @@ def handle_ai_chat(state, u):
         print(f"{RED}{friendly_print(e)}{RESET}")
         clean_txt, cmd_results = txt, []
 
-    # 显示 AI 响应（去除命令标记后的内容）
+    # 显示 AI 响应（去除命令标记后的内容，带 Markdown 渲染）
     if clean_txt.strip():
-        print(clean_txt)
+        print(render_markdown(clean_txt))
 
     # 显示命令执行结果，并再次调用 AI
     if cmd_results:
-        print(f"\n{GREEN}自动执行命令:{RESET}")
+        print(f"\n{GREEN}▸ 自动执行命令{RESET}")
         for result in cmd_results:
-            print(f"{DIM}{result}{RESET}")
+            folded = _fold_result(result)
+            print(f"{DIM}{folded}{RESET}")
 
         # 重构为【多源信息汇总】模式：将 AI 初步回答与所有工具结果结构化合并
         sources = []
@@ -233,13 +251,15 @@ def handle_ai_chat(state, u):
     # 显示模型信息和 token 使用情况
     sys_stats = get_sys_stats(lang)
     stats_extra = f" | {sys_stats}" if sys_stats else ""
+    # Token 统计（紧凑格式）
     if usage:
         input_tokens = usage.get('prompt_tokens', 0)
         output_tokens = usage.get('completion_tokens', 0)
         total_tokens = usage.get('total_tokens', 0)
-        print(f"{GREEN}模型: {state.model_name} | 输入: {input_tokens} tokens | 输出: {output_tokens} tokens | 总计: {total_tokens} tokens | 耗时: {response_time:.2f}秒{stats_extra}{RESET}")
+        usage_pct = f" ({total_tokens / state.limit * 100:.0f}%)" if state.limit else ""
+        print(f"{DIM}⏱ {response_time:.1f}s · {state.display_model} · ↓{input_tokens} ↑{output_tokens} Σ{total_tokens}{usage_pct}{stats_extra}{RESET}")
     else:
-        print(f"{GREEN}模型: {state.model_name} | 耗时: {response_time:.2f}秒{stats_extra}{RESET}")
+        print(f"{DIM}⏱ {response_time:.1f}s · {state.display_model}{stats_extra}{RESET}")
 
     # 智能功能推荐
     recommendations = recommend_features(u)
@@ -263,10 +283,10 @@ def handle_ai_chat(state, u):
 
     # 自动按日期存档会话
     if not state.auto_session_path:
-        path = create_session(state.messages)
+        path = create_session(state.messages, session_id=getattr(state, "session_id", None))
         if path:
             state.auto_session_path = path
-            print(f"{DIM}自动会话已创建: {Path(path).name}{RESET}")
+            print(f"{DIM}💾 {Path(path).name}{RESET}")
     else:
         update_session(state.auto_session_path, state.messages)
 

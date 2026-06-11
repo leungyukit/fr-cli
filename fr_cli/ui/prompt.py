@@ -62,8 +62,10 @@ class StatusState:
         """生成状态条文本（prompt_toolkit FormattedText 列表）"""
         from datetime import datetime
         parts = []
-        # 模型
-        if self.is_mock:
+        # 模型 / 提供商
+        if self.provider == "未配置" or self.model == "未配置":
+            parts.append(("class:status-red", "未配置"))
+        elif self.is_mock:
             parts.append(("class:status-yellow", f"mock/{self.model}"))
         else:
             parts.append(("class:status-cyan", f"{self.provider}/{self.model}"))
@@ -124,7 +126,7 @@ class FanRenCompleter(Completer):
         "list_sessions": "会话", "delete_session": "会话",
         "session_list": "会话", "session_load": "会话", "session_del": "会话",
         "save": "会话", "load": "会话", "del": "会话", "export": "会话",
-        "undo": "会话",
+        "undo": "会话", "new": "会话",
         # 文件/工作区
         "cat": "文件", "write": "文件",
         "append": "文件", "delete": "文件",
@@ -199,6 +201,7 @@ class FanRenCompleter(Completer):
         "undo": "/undo 2",
         "export": "/export",
         "recent": "/recent",
+        "new": "/new",
         # 网络/多模态
         "web": "/web Python 异步",
         "fetch": "/fetch https://example.com",

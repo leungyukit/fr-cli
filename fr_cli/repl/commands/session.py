@@ -122,3 +122,27 @@ def _cmd_session_del(state, parts):
     return False
 
 
+def _cmd_new(state, parts):
+    """开创新轮回 —— 重置会话、生成新 UUID、重新显示启动画面"""
+    from fr_cli.repl.bootstrap import print_startup_banner, load_system_prompt
+    from fr_cli.lang.i18n import T
+
+    # 1. 保存当前会话（若已有自动存档路径则已自动保存，无需额外操作）
+    # 2. 重置会话状态
+    state.reset_session()
+
+    # 3. 重新载入 system prompt
+    sp = T("sys_prompt", state.lang)
+    state.messages = [{"role": "system", "content": sp}]
+
+    # 4. 重新输出启动画面
+    print_startup_banner(state, state.cfg)
+
+    # 5. 显示当前状态摘要
+    print(f"{GREEN}✅ 已开启新会话 —— 轮回重置，道号焕然一新。{RESET}")
+    print(f"{DIM}   Session ID: {state.session_id}{RESET}")
+    print(f"{DIM}   工作目录: {getattr(state.vfs, 'cwd', '未配置')}{RESET}")
+    print(f"{DIM}   模型: {state.display_provider}/{state.display_model}{RESET}")
+    return False
+
+

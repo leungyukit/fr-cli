@@ -37,13 +37,19 @@ def _get_next_session_filename():
     return f"{today}_{next_num:02d}.json"
 
 
-def create_session(messages):
-    """创建新的自动会话文件，返回文件路径"""
+def create_session(messages, session_id=None):
+    """创建新的自动会话文件，返回文件路径
+    :param session_id: 若提供，以此 UUID 作为文件名（如 abc123.json）
+    """
     _ensure_dir()
-    fname = _get_next_session_filename()
+    if session_id:
+        fname = f"{session_id}.json"
+    else:
+        fname = _get_next_session_filename()
     fpath = SESSION_DIR / fname
     data = {
         "filename": fname,
+        "session_id": session_id,
         "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
         "messages": messages,

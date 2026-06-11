@@ -21,7 +21,7 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 if project_root not in sys.path:
     sys.path.insert(0, project_root)
 
-from fr_cli.ui.ui import enable_win_ansi, print_bye, DIM, RESET, YELLOW, BLUE
+from fr_cli.ui.ui import enable_win_ansi, print_bye, DIM, RESET, YELLOW
 from fr_cli.ui.banner import print_input_separator
 from fr_cli.ui.prompt import create_prompt
 from fr_cli.repl.bootstrap import bootstrap
@@ -32,7 +32,9 @@ from fr_cli.repl.actions import action_edit_last_ai, action_retry_last_user, act
 
 def main():
     enable_win_ansi()
-    cfg, state = bootstrap()
+    # 解析命令行参数
+    show_logo = "-logo" in sys.argv
+    cfg, state = bootstrap(show_logo=show_logo)
     if state is None:
         return
 
@@ -40,8 +42,8 @@ def main():
     prompt = create_prompt(state)
     state._prompt = prompt  # 供 scenario 等模块使用
     prompt.update_status(
-        model=state.model_name,
-        provider=state.provider,
+        model=state.display_model,
+        provider=state.display_provider,
         directory=cfg.get("allowed_dirs", [""])[0] if cfg.get("allowed_dirs") else "",
         session=state.sn,
         limit=state.limit,
@@ -73,10 +75,10 @@ def main():
         if not u:
             continue
 
-        # 时间戳
+        # 时间戳（简洁格式）
         input_time = datetime.now()
         time_str = input_time.strftime("%H:%M:%S")
-        print(f"{DIM}输入时间: {time_str}{RESET}")
+        print(f"{DIM}▸ {time_str}{RESET}")
 
         # 处理 e/r/u 动作（来自 TUI 快捷键）
         if u == "__ACTION__:edit":
@@ -112,9 +114,7 @@ def main():
             # 普通对话走队列（支持用户在 AI 回答期间继续输入）
             queue_mgr = state._queue_mgr
             if queue_mgr.is_processing:
-                print(f"{DIM}▍ {u}{RESET}")
-            else:
-                print(f"{BLUE}▍ {u}{RESET}")
+                print(f"{DIM}⏳ 已加入队列，AI 回答完成后自动处理...{RESET}")
             queue_mgr.process(u)
 
 

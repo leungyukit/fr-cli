@@ -36,127 +36,223 @@ class ModelFactory:
         return self
     
     def _get_default_config(self):
-        """获取默认配置"""
+        """获取默认配置 —— 每个 provider 包含常用模型列表，供 /model config 交互选择"""
         return {
             "zhipu": {
                 "name": "智谱",
                 "model": "glm-4-flash",
+                "models": ["glm-4-flash", "glm-4-plus", "glm-4", "glm-4v-plus", "glm-4-air", "glm-4-long"],
                 "client": "ZhipuLLMClient",
-                "base_url": None
+                "base_url": None,
+                "token_plan_base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+                "is_token_plan": False
+            },
+            "zhipu-coding": {
+                "name": "智谱 GLM Coding Plan",
+                "model": "glm-4.7",
+                "models": ["glm-4.7", "glm-5.1", "glm-4.5-air"],
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+                "token_plan_base_url": "https://open.bigmodel.cn/api/coding/paas/v4",
+                "is_token_plan": True
             },
             "kimi": {
                 "name": "Kimi (Moonshot)",
                 "model": "moonshot-v1-8k",
+                "models": ["moonshot-v1-8k", "moonshot-v1-32k", "moonshot-v1-128k"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.moonshot.cn/v1"
+                "base_url": "https://api.moonshot.cn/v1",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "kimi-k2": {
                 "name": "Kimi K2 (代码优化版)",
                 "model": "kimi-k2-0905-preview",
+                "models": ["kimi-k2-0905-preview"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.moonshot.cn/v1"
+                "base_url": "https://api.moonshot.cn/v1",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "kimi-code": {
                 "name": "Kimi Code (代码平台)",
                 "model": "kimi-for-coding",
+                "models": ["kimi-for-coding"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.kimi.com/coding/v1"
+                "base_url": "https://api.kimi.com/coding/v1",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "kimi-code-anthropic": {
                 "name": "Kimi Code (Anthropic兼容)",
                 "model": "kimi-for-coding",
+                "models": ["kimi-for-coding"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.kimi.com/coding/"
+                "base_url": "https://api.kimi.com/coding/",
+                "token_plan_base_url": None,
+                "is_token_plan": False
+            },
+            "openai": {
+                "name": "OpenAI",
+                "model": "gpt-4o-mini",
+                "models": ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo", "o1-mini", "o3-mini"],
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.openai.com/v1",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "deepseek": {
                 "name": "DeepSeek",
                 "model": "deepseek-chat",
+                "models": ["deepseek-chat", "deepseek-reasoner", "deepseek-coder"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.deepseek.com"
+                "base_url": "https://api.deepseek.com",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "qwen": {
                 "name": "通义千问",
                 "model": "qwen-turbo",
+                "models": ["qwen-turbo", "qwen-plus", "qwen-max", "qwen-coder-plus"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1"
+                "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "doubao": {
                 "name": "豆包 (Doubao)",
                 "model": "doubao-1-5-pro-32k-250115",
+                "models": ["doubao-1-5-pro-32k-250115", "doubao-1-5-lite-32k-250115"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://ark.cn-beijing.volces.com/api/v3"
+                "base_url": "https://ark.cn-beijing.volces.com/api/v3",
+                "token_plan_base_url": None,
+                "is_token_plan": False
             },
             "mimo": {
                 "name": "小米 MiMo",
                 "model": "mimo-v2-flash",
+                "models": ["mimo-v2-flash", "mimo-v2-pro"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.xiaomimimo.com/v1"
+                "base_url": "https://api.xiaomimimo.com/v1",
+                "token_plan_base_url": "https://token-plan-sgp.xiaomimimo.com/v1",
+                "is_token_plan": False
+            },
+            "mimo-token-plan": {
+                "name": "小米 MiMo (Token Plan)",
+                "model": "mimo-v2-flash",
+                "models": ["mimo-v2-flash", "mimo-v2-pro"],
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://token-plan-sgp.xiaomimimo.com/v1",
+                "token_plan_base_url": "https://token-plan-sgp.xiaomimimo.com/v1",
+                "is_token_plan": True
             },
             "minimax": {
                 "name": "MiniMax",
                 "model": "MiniMax-Text-01",
+                "models": ["MiniMax-Text-01", "MiniMax-M2.1", "abab6.5s-chat", "abab6.5t-chat"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.minimax.chat/v1"
+                "base_url": "https://api.minimax.io/v1",
+                "token_plan_base_url": "https://api.minimax.chat/v1",
+                "is_token_plan": False
             },
             "minimax-chat": {
                 "name": "MiniMax Chat",
                 "model": "abab6.5s-chat",
+                "models": ["abab6.5s-chat"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.minimax.chat/v1"
+                "base_url": "https://api.minimax.io/v1",
+                "token_plan_base_url": "https://api.minimax.chat/v1",
+                "is_token_plan": False
             },
             "minimax-m27": {
                 "name": "MiniMax M2.7 (Token Plan)",
                 "model": "MiniMax-M2.7",
+                "models": ["MiniMax-M2.7"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.minimax.chat/v1"
+                "base_url": "https://api.minimax.chat/v1",
+                "token_plan_base_url": "https://api.minimax.chat/v1",
+                "is_token_plan": True
             },
             "minimax-m27-fast": {
                 "name": "MiniMax M2.7-HighSpeed (Token Plan)",
                 "model": "MiniMax-M2.7-HighSpeed",
+                "models": ["MiniMax-M2.7-HighSpeed"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.minimax.chat/v1"
+                "base_url": "https://api.minimax.chat/v1",
+                "token_plan_base_url": "https://api.minimax.chat/v1",
+                "is_token_plan": True
             },
             "minimax-token-plan": {
                 "name": "MiniMax Token Plan (全模态)",
                 "model": "MiniMax-M2.7",
+                "models": ["MiniMax-M2.7"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.minimax.chat/v1"
+                "base_url": "https://api.minimax.chat/v1",
+                "token_plan_base_url": "https://api.minimax.chat/v1",
+                "is_token_plan": True
             },
             "stepfun": {
                 "name": "阶跃星辰 (StepFun)",
                 "model": "step-1-8k",
+                "models": ["step-1-8k", "step-1-32k", "step-1-128k", "step-2-16k", "step-3-auto", "step-3.7-flash"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.stepfun.com/v1"
+                "base_url": "https://api.stepfun.com/v1",
+                "token_plan_base_url": "https://api.stepfun.com/step_plan/v1",
+                "is_token_plan": False
             },
             "step-1": {
                 "name": "Step-1 (阶跃星辰)",
                 "model": "step-1-8k",
+                "models": ["step-1-8k"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.stepfun.com/v1"
+                "base_url": "https://api.stepfun.com/v1",
+                "token_plan_base_url": "https://api.stepfun.com/step_plan/v1",
+                "is_token_plan": False
             },
             "step-2": {
                 "name": "Step-2 (阶跃星辰)",
                 "model": "step-2-16k",
+                "models": ["step-2-16k"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.stepfun.com/v1"
+                "base_url": "https://api.stepfun.com/v1",
+                "token_plan_base_url": "https://api.stepfun.com/step_plan/v1",
+                "is_token_plan": False
             },
             "step-3": {
                 "name": "Step-3 (阶跃星辰)",
                 "model": "step-3-auto",
+                "models": ["step-3-auto"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.stepfun.com/v1"
+                "base_url": "https://api.stepfun.com/v1",
+                "token_plan_base_url": "https://api.stepfun.com/step_plan/v1",
+                "is_token_plan": False
             },
             "step-audio": {
                 "name": "Step-Audio (实时语音)",
                 "model": "step-audio-2",
+                "models": ["step-audio-2"],
                 "client": "OpenAICompatibleClient",
-                "base_url": "https://api.stepfun.com/v1"
+                "base_url": "https://api.stepfun.com/v1",
+                "token_plan_base_url": "https://api.stepfun.com/step_plan/v1",
+                "is_token_plan": False
+            },
+            "stepfun-step-plan": {
+                "name": "阶跃星辰 Step Plan",
+                "model": "step-3-auto",
+                "models": ["step-3-auto", "step-2-16k", "step-1-8k", "step-3.7-flash"],
+                "client": "OpenAICompatibleClient",
+                "base_url": "https://api.stepfun.com/step_plan/v1",
+                "token_plan_base_url": "https://api.stepfun.com/step_plan/v1",
+                "is_token_plan": True
             },
             "ernie": {
                 "name": "文心一言",
                 "model": "ernie-bot-4",
+                "models": ["ernie-bot-4", "ernie-bot-4-turbo", "ernie-speed-128k"],
                 "client": "WenxinLLMClient",
-                "base_url": None
+                "base_url": None,
+                "token_plan_base_url": None,
+                "is_token_plan": False
             }
         }
     
@@ -223,6 +319,8 @@ def build_models_dict() -> Dict[str, Dict]:
             "default_model": config.get("model", "glm-4-flash"),
             "client_class": client_map.get(config.get("client", "OpenAICompatibleClient"), "OpenAICompatibleClient"),
             "base_url": config.get("base_url"),
+            "token_plan_base_url": config.get("token_plan_base_url"),
+            "is_token_plan": config.get("is_token_plan", False),
         }
     
     return result

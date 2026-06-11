@@ -134,6 +134,7 @@ fr_cli/repl/commands/system.py
 fr_cli/security/security.py
 fr_cli/ui/banner.py
 fr_cli/ui/buddha.py
+fr_cli/ui/markdown.py
 fr_cli/ui/prompt.py
 fr_cli/ui/splash.py
 fr_cli/ui/ui.py

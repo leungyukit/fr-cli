@@ -1,39 +1,119 @@
 # 模型配置文件
 # 凡人打字机 fr-cli 模型配置
 # 编辑此文件来添加/修改/删除模型提供商
+# 说明：
+#   - base_url: 一般 API 调用使用的 Base URL
+#   - token_plan_base_url: Token Plan / 订阅套餐使用的 Base URL（若与普通调用不同）
+#   - is_token_plan: 标记该 provider 是否为 Token Plan 变体，创建客户端时会优先使用 token_plan_base_url
 
 zhipu:
   name: "智谱"
   model: "glm-4-flash"
   client: "ZhipuLLMClient"
   base_url: null
+  token_plan_base_url: "https://open.bigmodel.cn/api/coding/paas/v4"
+  is_token_plan: false
+
+zhipu-coding:
+  name: "智谱 GLM Coding Plan"
+  model: "glm-4.7"
+  client: "OpenAICompatibleClient"
+  base_url: "https://open.bigmodel.cn/api/coding/paas/v4"
+  token_plan_base_url: "https://open.bigmodel.cn/api/coding/paas/v4"
+  is_token_plan: true
 
 kimi:
   name: "Kimi"
   model: "moonshot-v1-8k"
   client: "OpenAICompatibleClient"
   base_url: "https://api.moonshot.cn/v1"
+  token_plan_base_url: null
+  is_token_plan: false
 
 kimi-code:
   name: "Kimi Code (代码平台)"
   model: "kimi-for-coding"
   client: "OpenAICompatibleClient"
   base_url: "https://api.kimi.com/coding/v1"
+  token_plan_base_url: null
+  is_token_plan: false
+
+openai:
+  name: "OpenAI"
+  model: "gpt-4o-mini"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.openai.com/v1"
+  token_plan_base_url: null
+  is_token_plan: false
 
 deepseek:
   name: "DeepSeek"
   model: "deepseek-chat"
   client: "OpenAICompatibleClient"
   base_url: "https://api.deepseek.com"
+  token_plan_base_url: null
+  is_token_plan: false
 
 qwen:
   name: "通义千问"
   model: "qwen-turbo"
   client: "OpenAICompatibleClient"
   base_url: "https://dashscope.aliyuncs.com/compatible-mode/v1"
+  token_plan_base_url: null
+  is_token_plan: false
+
+mimo:
+  name: "小米 MiMo"
+  model: "mimo-v2-flash"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.xiaomimimo.com/v1"
+  token_plan_base_url: "https://token-plan-sgp.xiaomimimo.com/v1"
+  is_token_plan: false
+
+mimo-token-plan:
+  name: "小米 MiMo (Token Plan)"
+  model: "mimo-v2-flash"
+  client: "OpenAICompatibleClient"
+  base_url: "https://token-plan-sgp.xiaomimimo.com/v1"
+  token_plan_base_url: "https://token-plan-sgp.xiaomimimo.com/v1"
+  is_token_plan: true
+
+minimax:
+  name: "MiniMax"
+  model: "MiniMax-Text-01"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.minimax.io/v1"
+  token_plan_base_url: "https://api.minimax.chat/v1"
+  is_token_plan: false
+
+minimax-token-plan:
+  name: "MiniMax Token Plan"
+  model: "MiniMax-M2.7"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.minimax.chat/v1"
+  token_plan_base_url: "https://api.minimax.chat/v1"
+  is_token_plan: true
+
+stepfun:
+  name: "阶跃星辰"
+  model: "step-1-8k"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.stepfun.com/v1"
+  token_plan_base_url: "https://api.stepfun.com/step_plan/v1"
+  is_token_plan: false
+
+stepfun-step-plan:
+  name: "阶跃星辰 Step Plan"
+  model: "step-3-auto"
+  client: "OpenAICompatibleClient"
+  base_url: "https://api.stepfun.com/step_plan/v1"
+  token_plan_base_url: "https://api.stepfun.com/step_plan/v1"
+  is_token_plan: true
 
 ernie:
   name: "文心一言"
   model: "ernie-bot-4"
   client: "WenxinLLMClient"
   base_url: null
+  token_plan_base_url: null
+  is_token_plan: false

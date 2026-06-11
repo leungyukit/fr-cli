@@ -52,7 +52,7 @@ def _cmd_model(state, parts):
 
     # ---------- 子命令处理 ----------
     if arg1 in ("list", "ls"):
-        print(f"{CYAN}当前模型: [{state.provider}] {state.model_name}{RESET}")
+        print(f"{CYAN}当前模型: [{state.provider}] {state.display_model}{RESET}")
         print(f"\n{DIM}可用模型列表:{RESET}")
         for i, p in enumerate(providers, 1):
             marker = " [当前]" if p["id"] == state.provider else ""
@@ -67,7 +67,7 @@ def _cmd_model(state, parts):
         name = info.get("name", state.provider) if info else state.provider
         print(f"{CYAN}当前模型:{RESET}")
         print(f"  提供商: {CYAN}{state.provider}{RESET} — {name}")
-        print(f"  模型:   {CYAN}{state.model_name}{RESET}")
+        print(f"  模型:   {CYAN}{state.display_model}{RESET}")
         print(f"  Key:    {GREEN}已配置{RESET}" if _provider_has_key(state, state.provider) else f"  Key:    {RED}未配置{RESET}")
         return False
 
@@ -76,12 +76,15 @@ def _cmd_model(state, parts):
         default_model = info.get("default_model", "glm-4-flash") if info else "glm-4-flash"
         ok = state.update_model(default_model)
         if ok:
-            print(f"{GREEN}已恢复默认: [{state.provider}] {state.model_name}{RESET}")
+            print(f"{GREEN}已恢复默认: [{state.provider}] {state.display_model}{RESET}")
             if hasattr(state, '_prompt') and state._prompt:
-                state._prompt.update_status(model=state.model_name, provider=state.provider)
+                state._prompt.update_status(model=state.display_model, provider=state.display_provider)
         else:
             print(f"{RED}恢复默认失败{RESET}")
         return False
+
+    if arg1 == "config":
+        return _cmd_model_config(state)
 
     if arg1 in ("set", "use", "switch"):
         arg2 = parts[2] if len(parts) > 2 else ""
@@ -92,7 +95,7 @@ def _cmd_model(state, parts):
 
     # ---------- 交互式选择（无参数）----------
     if not arg1:
-        print(f"{CYAN}当前模型: [{state.provider}] {state.model_name}{RESET}")
+        print(f"{CYAN}当前模型: [{state.provider}] {state.display_model}{RESET}")
         print(f"\n{DIM}可用模型列表（输入编号或名称切换）:{RESET}")
 
         for i, p in enumerate(providers, 1):
@@ -134,9 +137,9 @@ def _cmd_model(state, parts):
 
     ok = state.update_model(arg1)
     if ok:
-        print(f"{GREEN}已切换: [{state.provider}] {state.model_name}{RESET}")
+        print(f"{GREEN}已切换: [{state.provider}] {state.display_model}{RESET}")
         if hasattr(state, '_prompt') and state._prompt:
-            state._prompt.update_status(model=state.model_name, provider=state.provider)
+            state._prompt.update_status(model=state.display_model, provider=state.display_provider)
         if not _provider_has_key(state, state.provider):
             print(f"{YELLOW}注意: [{state.provider}] 尚未配置 API Key{RESET}")
             try:
@@ -150,6 +153,124 @@ def _cmd_model(state, parts):
                 print(f"{RED}未输入 Key，[{state.provider}] 可能无法正常使用{RESET}")
     else:
         print(f"{RED}无效的提供商或模型: {arg1}{RESET}")
+    return False
+
+
+
+def _cmd_model_config(state):
+    """交互式模型配置向导 —— /model config
+
+    流程:
+      1. 列出所有 provider，让用户选择
+      2. 列出该 provider 下的可用模型，让用户选择
+      3. 设置完成后自动切换并保存
+      4. 任意步骤输入 q / 空回车 / Ctrl+C 退出
+    """
+    from fr_cli.core.llm import list_providers, get_provider_info
+    providers = list_providers()
+    if not providers:
+        print(f"{RED}❌ 没有可用的模型提供商{RESET}")
+        return False
+
+    print()
+    print(f"{CYAN}╔{'═' * 50}╗{RESET}")
+    print(f"{CYAN}║{'🧙  模型配置向导':^48}║{RESET}")
+    print(f"{CYAN}╚{'═' * 50}╝{RESET}")
+
+    # ── 第一步：选择 Provider ──
+    print(f"\n{DIM}第一步：选择模型提供商{RESET}")
+    print(f"{DIM}输入编号选择，或输入 q / 回车退出{RESET}\n")
+    for i, p in enumerate(providers, 1):
+        marker = f" {YELLOW}👈 当前{RESET}" if p["id"] == state.provider else ""
+        has_key = _provider_has_key(state, p["id"])
+        key_status = f"{GREEN}✓{RESET}" if has_key else f"{RED}✗{RESET}"
+        print(f"  {CYAN}[{i}]{RESET} {key_status} {p['id']} — {p['name']}{DIM} (默认: {p['default_model']}){RESET}{marker}")
+
+    try:
+        choice = input(f"\n{YELLOW}👉 Provider 编号 (q/回车退出): {RESET}").strip()
+    except (EOFError, KeyboardInterrupt):
+        print(f"\n{DIM}已取消。{RESET}")
+        return False
+
+    if not choice or choice.lower() == "q":
+        print(f"{DIM}已取消。{RESET}")
+        return False
+
+    if not choice.isdigit():
+        print(f"{RED}❌ 请输入有效编号{RESET}")
+        return False
+
+    idx = int(choice) - 1
+    if idx < 0 or idx >= len(providers):
+        print(f"{RED}❌ 编号超出范围，有效范围: 1-{len(providers)}{RESET}")
+        return False
+
+    selected_provider = providers[idx]
+    provider_id = selected_provider["id"]
+    info = get_provider_info(provider_id)
+
+    # ── 第二步：选择 Model ──
+    models = info.get("models", [info.get("default_model", "")]) if info else [selected_provider.get("default_model", "")]
+    default_model = info.get("default_model", models[0]) if info else models[0]
+
+    print()
+    print(f"{DIM}第二步：选择模型 — {CYAN}{provider_id}{RESET}{DIM}{RESET}")
+    print(f"{DIM}输入编号选择，或输入 q / 回车返回上一步{RESET}\n")
+    for i, m in enumerate(models, 1):
+        marker = f" {YELLOW}★ 默认{RESET}" if m == default_model else ""
+        current = f" {GREEN}⟲ 当前使用{RESET}" if provider_id == state.provider and m == state.model_name else ""
+        print(f"  {CYAN}[{i}]{RESET} {m}{marker}{current}")
+    print(f"  {CYAN}[c]{RESET} {DIM}自定义输入模型名{RESET}")
+
+    try:
+        m_choice = input(f"\n{YELLOW}👉 模型编号 (q/回车返回): {RESET}").strip()
+    except (EOFError, KeyboardInterrupt):
+        print(f"\n{DIM}已取消。{RESET}")
+        return False
+
+    if not m_choice or m_choice.lower() == "q":
+        print(f"{DIM}已返回。{RESET}")
+        return False
+
+    if m_choice.lower() == "c":
+        # 自定义输入模型名
+        try:
+            custom_model = input(f"{YELLOW}👉 输入模型名: {RESET}").strip()
+        except (EOFError, KeyboardInterrupt):
+            print(f"\n{DIM}已取消。{RESET}")
+            return False
+        if not custom_model:
+            print(f"{DIM}已取消。{RESET}")
+            return False
+        target_model = custom_model
+    elif m_choice.isdigit():
+        m_idx = int(m_choice) - 1
+        if m_idx < 0 or m_idx >= len(models):
+            print(f"{RED}❌ 编号超出范围，有效范围: 1-{len(models)}{RESET}")
+            return False
+        target_model = models[m_idx]
+    else:
+        print(f"{RED}❌ 无效输入{RESET}")
+        return False
+
+    # ── 应用配置 ──
+    ok = state.update_model(f"{provider_id}:{target_model}")
+    if ok:
+        print()
+        print(f"{GREEN}✅ 默认模型已设置: [{state.provider}] {state.display_model}{RESET}")
+        if hasattr(state, '_prompt') and state._prompt:
+            state._prompt.update_status(model=state.display_model, provider=state.display_provider)
+        if not _provider_has_key(state, state.provider):
+            print(f"\n{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
+            try:
+                k = input(f"👉 请输入 [{state.provider}] 的 API Key (回车跳过): ").strip()
+            except (EOFError, KeyboardInterrupt):
+                k = ""
+            if k:
+                state.update_key(k)
+                print(f"{GREEN}✅ [{state.provider}] API Key 已保存{RESET}")
+    else:
+        print(f"{RED}❌ 设置失败: [{provider_id}] {target_model}{RESET}")
     return False
 
 
@@ -196,7 +317,7 @@ def _cmd_providers(state, parts):
     用法:
       /providers                  — 查看所有提供商配置
       /providers setup            — 交互式配置向导
-      /providers add <提供商> <key> [模型] — 添加/更新提供商配置
+      /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>] — 添加/更新提供商配置
       /providers del <提供商>       — 删除提供商配置
       /providers use <提供商>       — 切换到指定提供商
     """
@@ -216,17 +337,20 @@ def _cmd_providers(state, parts):
             model = pcfg.get("model", p["default_model"])
             info = get_provider_info(p["id"])
             base_url = pcfg.get("base_url") or info.get("base_url", "默认")
+            token_plan_url = pcfg.get("token_plan_base_url") or info.get("token_plan_base_url")
             active = f" {YELLOW}👈 当前使用{RESET}" if p["id"] == state.provider else ""
             print(f"\n  {key_status} {CYAN}{p['id']}{RESET} — {p['name']}{active}")
             print(f"      模型: {DIM}{model}{RESET}")
             print(f"      接口: {DIM}{base_url}{RESET}")
+            if token_plan_url:
+                print(f"      Token Plan 接口: {DIM}{token_plan_url}{RESET}")
             if has_key:
                 raw_key = pcfg.get("key", state.cfg.get("key", ""))
                 key_display = raw_key[:8] + "****" if len(raw_key) > 8 else raw_key
                 print(f"      Key:  {DIM}{key_display}{RESET}")
         print(f"\n{DIM}用法:{RESET}")
         print(f"  /providers setup                   — 交互式配置向导（推荐新手）")
-        print(f"  /providers add <提供商> <key> [模型] — 添加/更新提供商配置")
+        print(f"  /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>] — 添加/更新提供商配置")
         print(f"  /providers del <提供商>              — 删除提供商配置")
         print(f"  /providers use <提供商>              — 切换到指定提供商")
         return False
@@ -288,7 +412,7 @@ def _cmd_providers(state, parts):
 
     if sub == "add":
         if not arg1 or not arg2:
-            print(f"{RED}❌ 用法: /providers add <提供商> <key> [模型]{RESET}")
+            print(f"{RED}❌ 用法: /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>]{RESET}")
             return False
         provider_id = arg1
         from fr_cli.core.llm import get_provider_info
@@ -301,13 +425,21 @@ def _cmd_providers(state, parts):
         model = parts[4] if len(parts) > 4 else info["default_model"]
         pcfg["model"] = model
         # 支持自定义 base_url: /providers add <provider> <key> [model] --base-url <url>
+        # 支持自定义 token_plan_base_url: --token-plan-base-url <url>
         for i, token in enumerate(parts):
             if token in ("--base-url", "--base_url") and i + 1 < len(parts):
                 pcfg["base_url"] = parts[i + 1]
-                break
+            if token in ("--token-plan-base-url", "--token_plan_base_url") and i + 1 < len(parts):
+                pcfg["token_plan_base_url"] = parts[i + 1]
         state.cfg["providers"] = providers_cfg
         state.save_cfg()
-        extra = f" 自定义接口={pcfg.get('base_url')}" if pcfg.get("base_url") else ""
+        extra_parts = []
+        if pcfg.get("base_url"):
+            extra_parts.append(f"自定义接口={pcfg.get('base_url')}")
+        if pcfg.get("token_plan_base_url"):
+            extra_parts.append(f"Token Plan 接口={pcfg.get('token_plan_base_url')}")
+        extra = " ".join(extra_parts)
+        extra = f" {extra}" if extra else ""
         print(f"{GREEN}✅ [{provider_id}] 配置已更新: 模型={model}{extra}{RESET}")
         return False
 
@@ -330,7 +462,7 @@ def _cmd_providers(state, parts):
             return False
         ok = state.update_provider(arg1)
         if ok:
-            print(f"{GREEN}✅ 已切换到: [{state.provider}] {state.model_name}{RESET}")
+            print(f"{GREEN}✅ 已切换到: [{state.provider}] {state.display_model}{RESET}")
             # 检查新提供商是否已配置 API Key
             if not _provider_has_key(state, state.provider):
                 print(f"{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")

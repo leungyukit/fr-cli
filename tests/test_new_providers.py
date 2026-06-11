@@ -25,7 +25,9 @@ class TestMiniMaxProviders:
         info = _PROVIDERS["minimax"]
         assert info["name"] == "MiniMax"
         assert info["default_model"] == "MiniMax-Text-01"
-        assert info["base_url"] == "https://api.minimax.chat/v1"
+        assert info["base_url"] == "https://api.minimax.io/v1"
+        assert info["token_plan_base_url"] == "https://api.minimax.chat/v1"
+        assert info["is_token_plan"] is False
 
     def test_minimax_chat_provider_exists(self):
         """验证 minimax-chat provider 存在"""
@@ -33,7 +35,7 @@ class TestMiniMaxProviders:
         info = _PROVIDERS["minimax-chat"]
         assert info["name"] == "MiniMax Chat"
         assert info["default_model"] == "abab6.5s-chat"
-        assert info["base_url"] == "https://api.minimax.chat/v1"
+        assert info["base_url"] == "https://api.minimax.io/v1"
 
     def test_create_minimax_client(self):
         """测试创建 MiniMax 客户端"""
@@ -66,6 +68,7 @@ class TestMiniMaxProviders:
         assert info["name"] == "MiniMax M2.7 (Token Plan)"
         assert info["default_model"] == "MiniMax-M2.7"
         assert info["base_url"] == "https://api.minimax.chat/v1"
+        assert info["is_token_plan"] is True
 
     def test_minimax_m27_fast_provider_exists(self):
         """验证 minimax-m27-fast provider 存在 (高速版)"""
@@ -74,6 +77,7 @@ class TestMiniMaxProviders:
         assert info["name"] == "MiniMax M2.7-HighSpeed (Token Plan)"
         assert info["default_model"] == "MiniMax-M2.7-HighSpeed"
         assert info["base_url"] == "https://api.minimax.chat/v1"
+        assert info["is_token_plan"] is True
 
     def test_minimax_token_plan_provider_exists(self):
         """验证 minimax-token-plan provider 存在 (全模态)"""
@@ -82,6 +86,7 @@ class TestMiniMaxProviders:
         assert info["name"] == "MiniMax Token Plan (全模态)"
         assert info["default_model"] == "MiniMax-M2.7"
         assert info["base_url"] == "https://api.minimax.chat/v1"
+        assert info["is_token_plan"] is True
 
     def test_create_minimax_m27_client(self):
         """测试创建 MiniMax M2.7 客户端"""
@@ -106,6 +111,47 @@ class TestMiniMaxProviders:
         assert provider == "minimax-m27-fast"
         assert model == "MiniMax-M2.7-HighSpeed"
         assert client.api_key == "test-key"
+
+
+class TestOpenAIProvider:
+    """测试 OpenAI 官方 provider"""
+
+    def test_openai_provider_exists(self):
+        """验证 openai provider 存在且配置正确"""
+        assert "openai" in _PROVIDERS
+        info = _PROVIDERS["openai"]
+        assert info["name"] == "OpenAI"
+        assert info["default_model"] == "gpt-4o-mini"
+        assert info["base_url"] == "https://api.openai.com/v1"
+        assert info["is_token_plan"] is False
+
+    def test_create_openai_client(self):
+        """测试创建 OpenAI 客户端"""
+        cfg = {
+            "providers": {
+                "openai": {"key": "test-key"}
+            }
+        }
+        client, provider, model = create_llm_client_for("openai", "gpt-4o-mini", cfg)
+        assert provider == "openai"
+        assert model == "gpt-4o-mini"
+        assert client.api_key == "test-key"
+        assert str(client._client.base_url).rstrip('/') == "https://api.openai.com/v1"
+
+    def test_openai_custom_base_url(self):
+        """测试 OpenAI provider 支持自定义兼容接口"""
+        cfg = {
+            "providers": {
+                "openai": {
+                    "key": "test-key",
+                    "base_url": "https://my-openai-proxy.example.com/v1"
+                }
+            }
+        }
+        client, provider, model = create_llm_client_for("openai", "gpt-4o", cfg)
+        assert provider == "openai"
+        assert model == "gpt-4o"
+        assert str(client._client.base_url).rstrip('/') == "https://my-openai-proxy.example.com/v1"
 
 
 class TestKimiProviders:
@@ -188,6 +234,7 @@ class TestProviderManagement:
         providers = list_providers()
         provider_ids = [p["id"] for p in providers]
 
+        assert "openai" in provider_ids
         assert "minimax" in provider_ids
         assert "minimax-chat" in provider_ids
         assert "minimax-m27" in provider_ids
@@ -197,6 +244,8 @@ class TestProviderManagement:
         assert "kimi-k2" in provider_ids
         assert "kimi-code" in provider_ids
         assert "kimi-code-anthropic" in provider_ids
+        assert "mimo-token-plan" in provider_ids
+        assert "zhipu-coding" in provider_ids
 
     def test_get_provider_info_new(self):
         """验证可以获取新 provider 的信息"""
@@ -279,6 +328,61 @@ class TestNewProviderConfiguration:
             "minimax", "MiniMax-Text-01", cfg, override_key="override-key"
         )
         assert client.api_key == "override-key"
+
+    def test_mimo_token_plan_provider_exists(self):
+        """验证 mimo-token-plan provider 存在"""
+        assert "mimo-token-plan" in _PROVIDERS
+        info = _PROVIDERS["mimo-token-plan"]
+        assert info["name"] == "小米 MiMo (Token Plan)"
+        assert info["default_model"] == "mimo-v2-flash"
+        assert info["base_url"] == "https://token-plan-sgp.xiaomimimo.com/v1"
+        assert info["token_plan_base_url"] == "https://token-plan-sgp.xiaomimimo.com/v1"
+        assert info["is_token_plan"] is True
+
+    def test_mimo_token_plan_client_uses_token_plan_url(self):
+        """验证 mimo-token-plan 客户端使用 Token Plan Base URL"""
+        cfg = {
+            "providers": {
+                "mimo-token-plan": {"key": "tp-key"}
+            }
+        }
+        client, provider, model = create_llm_client_for("mimo-token-plan", "mimo-v2-flash", cfg)
+        assert provider == "mimo-token-plan"
+        assert model == "mimo-v2-flash"
+        assert str(client._client.base_url).rstrip('/') == "https://token-plan-sgp.xiaomimimo.com/v1"
+
+    def test_zhipu_coding_provider_exists(self):
+        """验证 zhipu-coding provider 存在"""
+        assert "zhipu-coding" in _PROVIDERS
+        info = _PROVIDERS["zhipu-coding"]
+        assert info["name"] == "智谱 GLM Coding Plan"
+        assert info["default_model"] == "glm-4.7"
+        assert info["base_url"] == "https://open.bigmodel.cn/api/coding/paas/v4"
+        assert info["is_token_plan"] is True
+
+    def test_zhipu_coding_client_uses_coding_url(self):
+        """验证 zhipu-coding 客户端使用 Coding Plan Base URL"""
+        cfg = {
+            "providers": {
+                "zhipu-coding": {"key": "coding-key"}
+            }
+        }
+        client, provider, model = create_llm_client_for("zhipu-coding", "glm-4.7", cfg)
+        assert provider == "zhipu-coding"
+        assert model == "glm-4.7"
+        assert str(client._client.base_url).rstrip('/') == "https://open.bigmodel.cn/api/coding/paas/v4"
+
+    def test_minimax_token_plan_uses_token_plan_url(self):
+        """验证 minimax-token-plan 客户端使用 Token Plan Base URL"""
+        cfg = {
+            "providers": {
+                "minimax-token-plan": {"key": "tp-key"}
+            }
+        }
+        client, provider, model = create_llm_client_for("minimax-token-plan", "MiniMax-M2.7", cfg)
+        assert provider == "minimax-token-plan"
+        assert model == "MiniMax-M2.7"
+        assert str(client._client.base_url).rstrip('/') == "https://api.minimax.chat/v1"
 
 
 if __name__ == "__main__":

@@ -41,18 +41,23 @@ button:hover { background: #357abd; }
   <label>当前提供商</label>
   <select name="provider" id="provider">
     <option value="zhipu">智谱 AI</option>
+    <option value="zhipu-coding">智谱 GLM Coding Plan</option>
+    <option value="openai">OpenAI</option>
     <option value="deepseek">DeepSeek</option>
     <option value="kimi">Kimi</option>
     <option value="kimi-k2">Kimi K2</option>
     <option value="kimi-code">Kimi Code</option>
     <option value="qwen">通义千问</option>
     <option value="stepfun">阶跃星辰</option>
+    <option value="stepfun-step-plan">阶跃星辰 Step Plan</option>
     <option value="step-3">Step-3</option>
     <option value="minimax">MiniMax</option>
     <option value="minimax-m27">MiniMax M2.7</option>
+    <option value="minimax-token-plan">MiniMax Token Plan</option>
     <option value="spark">讯飞星火</option>
     <option value="doubao">豆包</option>
     <option value="mimo">小米 MiMo</option>
+    <option value="mimo-token-plan">小米 MiMo Token Plan</option>
     <option value="longcat">LongCat</option>
   </select>
 

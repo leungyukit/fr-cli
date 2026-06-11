@@ -89,7 +89,7 @@ def _print_help(state, topic):
 
     from fr_cli import __version__
     title = f"fr-cli {__version__} — 凡人打字机" if is_zh else f"fr-cli {__version__}"
-    cur = f"当前: {state.provider}/{state.model_name}" if is_zh else f"Current: {state.provider}/{state.model_name}"
+    cur = f"当前: {state.provider}/{state.display_model}" if is_zh else f"Current: {state.provider}/{state.display_model}"
 
     print()
     print(f"{_h(title)}")
@@ -136,6 +136,7 @@ def _print_help(state, topic):
                 ("/delete <file>", "删除文件", "/delete tmp.txt"),
             ]),
             ("会话", [
+                ("/new", "新开会话", "/new"),
                 ("/save <name>", "保存会话", "/save proj_v1"),
                 ("/load <name>", "加载会话", "/load proj_v1"),
                 ("/session list", "列出存档", "/session list"),
@@ -189,6 +190,7 @@ def _print_help(state, topic):
                 ("/delete <file>", "Delete file", "/delete tmp.txt"),
             ]),
             ("Session", [
+                ("/new", "New session", "/new"),
                 ("/save <name>", "Save session", "/save proj_v1"),
                 ("/load <name>", "Load session", "/load proj_v1"),
                 ("/session list", "List archives", "/session list"),

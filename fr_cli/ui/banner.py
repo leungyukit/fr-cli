@@ -1,5 +1,5 @@
 """
-启动画面 —— Kimi Code CLI 风格（v2.3.3+）
+启动画面 —— Kimi Code CLI 风格（v2.4.0+）
 
 - 单个圆角框包住整个标题区
 - 框内：项目名 + 欢迎语 + 关键信息（目录/Session/Model/Tokens/Mode）
@@ -11,8 +11,9 @@ import shutil
 import re
 from fr_cli.ui.ui import (
     RED, GREEN, CYAN, MAGENTA, YELLOW, BOLD, DIM, RESET,
-    get_display_width,
+    get_display_width, _NO_COLOR,
 )
+from fr_cli import __version__
 
 
 def _get_box_width() -> int:
@@ -96,7 +97,7 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
         f"  {DIM}·{RESET} {YELLOW}{limit}{RESET}{DIM} tokens{RESET}"
         f"  {DIM}·{RESET} {YELLOW}{mode}{RESET}{DIM} mode{RESET}"
     )
-    footer_line = f"{DIM}✨ fr-cli 2.3.3 — 9 提供商 · Agent 分身 · RAG · MasterAgent 自我进化{RESET}"
+    footer_line = f"{DIM}✨ fr-cli {__version__} — 9 提供商 · Agent 分身 · RAG · MasterAgent 自我进化{RESET}"
 
     all_lines = [
         title_line,
@@ -131,4 +132,5 @@ def print_input_separator(width: int = None):
     label = "── input "
     # 总长度 = 终端宽度
     dash_count = max(width - len(label), 10)
-    print(f"\033[90m{label}{'─' * dash_count}{RESET}")
+    sep_color = "" if _NO_COLOR else "\033[90m"
+    print(f"{sep_color}{label}{'─' * dash_count}{RESET}")

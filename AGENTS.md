@@ -25,7 +25,7 @@
 | 运行时 | Python 3.13（虚拟环境 `.venv/` 已创建） |
 | AI SDK | `zhipuai>=2.0.0`（智谱）, `openai>=1.0.0`（兼容 DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞/豆包/小米MiMo） |
 | 默认模型 | `glm-4-flash`（智谱）、`deepseek-chat`（DeepSeek）、`moonshot-v1-8k`（Kimi）等，支持 9 大道统 |
-| 多模型支持 | zhipu / deepseek / kimi / qwen / stepfun / minimax / spark / doubao / mimo |
+| 多模型支持 | zhipu / zhipu-coding / openai / deepseek / kimi / qwen / stepfun / stepfun-step-plan / minimax / minimax-token-plan / spark / doubao / mimo / mimo-token-plan |
 | HTTP / 网页 | `requests` |
 | 数据 / Excel | `pandas`、`openpyxl` |
 | 数据库 | `pymysql`、`psycopg2-binary`、`pyodbc`、`oracledb` |
@@ -41,7 +41,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，137 个测试全部通过 |
+| 测试 | `pytest`，183 个测试全部通过 |
 
 ---
 
@@ -614,6 +614,10 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
     "providers": {               # 各道统独立配置
         "deepseek": {"key": "", "model": "deepseek-chat"},
         "kimi": {"key": "", "model": "moonshot-v1-8k"}
+        # 每个 provider 还可选配置：
+        #   "base_url": "...",            # 自定义通用 API Base URL
+        #   "token_plan_base_url": "...", # Token Plan / 订阅套餐专用 Base URL
+        #   "is_token_plan": true         # 标记为 Token Plan 变体，将自动使用 token_plan_base_url
     },
     "limit": 20000,             # 最大 token 上限
     "allowed_dirs": [],         # VFS 允许的目录列表
@@ -672,7 +676,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 - `tests/test_model_config.py` — 模型配置与 LLM 客户端测试
 - `tests/test_new_features.py` — 新特性测试（图片/并行/工作流）
 - `tests/test_new_providers.py` — 新提供商测试（MiniMax/Kimi）
-- 总计 **137 个测试全部通过**
+- 总计 **183 个测试全部通过**
 
 测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、Gatekeeper
 

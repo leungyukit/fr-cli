@@ -15,6 +15,7 @@ from fr_cli.repl.commands.fs import _cmd_dir, _cmd_dirs, _cmd_rmdir
 from fr_cli.repl.commands.session import (
     _cmd_save, _cmd_load, _cmd_del,
     _cmd_session_list, _cmd_session_load, _cmd_session_del,
+    _cmd_new,
 )
 from fr_cli.repl.commands.agent import (
     _cmd_agent_create, _cmd_agent_list, _cmd_agent_delete,

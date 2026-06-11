@@ -298,7 +298,10 @@ class CommandExecutor:
             if error:
                 results.append(f"❌ 工具调用失败: {tool_name}\n   {error}")
             else:
-                results.append(f"✅ 工具调用成功: {tool_name}\n   结果: {result}")
+                r = str(result) if result is not None else ""
+                if len(r) > 5000:
+                    r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
+                results.append(f"✅ 工具调用成功: {tool_name}\n   结果: {r}")
             markers_to_remove.append(marker)
 
         # ===== 格式2：【命令：...】 =====
@@ -312,7 +315,10 @@ class CommandExecutor:
             if error:
                 results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
             else:
-                results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {result}")
+                r = str(result) if result is not None else ""
+                if len(r) > 5000:
+                    r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
+                results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {r}")
             markers_to_remove.append(marker)
 
         # ===== 格式3：file_operations/xxx（兼容） =====
@@ -327,7 +333,10 @@ class CommandExecutor:
             if error:
                 results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
             else:
-                results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {result}")
+                r = str(result) if result is not None else ""
+                if len(r) > 5000:
+                    r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
+                results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {r}")
             markers_to_remove.append(m.group(0))
             markers_to_remove_spans.append(m.span())
         for m in re.finditer(pattern2_plain, ai_response, re.MULTILINE):
@@ -348,7 +357,10 @@ class CommandExecutor:
             if error:
                 results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
             else:
-                results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {result}")
+                r = str(result) if result is not None else ""
+                if len(r) > 5000:
+                    r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
+                results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {r}")
             markers_to_remove.append(m.group(0))
             markers_to_remove_spans.append(m_span)
 

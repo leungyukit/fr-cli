@@ -268,6 +268,12 @@ class MasterAgent:
         处理用户输入的主入口。
         返回 (assistant_reply, should_continue)
         """
+        # 模型未配置时阻止调用
+        if not self.state.model_name:
+            from fr_cli.ui.ui import YELLOW, CYAN, RESET
+            print(f"{YELLOW}⚠️ 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
+            return None, False
+
         self._step_count = 0
         lang = self.state.lang
 
@@ -384,7 +390,7 @@ class MasterAgent:
 
         # 2. 自动按日期存档会话
         if not self.state.auto_session_path:
-            path = create_session(self.state.messages)
+            path = create_session(self.state.messages, session_id=getattr(self.state, "session_id", None))
             if path:
                 self.state.auto_session_path = path
                 print(f"{DIM}📁 自动会话已创建: {Path(path).name}{RESET}")

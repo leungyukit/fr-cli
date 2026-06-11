@@ -79,9 +79,9 @@ def test_real_config_load_save():
     conf_mod.CONFIG_BACKUP = env.tmpdir / ".zhipu_cli_config.json.bak"
 
     try:
-        # 首次加载应返回默认配置
+        # 首次加载应返回默认配置（provider/model 默认不写，由用户显式配置）
         cfg = load_config()
-        assert cfg["provider"] == "zhipu"
+        assert "provider" not in cfg
         assert "providers" in cfg
 
         # 修改并保存（首次保存，CONFIG_FILE 原本不存在，不会触发备份）

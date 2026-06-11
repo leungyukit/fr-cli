@@ -9,7 +9,7 @@ import json
 import os
 import shutil
 from pathlib import Path
-from fr_cli.ui.ui import YELLOW, RED, GREEN, RESET, DIM
+from fr_cli.ui.ui import YELLOW, RED, GREEN, CYAN, RESET, DIM
 from fr_cli.conf.paths import (
     CONFIG_FILE, CONFIG_BACKUP, ROOT,
     migrate as paths_migrate,
@@ -20,11 +20,11 @@ DEFAULT_LIMIT = 20000
 
 
 def _default_config():
-    """返回默认配置字典"""
+    """返回默认配置字典 —— provider/model 不再硬编码，由用户显式配置"""
     return {
-        "provider": "zhipu",
         "key": "",
-        "model": "glm-4-flash",
+        # 注意：默认不设置 provider 和 model，由用户通过 /model config 显式配置
+        # 未配置时状态栏显示'未配置'
         "limit": DEFAULT_LIMIT,
         "allowed_dirs": [],
         "lang": "zh",
@@ -36,9 +36,9 @@ def _default_config():
         "mcp": {"servers": []},
         "providers": {},
         "banner_enabled": True,
-        "splash_enabled": True,  # 启动封面(完整图片),终端不支持图像协议时降级为 banner
-        "splash_cols": 50,  # 启动封面宽度(字符数)
-        "splash_bg_threshold": 30,  # 背景阈值:亮度低于此值的像素视为背景(留空)
+        "splash_enabled": True,
+        "splash_cols": 50,
+        "splash_bg_threshold": 30,
     }
 
 
@@ -74,9 +74,9 @@ def load_config():
         print(f"{YELLOW}⚠️ 使用默认配置，请重新设置{RESET}")
         return d
 
-    # 补齐缺失字段
+    # 补齐缺失字段（跳过 provider 和 model，由用户显式配置）
     for k, v in d.items():
-        if k not in c:
+        if k not in c and k not in ("provider", "model"):
             c[k] = v
 
     # 向后兼容迁移：将顶层 model 同步到当前 provider 的专属配置中
@@ -141,13 +141,43 @@ def init_config():
         save_config(c)
         print(f"{GREEN}✅ 默认目录已添加: {DEFAULT_WORKSPACE}{RESET}")
 
-    # 向后兼容：无 provider 字段的旧配置自动补全
-    if "provider" not in c:
-        c["provider"] = "zhipu"
-        save_config(c)
-
-    provider = c.get("provider", "zhipu")
+    provider = c.get("provider")
     providers_cfg = c.get("providers", {})
+
+    # ── 配置引导：无 provider 或未配置 Key 时提示 ──
+    from fr_cli.ui.ui import get_display_width
+
+    def _box_line(content: str, box_width: int = 50) -> str:
+        """按实际显示宽度填充，确保框线对齐"""
+        inner = box_width - 2
+        import re
+        plain = re.sub(r'\033\[[0-9;]*m', '', content)
+        w = get_display_width(plain)
+        pad = max(inner - w, 0)
+        return f"{YELLOW}║{RESET}{content}{' ' * pad}{YELLOW}║{RESET}"
+
+    if not provider:
+        # 尚未选择 provider
+        from fr_cli.core.llm import list_providers
+        providers = list_providers()
+        print()
+        print(f"{YELLOW}╔{'═' * 50}╗{RESET}")
+        print(f"{YELLOW}║{'🚨  尚未配置 LLM 提供商':^48}║{RESET}")
+        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
+        ids = [p['id'] for p in providers]
+        ids_text = ', '.join(ids[:3])
+        if len(ids) > 3:
+            ids_text += f" ... 等 {len(ids)} 家"
+        print(_box_line(f"  支持厂商: {DIM}{ids_text}{RESET}"))
+        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
+        print(_box_line("  配置方式:"))
+        print(_box_line(f"  1. 启动后执行 {CYAN}/model config{RESET} 交互式配置"))
+        print(_box_line(f"  2. 启动后执行 {CYAN}/providers setup{RESET} 交互式配置"))
+        print(f"{YELLOW}╚{'═' * 50}╝{RESET}")
+        print()
+        print(f"{YELLOW}→ 进入 Mock 模式 🧪（可用 /model config 配置真实模型）{RESET}")
+        return c
+
     pcfg = providers_cfg.get(provider, {})
 
     # 检查当前提供商是否已配置 key
@@ -156,35 +186,44 @@ def init_config():
         has_key = bool(c.get("key", ""))
 
     if not has_key:
-        print(f"\n{YELLOW}⚠️ API Key Required{RESET}")
         from fr_cli.core.llm import list_providers, get_provider_info
         providers = list_providers()
-        print(f"{DIM}当前提供商: {provider}{RESET}")
-        print(f"{DIM}支持提供商: {', '.join([p['id'] for p in providers])}{RESET}")
-        print(f"{DIM}（直接回车可进入 Mock 模式试用）{RESET}")
+        info = get_provider_info(provider)
+        default_model = info.get("default_model", "未知") if info else "未知"
+
+        print()
+        print(f"{YELLOW}╔{'═' * 50}╗{RESET}")
+        print(f"{YELLOW}║{'🚨  尚未配置 API Key':^48}║{RESET}")
+        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
+        print(_box_line(f"  当前厂商: {CYAN}{provider}{RESET}"))
+        print(_box_line(f"  默认模型: {DIM}{default_model}{RESET}"))
+        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
+        print(_box_line("  配置方式:"))
+        print(_box_line("  1. 直接输入 API Key（下方）"))
+        print(_box_line(f"  2. 启动后执行 {CYAN}/providers setup{RESET} 交互式配置"))
+        print(_box_line(f"  3. 启动后执行 {CYAN}/model config{RESET} 交互式配置"))
+        print(f"{YELLOW}╚{'═' * 50}╝{RESET}")
+        print()
+
         try:
-            k = input(f"👉 Enter API Key for [{provider}] (回车跳过): ").strip()
+            k = input(f"👉 输入 [{CYAN}{provider}{RESET}] 的 API Key（回车进 Mock 试用）: ").strip()
         except (EOFError, KeyboardInterrupt):
-            # 非交互环境直接进 Mock 模式
             k = ""
         if k:
             c["key"] = k
             pcfg = providers_cfg.setdefault(provider, {})
             pcfg["key"] = k
-            # 确保 provider 配置中也有 model（保持 provider-model 一致性）
-            if not pcfg.get("model"):
-                info = get_provider_info(provider)
-                default_model = info.get("default_model", "glm-4-flash") if info else "glm-4-flash"
-                pcfg["model"] = default_model
-                c["model"] = default_model
+            # 不再自动注入默认模型；model 由用户通过 /model 显式配置
             c["providers"] = providers_cfg
             ok = save_config(c)
             if ok:
-                print(f"{GREEN}✅ API Key 已保存至: {CONFIG_FILE}{RESET}")
+                print(f"{GREEN}✅ API Key 已保存，下次启动自动生效{RESET}")
             else:
                 print(f"{RED}❌ 配置保存失败，下次启动可能需要重新输入。{RESET}")
         else:
-            # 用户跳过 → 进 Mock 模式（不报错）
-            print(f"{YELLOW}→ 进入 Mock 模式（所有命令可用，AI 回答是 echo 风格）{RESET}")
-            print(f"{DIM}   之后可用 /key <your-key> 设真 key 立即切换{RESET}")
+            print()
+            print(f"{YELLOW}→ 进入 Mock 模式 🧪{RESET}")
+            print(f"{DIM}  AI 回答为本地回声，命令功能（/ls /cat /web 等）仍可正常使用。{RESET}")
+            print(f"{DIM}  随时可用 /key <your-key> 或 /model config 配置真实模型。{RESET}")
+            print()
     return c

@@ -110,19 +110,69 @@ def start_context_loader(state):
     threading.Thread(target=_load_context, daemon=True, name="context-loader").start()
 
 
-def print_startup_banner(state, cfg):
-    """打印启动画面 —— 佛像 ASCII art(默认) / 兼容旧 splash.jpeg 路径"""
-    # 1) 启动画面:佛像 ASCII art(100% 兼容所有终端,不需要任何图片协议)
-    #    配置 splash_enabled=False 时跳过
-    if cfg.get("splash_enabled", True):
+def print_simple_banner(state, version: str):
+    """圆角框线启动画面 —— Kimi Code CLI 风格"""
+    from fr_cli.ui.ui import CYAN, BOLD, DIM, RESET, MAROON, get_display_width
+
+    inner_width = 110  # 内容区宽度（不含左右框线）
+
+    def _pad(text: str, width: int) -> str:
+        w = get_display_width(text)
+        return text + " " * max(width - w, 0)
+
+    # 信息准备
+    model = f"{state.display_provider}/{state.display_model}" if state.cfg.get("provider") else "未配置"
+    allowed_dirs = state.cfg.get("allowed_dirs", [])
+    directory = allowed_dirs[0] if allowed_dirs else "未配置"
+    cwd = getattr(state.vfs, "cwd", None) or directory
+    session_id = getattr(state, "session_id", None) or "全新"
+
+    # 框线
+    top = "╭" + "─" * inner_width + "╮"
+    bot = "╰" + "─" * inner_width + "╯"
+    empty = "│" + " " * inner_width + "│"
+
+    # Logo + 标题
+    title = f"   {MAROON}▐▀▀▀▀▀▀▌{RESET}  {CYAN}{BOLD}凡人打字机{RESET}  {DIM}fr-cli v{version}{RESET}"
+    subtitle = f"   {MAROON}▐██████▌{RESET}  {DIM}Send /help for help information{RESET}"
+
+    # 信息行
+    dir_line = f"  Directory: {cwd}"
+    sess_line = f"  Session:   {session_id}"
+    model_line = f"  Model:     {model}"
+
+    print()
+    print(top)
+    print(empty)
+    print("│" + _pad(title, inner_width) + "│")
+    print("│" + _pad(subtitle, inner_width) + "│")
+    print(empty)
+    print("│" + _pad(dir_line, inner_width) + "│")
+    print("│" + _pad(sess_line, inner_width) + "│")
+    print("│" + _pad(model_line, inner_width) + "│")
+    print(empty)
+    print(bot)
+    print()
+
+
+def print_startup_banner(state, cfg, show_logo: bool = False):
+    """打印启动画面
+
+    Args:
+        show_logo: True 时显示佛像 ASCII art（-logo 参数），
+                   False 时显示简洁线条框（默认）
+    """
+    from fr_cli import __version__
+
+    if show_logo:
+        # -logo 参数：显示佛像 ASCII art
         try:
             from fr_cli.ui.buddha import print_buddha
-            from fr_cli import __version__
             n_lines = print_buddha(version=__version__)
-            print()  # 与 banner 保持一致,空一行
+            print()
             return
         except Exception as e:
-            # 字符画极少出错;若出问题,记日志后降级
+            # 出错则降级到简洁 banner
             try:
                 from fr_cli.conf.paths import FR_CLI_DIR
                 log_path = FR_CLI_DIR / "splash.log"
@@ -131,25 +181,14 @@ def print_startup_banner(state, cfg):
                     f.write(f"[buddha skipped] {type(e).__name__}: {e}\n")
             except Exception:
                 pass
+            print_simple_banner(state, __version__)
+            return
 
-    # 2) 回退到 Kimi Code 风格文本框 banner
-    from fr_cli.ui.banner import print_banner as print_new_banner
-    from fr_cli.core.llm import MockLLMClient
-    is_mock = isinstance(state.client, MockLLMClient)
-    print_new_banner(
-        model_name=state.model_name,
-        limit=state.limit,
-        allowed_dirs=cfg.get("allowed_dirs", [""]),
-        session_name=state.sn,
-        lang=state.lang,
-        provider=state.provider,
-        version=__version__,
-        mode=state.thinking_mode,
-        is_mock=is_mock,
-    )
+    # 默认：简洁线条框
+    print_simple_banner(state, __version__)
 
 
-def bootstrap():
+def bootstrap(show_logo: bool = False):
     """启动引导主入口：返回 (cfg, state)"""
     try:
         cfg = init_config()
@@ -162,5 +201,5 @@ def bootstrap():
     sp = load_system_prompt(state, cfg.get("lang", "zh"))
     start_history_loader(state, sp)
     start_context_loader(state)
-    print_startup_banner(state, cfg)
+    print_startup_banner(state, cfg, show_logo=show_logo)
     return cfg, state

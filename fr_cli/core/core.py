@@ -26,8 +26,16 @@ class AppState:
         self.thinking_mode = cfg.get("thinking_mode", "direct")
         self.ui_mode = cfg.get("ui_mode", "dev")
 
+        # 唯一会话标识（UUID），贯穿本次运行周期
+        import uuid
+        self.session_id = str(uuid.uuid4())
+
         # LLM 客户端统一初始化（万法归一）
-        self.client, self.provider, self.model_name = create_llm_client(cfg)
+        # 优先读取用户保存的模型配置，无配置时保持未配置状态
+        self.client, self.provider, self.model_name = create_llm_client(cfg, prefer_saved_model=True)
+        # 若用户未显式配置 model，不自动使用 factory 默认
+        if not self._user_configured_model(cfg):
+            self.model_name = None
         self.api_key = self.client.api_key
 
         # 核心子系统实例化
@@ -75,9 +83,33 @@ class AppState:
         # 后台预热 LLM 连接（首次调用省 1-2s 冷启动）
         self._warmup_client_async()
 
+    @property
+    def display_provider(self):
+        """用于显示的 provider 名称：若用户未配置 provider，显示'未配置'"""
+        if not self.cfg.get("provider"):
+            return "未配置"
+        return self.provider or "未配置"
+
+    @property
+    def display_model(self):
+        """用于显示的模型名称：若用户未配置 provider/model，显示'未配置'"""
+        if not self.cfg.get("provider"):
+            return "未配置"
+        if not self.model_name:
+            return "未配置"
+        providers_cfg = self.cfg.get("providers", {})
+        pcfg = providers_cfg.get(self.provider, {})
+        if not self.cfg.get("model") and not pcfg.get("model"):
+            return "未配置"
+        return self.model_name
+
     def reinit_client(self):
         """API Key、提供商或模型变更后更新客户端"""
-        self.client, self.provider, self.model_name = create_llm_client(self.cfg)
+        # 运行时切换允许读取保存的 model
+        self.client, self.provider, self.model_name = create_llm_client(self.cfg, prefer_saved_model=True)
+        # 若用户未显式配置 model，不自动使用 factory 默认
+        if not self._user_configured_model(self.cfg):
+            self.model_name = None
         self.api_key = self.client.api_key
         # 重新预热
         self._warmup_client_async()
@@ -182,6 +214,17 @@ class AppState:
         self.cfg["session_name"] = name
         self.save_cfg()
 
+    def reset_session(self):
+        """重置会话状态 —— 开辟新的轮回"""
+        import uuid
+        self.session_id = str(uuid.uuid4())
+        self.messages = []
+        self.auto_session_path = None
+        self.context_summary = ""
+        self.sn = ""
+        self.cfg["session_name"] = ""
+        self.save_cfg()
+
     def update_thinking_mode(self, mode):
         """切换思维模式"""
         self.cfg["thinking_mode"] = mode
@@ -194,6 +237,16 @@ class AppState:
         self.ui_mode = mode
         self.save_cfg()
         return True
+
+    @staticmethod
+    def _user_configured_model(cfg):
+        """检查用户是否在配置中显式指定了 model"""
+        provider = cfg.get("provider")
+        if not provider:
+            return False
+        providers_cfg = cfg.get("providers", {})
+        pcfg = providers_cfg.get(provider, {})
+        return bool(cfg.get("model") or pcfg.get("model"))
 
     def get_client_for(self, provider: str, model: str, override_key: str = None):
         """
