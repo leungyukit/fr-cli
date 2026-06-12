@@ -46,13 +46,8 @@ class AppState:
         self.disk_c = CloudDisk(cfg.get("disk", {}))
         self.security = SecurityManager(self.lang, cfg)
 
-        # MCP 工具管理器
-        self.mcp = MCPManager()
-        # 同时从主配置 cfg["mcp"]["servers"] 同步，让两套配置源至少有一处生效
-        try:
-            self.mcp.sync_from_cfg(cfg)
-        except Exception:
-            pass
+        # MCP 工具管理器（配置统一收敛到 ~/.fr_cli/config.json 的 mcp.servers）
+        self.mcp = MCPManager(cfg=cfg)
 
         # 运行时消息与上下文
         self.messages = []
@@ -166,8 +161,8 @@ class AppState:
         """
         切换法器模型
         支持格式：
-          - "deepseek-chat"              自动推断 provider 并切换（若模型属于其他 provider）
-          - "deepseek:deepseek-chat"     显式同时切换提供商和模型
+          - "<model-name>"               自动推断 provider 并切换（若模型属于其他 provider）
+          - "<provider>:<model-name>"    显式同时切换提供商和模型
 
         核心原则：provider 与 model 始终强绑定，避免跨 provider 使用错误模型。
         """

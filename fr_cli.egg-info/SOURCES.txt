@@ -83,6 +83,7 @@ fr_cli/command/registered/session_config.py
 fr_cli/command/registered/web.py
 fr_cli/conf/__init__.py
 fr_cli/conf/config.py
+fr_cli/conf/default_models.yaml
 fr_cli/conf/paths.py
 fr_cli/conf/wizard.py
 fr_cli/core/cache.py
@@ -111,6 +112,7 @@ fr_cli/memory/history.py
 fr_cli/memory/session.py
 fr_cli/repl/__init__.py
 fr_cli/repl/actions.py
+fr_cli/repl/batch.py
 fr_cli/repl/bootstrap.py
 fr_cli/repl/commands.py
 fr_cli/repl/queue.py
@@ -150,8 +152,14 @@ fr_cli/weapon/mcp.py
 fr_cli/weapon/vision.py
 fr_cli/weapon/web.py
 tests/test_a2a_and_providers.py
+tests/test_batch_mode.py
+tests/test_help_update.py
 tests/test_integration_real.py
 tests/test_master_prompt_fix.py
 tests/test_model_config.py
 tests/test_new_features.py
 tests/test_new_providers.py
+tests/test_no_color_prompt_toolkit.py
+tests/test_plugin_exec.py
+tests/test_prompt_completion.py
+tests/test_vfs_diff.py

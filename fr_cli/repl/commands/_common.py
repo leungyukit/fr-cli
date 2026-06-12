@@ -43,7 +43,7 @@ def _provider_has_key(state, provider_id):
 def _print_help(state, topic):
     """打印帮助指南（现代 CLI 风格：分组 + 固定宽度对齐）"""
     topic_map = {
-        "config": "config",
+        "config": "config", "model": "config",
         "fs": "fs", "file": "fs", "files": "fs",
         "session": "session", "sess": "session",
         "plugin": "plugin", "plugins": "plugin", "skill": "plugin", "skills": "plugin",
@@ -121,6 +121,7 @@ def _print_help(state, topic):
         groups = [
             ("模型", [
                 ("/model", "切换模型", "/model 3  或  /model deepseek:deepseek-chat"),
+                ("/model config", "交互式配置向导", "/model config"),
                 ("/model list", "列出模型", "/model list"),
                 ("/model current", "显示当前", "/model current"),
                 ("/model default", "恢复默认", "/model default"),
@@ -175,6 +176,7 @@ def _print_help(state, topic):
         groups = [
             ("Model", [
                 ("/model", "Switch model", "/model 3  or  /model deepseek:deepseek-chat"),
+                ("/model config", "Interactive config wizard", "/model config"),
                 ("/model list", "List models", "/model list"),
                 ("/model current", "Show current", "/model current"),
                 ("/model default", "Reset default", "/model default"),
@@ -252,9 +254,9 @@ def _print_help(state, topic):
 
     # 底部提示
     if is_zh:
-        print(f"{_dim('详情: /help <主题>  主题: config, fs, session, agent, tools, mcp, all')}")
+        print(f"{_dim('详情: /help <主题>  主题: config, model, fs, session, agent, tools, mcp, all')}")
     else:
-        print(f"{_dim('Details: /help <topic>  Topics: config, fs, session, agent, tools, mcp, all')}")
+        print(f"{_dim('Details: /help <topic>  Topics: config, model, fs, session, agent, tools, mcp, all')}")
     print()
 
 

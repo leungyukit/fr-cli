@@ -28,6 +28,11 @@ MAGENTA = "\x1b[38;5;141m"       # 紫(白毫/眼)
 YELLOW = "\x1b[38;5;227m"        # 黄(手印/光点)
 RED = "\x1b[38;5;160m"           # 暗红(底部文字)
 
+# 全局 NO_COLOR / prompt_toolkit 兼容：关闭颜色
+from fr_cli.ui.ui import _NO_COLOR
+if _NO_COLOR:
+    RESET = CYAN = GOLD = GOLD_BRIGHT = GOLD_DEEP = ORANGE = MAGENTA = YELLOW = RED = ""
+
 
 # ===================== 佛像 ASCII =====================
 # 严格规范:

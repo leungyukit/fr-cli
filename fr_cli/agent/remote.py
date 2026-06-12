@@ -1,40 +1,25 @@
 """
 远程 Agent 管理 —— 配置其他用户电脑中已启用 API 的 fr-cli Agent
 
-配置文件: ~/.fr_cli/remote/agents.json
-格式:
-{
-    "agent_name": {
-        "host": "192.168.1.100",
-        "port": 8080,
-        "token": "xxx",
-        "description": "远程数据分析助手"
-    }
-}
+配置统一收敛到 ~/.fr_cli/config.json 的 remote.agents 命名空间。
+旧文件 ~/.fr_cli/remote/agents.json 会在首次加载时一次性迁移。
 """
-import json
+from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.conf.paths import REMOTE_AGENTS_FILE
-from pathlib import Path
 
-REMOTE_AGENTS_FILE = REMOTE_AGENTS_FILE  # from fr_cli.conf.paths
+_NS_KEY = "remote"
+REMOTE_AGENTS_FILE = REMOTE_AGENTS_FILE  # 保留用于一次性迁移
 
 
 def _load_remote_agents():
-    if not REMOTE_AGENTS_FILE.exists():
-        return {}
-    try:
-        with open(REMOTE_AGENTS_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except Exception:
-        return {}
+    ns = load_namespace(_NS_KEY, default={"agents": {}}, old_path=REMOTE_AGENTS_FILE)
+    return ns.get("agents", {})
 
 
 def _save_remote_agents(data):
-    try:
-        with open(REMOTE_AGENTS_FILE, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    ns = load_namespace(_NS_KEY, default={"agents": {}})
+    ns["agents"] = data
+    save_namespace(_NS_KEY, ns)
 
 
 def add_remote_agent(name, host, port, token, description=""):

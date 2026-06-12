@@ -199,7 +199,7 @@ from fr_cli.conf.paths import XXX
 
 ### 4.2 为什么统一 ~/.fr_cli/ 根目录
 
-之前散落在 ~/.zhipu_cli_*、~/.fr_cli_*、~/.fr_cli/ 三种位置，用户找文件困难。
+早期曾散落在 ~/.zhipu_cli_*、~/.fr_cli_* 等位置，用户找文件困难。当前已统一为 ~/.fr_cli/。
 现在：
 - 所有配置统一在 `~/.fr_cli/` 下
 - 按用途分子目录（mcp/, daemon/, rag/, master/, sessions/, ...）

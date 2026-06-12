@@ -1,6 +1,9 @@
 """
 MCP 工具管理器
 参考 kimi-cli 实现的 MCP 支持
+
+配置统一收敛到 ~/.fr_cli/config.json 的 mcp.servers 字段，
+不再单独维护 ~/.fr_cli/mcp/servers.json。旧文件会在加载时一次性迁移到主配置。
 """
 
 import os
@@ -12,6 +15,7 @@ import asyncio
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
 from fr_cli.conf.paths import MCP_SERVERS_FILE
+from fr_cli.conf.config import save_config
 
 
 @dataclass
@@ -33,31 +37,43 @@ class MCPServer:
 class MCPServerManager:
     """MCP 服务器管理器"""
 
-    def __init__(self, config_path: str = None):
-        if config_path is None:
-            config_path = str(MCP_SERVERS_FILE)
-        self.config_path = config_path
+    def __init__(self, cfg: dict = None):
+        """初始化管理器，cfg 为 ~/.fr_cli/config.json 的内容。
+
+        未传入 cfg 时创建一个空管理器（仅用于一次性从文件加载的场景）。
+        """
+        self.cfg = cfg or {}
         self.servers: Dict[str, MCPServer] = {}
         self._processes: Dict[str, subprocess.Popen] = {}
         self._load()
 
     def _load(self):
-        """加载配置（兼容两套来源：mcp_servers.json + cfg["mcp"]["servers"]）"""
-        if os.path.exists(self.config_path):
+        """加载配置：优先从主配置 cfg["mcp"]["servers"] 读取；
+        若旧文件 ~/.fr_cli/mcp/servers.json 仍存在，则做一次迁移合并。
+        """
+        # 1. 主配置为真相源
+        self._load_from_cfg(self.cfg)
+
+        # 2. 一次性迁移旧独立配置文件
+        old_path = str(MCP_SERVERS_FILE)
+        if os.path.exists(old_path):
             try:
-                with open(self.config_path, 'r') as f:
+                with open(old_path, 'r', encoding='utf-8') as f:
                     data = json.load(f)
-                    for name, cfg in data.items():
+                for name, cfg in data.items():
+                    if name not in self.servers:
                         self.servers[name] = MCPServer(name=name, **cfg)
+                # 把旧文件内容合并到主配置并落盘
+                self._save_to_cfg()
+                try:
+                    os.rename(old_path, old_path + ".migrated")
+                except Exception:
+                    pass
             except Exception:
                 pass
 
-    def sync_from_cfg(self, cfg: dict):
-        """从主配置文件 `cfg["mcp"]["servers"]` 同步服务器列表。
-
-        这一步让 ~/.fr_cli/config.json 和 ~/.fr_cli/mcp/servers.json
-        至少有一处被读到。两边配置会并集，已存在的不覆盖（避免重置用户已启用的项）。
-        """
+    def _load_from_cfg(self, cfg: dict):
+        """从主配置字典加载 MCP 服务器列表"""
         mcp_cfg = (cfg or {}).get("mcp") or {}
         servers = mcp_cfg.get("servers") or []
         if not isinstance(servers, list):
@@ -66,7 +82,7 @@ class MCPServerManager:
             if not isinstance(srv, dict):
                 continue
             name = srv.get("name")
-            if not name or name in self.servers:
+            if not name:
                 continue
             try:
                 self.servers[name] = MCPServer(
@@ -82,12 +98,18 @@ class MCPServerManager:
             except Exception:
                 pass
 
+    def _save_to_cfg(self):
+        """把当前 servers 写回主配置的 mcp.servers 字段"""
+        if not self.cfg:
+            return
+        mcp_cfg = self.cfg.setdefault("mcp", {})
+        mcp_cfg["servers"] = [srv.to_dict() for srv in self.servers.values()]
+
     def _save(self):
-        """保存配置"""
-        os.makedirs(os.path.dirname(self.config_path), exist_ok=True)
-        data = {name: srv.to_dict() for name, srv in self.servers.items()}
-        with open(self.config_path, 'w') as f:
-            json.dump(data, f, indent=2)
+        """持久化：更新主配置并调用 save_config 原子写入"""
+        self._save_to_cfg()
+        if self.cfg:
+            save_config(self.cfg)
 
     def add_server(self, name: str, transport: str,
                    command: str = None, args: List[str] = None,
@@ -320,12 +342,12 @@ class MCPServerManager:
     def from_config_file(config_file: str) -> 'MCPServerManager':
         """从标准 MCP 配置文件加载"""
         manager = MCPServerManager()
-        
+
         if os.path.exists(config_file):
             try:
-                with open(config_file, 'r') as f:
+                with open(config_file, 'r', encoding='utf-8') as f:
                     config = json.load(f)
-                    
+
                 servers = config.get("mcpServers", {})
                 for name, cfg in servers.items():
                     if "command" in cfg:
@@ -344,7 +366,7 @@ class MCPServerManager:
                         )
             except Exception as e:
                 print(f"加载 MCP 配置失败: {e}")
-        
+
         return manager
 
 
@@ -353,14 +375,14 @@ _mcp_manager: Optional[MCPServerManager] = None
 _mcp_manager_lock = threading.Lock()
 
 
-def get_mcp_manager() -> MCPServerManager:
+def get_mcp_manager(cfg: dict = None) -> MCPServerManager:
     """获取 MCP 管理器（线程安全单例）"""
     global _mcp_manager
     # 双重检查：避免每次调用都加锁
     if _mcp_manager is None:
         with _mcp_manager_lock:
             if _mcp_manager is None:
-                _mcp_manager = MCPServerManager()
+                _mcp_manager = MCPServerManager(cfg=cfg)
     return _mcp_manager
 
 

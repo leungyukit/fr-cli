@@ -138,7 +138,15 @@ def _cmd_new(state, parts):
     # 4. 重新输出启动画面
     print_startup_banner(state, state.cfg)
 
-    # 5. 显示当前状态摘要
+    # 5. 通知 TUI 重绘，避免 banner 直接写屏后补全菜单渲染异常
+    prompt = getattr(state, "_prompt", None)
+    if prompt and hasattr(prompt, "_invalidate"):
+        try:
+            prompt._invalidate()
+        except Exception:
+            pass
+
+    # 6. 显示当前状态摘要
     print(f"{GREEN}✅ 已开启新会话 —— 轮回重置，道号焕然一新。{RESET}")
     print(f"{DIM}   Session ID: {state.session_id}{RESET}")
     print(f"{DIM}   工作目录: {getattr(state.vfs, 'cwd', '未配置')}{RESET}")

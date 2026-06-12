@@ -76,7 +76,7 @@ def test_real_config_load_save():
     orig_file = conf_mod.CONFIG_FILE
     orig_backup = conf_mod.CONFIG_BACKUP
     conf_mod.CONFIG_FILE = env.config_file
-    conf_mod.CONFIG_BACKUP = env.tmpdir / ".zhipu_cli_config.json.bak"
+    conf_mod.CONFIG_BACKUP = env.tmpdir / "config.json.bak"
 
     try:
         # 首次加载应返回默认配置（provider/model 默认不写，由用户显式配置）

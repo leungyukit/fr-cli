@@ -1,6 +1,6 @@
 """命令处理器 —— mail"""
 
-from fr_cli.command.registry import register
+from fr_cli.command.registry import register, _TRIGGERS_MAIL
 
 @register(
     name="mail_inbox",

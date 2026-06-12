@@ -1,9 +1,12 @@
 """
 图像视觉引擎
 对接智谱 CogView 画图与 GLM-4V 看图能力
+
+画图模型不再硬编码，从 ModelFactory 配置中读取 zhipu provider 的 image_model。
 """
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import CYAN, RESET
+from fr_cli.core.model_factory import get_model_factory
 import base64, os
 
 def gen_img(client, prompt, out_dir, lang):
@@ -12,9 +15,13 @@ def gen_img(client, prompt, out_dir, lang):
     :return: tuple (是否成功 bool, 本地路径或错误信息 str)
     """
     print(f"{CYAN}{T('gen_ing', lang)}{RESET}")
+    # 从配置读取智谱图片生成模型，不再硬编码
+    factory = get_model_factory()
+    zhipu_cfg = factory.get_config("zhipu") or {}
+    image_model = zhipu_cfg.get("image_model", "cogview-3-plus")
     try:
         response = client.images.generations(
-            model="cogview-3-plus", # 使用最新版画图模型
+            model=image_model,
             prompt=prompt,
             size="1024x1024"
         )

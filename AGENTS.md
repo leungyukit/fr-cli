@@ -41,7 +41,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，183 个测试全部通过 |
+| 测试 | `pytest`，204 个测试全部通过 |
 
 ---
 
@@ -148,6 +148,25 @@ pip install -e .
 fr-cli
 ```
 
+### 批处理 / 非交互模式
+
+```bash
+# 执行单条 slash 命令后退出
+fr-cli -c "/model current"
+fr-cli -c "/ls"
+
+# 单次 AI 对话后退出
+fr-cli "请总结 README.md"
+fr-cli -p "Python 如何读取 JSON？"
+
+# 从文件或标准输入读取提示词
+cat article.txt | fr-cli -s
+fr-cli -f prompt.txt
+
+# 静默模式（跳过启动 banner）
+fr-cli -q -c "/model current"
+```
+
 ### 测试
 
 ```bash
@@ -171,14 +190,7 @@ docker build -t fr-cli .
 
 # 运行（交互式终端，需挂载配置卷以持久化数据）
 docker run -it \
-  -v ~/.zhipu_cli_config.json:/root/.zhipu_cli_config.json \
-  -v ~/.zhipu_cli_history:/root/.zhipu_cli_history \
-  -v ~/.zhipu_cli_plugins:/root/.zhipu_cli_plugins \
-  -v ~/.zhipu_cli_context.json:/root/.zhipu_cli_context.json \
-  -v ~/.fr_cli_agents:/root/.fr_cli_agents \
-  -v ~/.fr_cli_master:/root/.fr_cli_master \
-  -v ~/.fr_cli_remote_agents.json:/root/.fr_cli_remote_agents.json \
-  -v ~/.fr_cli_sessions:/root/.fr_cli_sessions \
+  -v ~/.fr_cli:/root/.fr_cli \
   -v $(pwd):/app/workspace \
   fr-cli
 
@@ -245,10 +257,10 @@ main.py
 ├── core.thinking       → 思维模式引擎（CoT/ToT/ReAct）
 ├── command.executor    → 解析 AI 回复，调度注册表（动态构建依赖）
 ├── repl.commands       → 40 个命令处理器
-├── memory.history      → ~/.zhipu_cli_history/ (JSON)
-├── memory.context      → ~/.zhipu_cli_context.json（会话摘要）
-├── memory.session      → ~/.fr_cli_sessions/ (按日期自动存档)
-├── addon.plugin        → ~/.zhipu_cli_plugins/ (*.py)
+├── memory.history      → ~/.fr_cli/sessions/manual/ (JSON)
+├── memory.context      → ~/.fr_cli/context.json（会话摘要）
+├── memory.session      → ~/.fr_cli/sessions/auto/ (按日期自动存档)
+├── addon.plugin        → ~/.fr_cli/plugins/ (*.py)
 ├── weapon.loader       → 从注册表生成工具描述
 ├── weapon.cron         → CronManager（threading.Timer）
 ├── agent.master        → ~/.fr_cli_master/ (记忆与进化)
@@ -270,8 +282,8 @@ main.py
 7. 自动执行提取的命令，打印结果，并将结果回写到 `messages`。
 8. 再次调用 AI 生成最终回复（命令标记从显示文本中清除）。
 9. 显示 token 统计、功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
-10. 提取最近 5 轮对话，生成摘要，持久化到 `~/.zhipu_cli_context.json`。
-11. 自动存档：若首次输入则创建 `~/.fr_cli_sessions/YYYY-MM-DD_NN.json`，否则增量更新。
+10. 提取最近 5 轮对话，生成摘要，持久化到 `~/.fr_cli/context.json`。
+11. 自动存档：若首次输入则创建 `~/.fr_cli/sessions/auto/YYYY-MM-DD_NN.json`，否则增量更新。
 
 ---
 
@@ -287,16 +299,16 @@ Agent 分身系统允许用户创建独立的 AI Agent（分身），每个 Agen
 - **workflow.md** —— 可选的工作流定义（多步骤编排）
 - **config.json** —— 可选的专属模型配置（provider / model / key），Agent 执行时自动切换为该模型
 
-Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
+Agent 存储在 `~/.fr_cli/agents/<name>/` 目录下。
 
 ### 创建 Agent 的四种方式
 
 1. **AI 自动生成**：`/agent_create <name> <description>` —— 调用大模型生成完整 Agent（persona + skills + code）
 2. **从已有代码铸造**：`/agent_forge <name>` —— 从历史消息中提取最近一段包含 `def run(context, **kwargs)` 的 Python 代码，直接保存为 Agent
 3. **自动检测提示**：当 AI 回复中包含 `def run(context, **kwargs)` 和 `\`\`\`python` 代码块时，程序自动弹出提示，输入名称即可保存
-4. **手动创建**：直接在 `~/.fr_cli_agents/<name>/` 目录下创建 `agent.py`（必须包含 `run(context, **kwargs)` 入口），可选补充 `persona.md`、`skills.md`、`workflow.md`
+4. **手动创建**：直接在 `~/.fr_cli/agents/<name>/` 目录下创建 `agent.py`（必须包含 `run(context, **kwargs)` 入口），可选补充 `persona.md`、`skills.md`、`workflow.md`
 
-> **插件 vs Agent 分身的区分**：包含 `def run(args='')` 的代码会被识别为**插件**（保存到 `~/.zhipu_cli_plugins/`），包含 `def run(context, **kwargs)` 的代码会被识别为 **Agent 分身**（保存到 `~/.fr_cli_agents/`）。
+> **插件 vs Agent 分身的区分**：包含 `def run(args='')` 的代码会被识别为**插件**（保存到 `~/.fr_cli/plugins/`），包含 `def run(context, **kwargs)` 的代码会被识别为 **Agent 分身**（保存到 `~/.fr_cli/agents/`）。
 
 ### 模块职责
 
@@ -327,7 +339,7 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 
 ### Agent 模型绑定
 
-每个独立 Agent 可配置专属大模型，执行时自动切换，不影响全局默认模型。配置持久化在 `~/.fr_cli_agents/<name>/config.json` 中。
+每个独立 Agent 可配置专属大模型，执行时自动切换，不影响全局默认模型。配置持久化在 `~/.fr_cli/agents/<name>/config.json` 中。
 
 **命令：**
 ```
@@ -367,7 +379,7 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 建议命令 (myserver): df -h
 是否执行? [Y/n]: Y
 ```
-- 首次使用自动启动配置向导，配置文件：`~/.fr_cli_remotes.json`
+- 首次使用自动启动配置向导，配置文件：`~/.fr_cli/remote/hosts.json`
 
 **@spider — 智能网页爬虫**
 ```
@@ -386,7 +398,7 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
 返回 1 行: {'COUNT(*)': 342}
 ```
 - 支持：MySQL / PostgreSQL / SQL Server / Oracle
-- 配置文件：`~/.fr_cli_databases.json`
+- 配置文件：`~/.fr_cli/database.json`
 
 **@RAG — 本地知识库问答**
 ```
@@ -407,13 +419,13 @@ Agent 存储在 `~/.fr_cli_agents/<name>/` 目录下。
   - `/rag_watch log [--lines N]` — 查看守护进程日志
 - 监控模式说明：
   - 内置模式（`/rag_dir` 后自动启动）：daemon 线程，fr-cli 退出后终止
-  - 独立模式（`/rag_watch start`）：系统级子进程，脱离终端，日志写入 `~/.fr_cli_rag_watcher.log`
+  - 独立模式（`/rag_watch start`）：系统级子进程，脱离终端，日志写入 `~/.fr_cli/rag/watcher.log`
 
 ### MasterAgent 自我进化主控
 
 **设计目标**：一个类似 OpenClaw 的中央控制器。启用后接管所有普通对话（`/` 命令、`!` shell、`@` 前缀仍保持原有逻辑），通过 ReAct 循环自主调用工具，每 10 次交互自动反思并进化 prompt。
 
-**存储位置**：`~/.fr_cli_master/`
+**存储位置**：`~/.fr_cli/master/`
 
 **配置文件体系（有漏即补）**：
 
@@ -460,7 +472,7 @@ for step in range(8):
 
 ### 按日期自动存档会话
 
-**存储位置**：`~/.fr_cli_sessions/YYYY-MM-DD_NN.json`
+**存储位置**：`~/.fr_cli/sessions/auto/YYYY-MM-DD_NN.json`
 
 **核心模块**：`memory/session.py`
 
@@ -558,7 +570,7 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 
 MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。
 
-**配置格式**（`~/.zhipu_cli_config.json`）：
+**配置格式**（`~/.fr_cli/config.json`）：
 ```json
 {
     "mcp": {
@@ -602,7 +614,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 
 ## 配置系统
 
-配置文件路径：`~/.zhipu_cli_config.json`
+配置文件路径：`~/.fr_cli/config.json`
 
 默认配置字典（由 `conf/config.py` 定义）：
 
@@ -631,9 +643,9 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 ```
 
 其他运行时数据目录：
-- `~/.zhipu_cli_history/` — 会话历史 JSON 文件
-- `~/.zhipu_cli_plugins/` — 用户插件 `.py` 文件
-- `~/.zhipu_cli_context.json` — 上下文记忆摘要
+- `~/.fr_cli/sessions/manual/` — 会话历史 JSON 文件
+- `~/.fr_cli/plugins/` — 用户插件 `.py` 文件
+- `~/.fr_cli/context.json` — 上下文记忆摘要
 
 ---
 
@@ -676,7 +688,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 - `tests/test_model_config.py` — 模型配置与 LLM 客户端测试
 - `tests/test_new_features.py` — 新特性测试（图片/并行/工作流）
 - `tests/test_new_providers.py` — 新提供商测试（MiniMax/Kimi）
-- 总计 **183 个测试全部通过**
+- 总计 **204 个测试全部通过**
 
 测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、Gatekeeper
 
@@ -690,7 +702,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 
 - `Y` — 仅允许一次（Once）
 - `A` — 本次会话允许（Session）
-- `F` — 永久允许（Forever），会写入 `~/.zhipu_cli_config.json` 的 `auto_confirm_forever: true`
+- `F` — 永久允许（Forever），会写入 `~/.fr_cli/config.json` 的 `auto_confirm_forever: true`
 - `N` / 回车 — 拒绝（Deny）
 
 ### 2. 虚拟文件系统沙盒（weapon/fs.py）
@@ -760,7 +772,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 | 任务 | 建议操作 |
 |---|---|
 | **添加新 weapon 工具** | **只需在 `command/registry.py` 中用 `@register(...)` 注册一个 handler**，可选在 `WEAPON.MD` 中添加人类可读描述 |
-| 添加新 Agent | 在 `~/.fr_cli_agents/<name>/` 下创建 `persona.md` + `memory.md` + `skills.md` + `agent.py`（可选） |
+| 添加新 Agent | 在 `~/.fr_cli/agents/<name>/` 下创建 `persona.md` + `memory.md` + `skills.md` + `agent.py`（可选） |
 | 添加本机应用启动 | 修改 `weapon/launcher.py` 的 `_APP_ALIASES` 映射表，按平台添加别名 |
 | 添加数据库支持 | 修改 `agent/builtins/db.py` 的 `_connect()` 添加新数据库驱动 |
 | 添加 RAG 文件类型 | 修改 `agent/builtins/rag.py` 的 `_read_file()` 添加新文件格式解析 |

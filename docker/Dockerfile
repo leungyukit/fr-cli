@@ -6,7 +6,7 @@
 FROM python:3.13-slim
 
 LABEL maintainer="fr-cli"
-LABEL description="凡人打字机 - 基于智谱AI的交互式终端工具"
+LABEL description="凡人打字机 - 多模型交互式终端工具"
 
 # 避免交互式配置提示
 ENV DEBIAN_FRONTEND=noninteractive
@@ -30,12 +30,16 @@ COPY fr_cli/ ./fr_cli/
 # 安装 fr-cli 及全部可选依赖
 RUN pip install --no-cache-dir -e ".[all]"
 
-# 创建配置目录（运行时通过卷挂载持久化）
-RUN mkdir -p /root/.zhipu_cli_history \
-    /root/.zhipu_cli_plugins \
-    /root/.fr_cli_agents \
-    /root/.fr_cli_master \
-    /root/.fr_cli_sessions \
+# 创建统一配置目录（运行时通过卷挂载持久化）
+RUN mkdir -p /root/.fr_cli/sessions/manual \
+    /root/.fr_cli/sessions/auto \
+    /root/.fr_cli/plugins \
+    /root/.fr_cli/agents \
+    /root/.fr_cli/master \
+    /root/.fr_cli/remote \
+    /root/.fr_cli/mcp \
+    /root/.fr_cli/daemon \
+    /root/.fr_cli/rag \
     /app/workspace
 
 # 默认工作目录

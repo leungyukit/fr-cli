@@ -1,6 +1,6 @@
 """命令处理器 —— web"""
 
-from fr_cli.command.registry import register
+from fr_cli.command.registry import register, _TRIGGERS_WEB
 
 @register(
     name="search_web",

@@ -139,11 +139,18 @@ def highlight_code_block(code: str, lang: str) -> str:
 
 # ==================== 长线-2：本地小模型 fallback ====================
 
+# Ollama 本地模型常量（统一入口，避免 URL/provider ID 散落）
+OLLAMA_PROVIDER = "ollama"
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_TAGS_URL = f"{OLLAMA_BASE_URL}/api/tags"
+OLLAMA_API_URL = f"{OLLAMA_BASE_URL}/v1"
+
+
 def detect_local_ollama() -> Optional[Dict]:
     """检测本地 ollama 是否运行"""
     try:
         result = subprocess.run(
-            ["curl", "-s", "--max-time", "2", "http://localhost:11434/api/tags"],
+            ["curl", "-s", "--max-time", "2", OLLAMA_TAGS_URL],
             capture_output=True, text=True, timeout=3,
         )
         if result.returncode == 0 and "models" in result.stdout:
@@ -152,8 +159,8 @@ def detect_local_ollama() -> Optional[Dict]:
             models = [m["name"] for m in data.get("models", [])]
             if models:
                 return {
-                    "provider": "ollama",
-                    "url": "http://localhost:11434/v1",
+                    "provider": OLLAMA_PROVIDER,
+                    "url": OLLAMA_API_URL,
                     "models": models,
                 }
     except Exception:

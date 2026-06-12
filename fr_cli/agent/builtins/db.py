@@ -1,11 +1,14 @@
 """
 @db 内置 Agent —— 数据库智能助手
 支持 MySQL / PostgreSQL / SQL Server / Oracle 的 Schema 分析和 SQL 生成。
+
+数据库连接配置统一收敛到 ~/.fr_cli/config.json 的 databases 命名空间。
 """
-from pathlib import Path
+from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.conf.paths import DATABASE_FILE
 
-DB_CFG_PATH = DATABASE_FILE  # from fr_cli.conf.paths
+_NS_KEY = "databases"
+DB_CFG_PATH = DATABASE_FILE  # 保留用于一次性迁移
 
 DB_SYS_PROMPT = """你是一个数据库专家。请根据以下数据库 Schema 信息和用户需求，生成最合适的 SQL 语句。
 
@@ -25,13 +28,11 @@ Schema 信息:
 
 
 def _load_dbs():
-    from fr_cli.agent.builtins._utils import load_json_config
-    return load_json_config(DB_CFG_PATH)
+    return load_namespace(_NS_KEY, default={}, old_path=DB_CFG_PATH)
 
 
 def _save_dbs(dbs):
-    from fr_cli.agent.builtins._utils import save_json_config
-    save_json_config(DB_CFG_PATH, dbs)
+    save_namespace(_NS_KEY, dbs)
 
 
 def _connect(db_cfg):

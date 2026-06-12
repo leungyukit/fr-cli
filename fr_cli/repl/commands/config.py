@@ -35,6 +35,7 @@ def _cmd_model(state, parts):
 
     子命令风格（专业 CLI 格式）:
       /model              — 交互式选择
+      /model config       — 交互式模型配置向导（推荐新手）
       /model list         — 列出所有可用模型
       /model current      — 显示当前模型
       /model default      — 恢复当前提供商的默认模型
@@ -73,7 +74,10 @@ def _cmd_model(state, parts):
 
     if arg1 in ("default", "reset"):
         info = get_provider_info(state.provider)
-        default_model = info.get("default_model", "glm-4-flash") if info else "glm-4-flash"
+        default_model = info.get("default_model") if info else None
+        if not default_model:
+            print(f"{RED}当前厂商没有配置默认模型{RESET}")
+            return False
         ok = state.update_model(default_model)
         if ok:
             print(f"{GREEN}已恢复默认: [{state.provider}] {state.display_model}{RESET}")
@@ -105,6 +109,7 @@ def _cmd_model(state, parts):
             print(f"  {CYAN}[{i}]{RESET} {p['id']}{DIM}/{p['default_model']}{RESET} — {p['name']} {key_status}{marker}")
 
         print(f"\n{DIM}子命令:{RESET}")
+        print(f"  /model config       — 交互式模型配置向导")
         print(f"  /model list         — 列出所有模型")
         print(f"  /model current      — 显示当前模型")
         print(f"  /model default      — 恢复默认模型")

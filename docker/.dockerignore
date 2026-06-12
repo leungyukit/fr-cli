@@ -24,7 +24,7 @@ tests/
 
 # 本地配置（避免打包进镜像）
 *.json
-.zhipu_cli_*
+.fr_cli/
 .fr_cli_*
 
 # IDE

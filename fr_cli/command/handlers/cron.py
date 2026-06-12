@@ -1,6 +1,6 @@
 """命令处理器 —— cron"""
 
-from fr_cli.command.registry import register
+from fr_cli.command.registry import register, _TRIGGERS_CRON
 
 @register(
     name="cron_add",

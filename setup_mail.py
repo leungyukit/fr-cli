@@ -2,12 +2,9 @@
 # -*- coding: utf-8 -*-
 """
 邮件账户配置向导
-一键配置 ~/.zhipu_cli_config.json 中的邮件设置
+一键配置 ~/.fr_cli/config.json 中的邮件设置
 """
-import json
-from pathlib import Path
-
-CONFIG_FILE = Path.home() / ".zhipu_cli_config.json"
+from fr_cli.conf.config import load_config, save_config
 
 PRESETS = {
     "1": ("QQ邮箱", "imap.qq.com", "smtp.qq.com"),
@@ -45,14 +42,8 @@ if not all([imap_server, smtp_server, email, password]):
     print("❌ 所有字段都必须填写")
     exit(1)
 
-# 加载现有配置
-cfg = {}
-if CONFIG_FILE.exists():
-    try:
-        with open(CONFIG_FILE, 'r', encoding='utf-8') as f:
-            cfg = json.load(f)
-    except Exception:
-        pass
+# 加载现有配置（统一走新路径 ~/.fr_cli/config.json）
+cfg = load_config()
 
 cfg["mail"] = {
     "imap_server": imap_server,
@@ -61,23 +52,24 @@ cfg["mail"] = {
     "password": password
 }
 
-with open(CONFIG_FILE, 'w', encoding='utf-8') as f:
-    json.dump(cfg, f, indent=4, ensure_ascii=False)
-
-print()
-print("=" * 60)
-print(f"  ✅ 邮件配置已保存到 {CONFIG_FILE}")
-print("=" * 60)
-print()
-print("配置内容：")
-print(f"  服务商: {name}")
-print(f"  IMAP:   {imap_server}")
-print(f"  SMTP:   {smtp_server}")
-print(f"  邮箱:   {email}")
-print(f"  密码:   {'*' * len(password)}")
-print()
-print("重启 fr-cli 后即可使用邮件功能：")
-print("  【调用：mail_inbox({})】")
-print("  【调用：mail_read({\"id\": \"1\"})】")
-print("  【调用：mail_send({\"to\": \"...\", \"subject\": \"...\", \"body\": \"...\"})】")
-print()
+if save_config(cfg):
+    print()
+    print("=" * 60)
+    print("  ✅ 邮件配置已保存")
+    print("=" * 60)
+    print()
+    print("配置内容：")
+    print(f"  服务商: {name}")
+    print(f"  IMAP:   {imap_server}")
+    print(f"  SMTP:   {smtp_server}")
+    print(f"  邮箱:   {email}")
+    print(f"  密码:   {'*' * len(password)}")
+    print()
+    print("重启 fr-cli 后即可使用邮件功能：")
+    print("  【调用：mail_inbox({})】")
+    print("  【调用：mail_read({\"id\": \"1\"})】")
+    print("  【调用：mail_send({\"to\": \"...\", \"subject\": \"...\", \"body\": \"...\"})】")
+    print()
+else:
+    print("❌ 保存配置失败")
+    exit(1)

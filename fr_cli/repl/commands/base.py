@@ -79,7 +79,11 @@ def _cmd_see(state, parts):
     arg1 = parts[1] if len(parts) > 1 else ""
     if not arg1:
         return False
-    if state.model_name != "glm-4v-plus":
+    # 检查当前模型是否为当前 provider 配置的视觉模型
+    from fr_cli.core.llm import get_provider_info
+    info = get_provider_info(state.provider)
+    vision_models = info.get("vision_models", []) if info else []
+    if state.model_name not in vision_models:
         print(f"{YELLOW}{T('see_warn', state.lang)}{RESET}")
     print(f"{CYAN}{T('see_ing', state.lang)}{RESET}")
     prep_see_msg(state.messages, arg1, parts[2] if len(parts) > 2 else "", vfs=state.vfs)

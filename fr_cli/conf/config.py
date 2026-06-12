@@ -22,6 +22,7 @@ DEFAULT_LIMIT = 20000
 def _default_config():
     """返回默认配置字典 —— provider/model 不再硬编码，由用户显式配置"""
     return {
+        "version": 2,
         "key": "",
         # 注意：默认不设置 provider 和 model，由用户通过 /model config 显式配置
         # 未配置时状态栏显示'未配置'
@@ -40,6 +41,24 @@ def _default_config():
         "splash_cols": 50,
         "splash_bg_threshold": 30,
     }
+
+
+def _upgrade_schema(cfg):
+    """把旧版配置升级到当前 schema（幂等执行）"""
+    version = cfg.get("version", 1)
+    if version >= 2:
+        return cfg
+
+    # v1 -> v2: 将顶层 model 同步到当前 provider 的专属配置中
+    provider = cfg.get("provider")
+    if provider and cfg.get("model"):
+        providers = cfg.setdefault("providers", {})
+        pcfg = providers.setdefault(provider, {})
+        if not pcfg.get("model"):
+            pcfg["model"] = cfg["model"]
+
+    cfg["version"] = 2
+    return cfg
 
 
 def load_config():
@@ -74,18 +93,14 @@ def load_config():
         print(f"{YELLOW}⚠️ 使用默认配置，请重新设置{RESET}")
         return d
 
+    # schema 升级与向后兼容迁移（必须在补齐默认字段之前执行，
+    # 否则默认值中的 version 会提前写入，导致升级逻辑被跳过）
+    c = _upgrade_schema(c)
+
     # 补齐缺失字段（跳过 provider 和 model，由用户显式配置）
     for k, v in d.items():
         if k not in c and k not in ("provider", "model"):
             c[k] = v
-
-    # 向后兼容迁移：将顶层 model 同步到当前 provider 的专属配置中
-    provider = c.get("provider", "zhipu")
-    providers_cfg = c.setdefault("providers", {})
-    pcfg = providers_cfg.setdefault(provider, {})
-    if c.get("model") and not pcfg.get("model"):
-        pcfg["model"] = c["model"]
-        c["providers"] = providers_cfg
 
     return c
 
@@ -123,6 +138,46 @@ def save_config(c):
 class ConfigError(Exception):
     """配置初始化异常（替代 exit，避免作为库导入时终止进程）"""
     pass
+
+
+def load_namespace(key, default=None, old_path=None):
+    """从主配置 config.json 的命名空间中读取数据。
+
+    若 old_path 指定的旧独立配置文件存在且主配置中该命名空间为空，
+    则一次性迁移旧文件内容到主配置并保存。
+    """
+    if default is None:
+        default = {}
+    cfg = load_config()
+    data = cfg.get(key)
+    if data is not None:
+        return data
+
+    # 尝试迁移旧文件
+    if old_path is not None:
+        old_path = Path(old_path)
+        if old_path.exists():
+            try:
+                old_data = json.loads(old_path.read_text(encoding="utf-8"))
+                if old_data:
+                    cfg[key] = old_data
+                    save_config(cfg)
+                    try:
+                        old_path.rename(str(old_path) + ".migrated")
+                    except Exception:
+                        pass
+                    return old_data
+            except Exception:
+                pass
+
+    return default
+
+
+def save_namespace(key, value):
+    """把数据写入主配置 config.json 的命名空间并持久化。"""
+    cfg = load_config()
+    cfg[key] = value
+    save_config(cfg)
 
 
 def init_config():
@@ -180,10 +235,8 @@ def init_config():
 
     pcfg = providers_cfg.get(provider, {})
 
-    # 检查当前提供商是否已配置 key
-    has_key = bool(pcfg.get("key"))
-    if not has_key and provider == "zhipu":
-        has_key = bool(c.get("key", ""))
+    # 检查当前提供商是否已配置 key（兼容旧版顶层 key 字段）
+    has_key = bool(pcfg.get("key") or c.get("key", ""))
 
     if not has_key:
         from fr_cli.core.llm import list_providers, get_provider_info

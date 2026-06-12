@@ -2,14 +2,15 @@
 记忆上下文引擎
 保存并注入最近 N 轮对话的总结，作为 system prompt 的上下文
 让每个会话拥有独立的短期记忆
-"""
-import json
-from fr_cli.conf.paths import CONTEXT_FILE
-import re
-from pathlib import Path
-from datetime import datetime
 
-CONTEXT_FILE = CONTEXT_FILE  # from fr_cli.conf.paths
+数据统一收敛到 ~/.fr_cli/config.json 的 context.summaries 命名空间。
+"""
+import re
+from datetime import datetime
+from fr_cli.conf.config import load_namespace, save_namespace
+from fr_cli.conf.paths import CONTEXT_FILE
+
+_NS_KEY = "context"
 
 
 def extract_recent_turns(messages, n=5):
@@ -57,31 +58,30 @@ def build_context_summary(turns, lang="zh"):
     return header + "\n".join(lines) + "\n"
 
 
+def _load_context_ns():
+    """读取 config.json 中 context 命名空间（自动迁移旧 context.json）"""
+    return load_namespace(_NS_KEY, default={"summaries": {}}, old_path=CONTEXT_FILE)
+
+
+def _save_context_ns(ns):
+    """保存 config.json 中 context 命名空间"""
+    save_namespace(_NS_KEY, ns)
+
+
 def save_context(session_name, summary):
     """
     按会话名持久化上下文摘要
     :param session_name: 会话名（空字符串时使用 __default__）
     :param summary: 摘要文本
     """
-    data = {}
-    if CONTEXT_FILE.exists():
-        try:
-            with open(CONTEXT_FILE, 'r', encoding='utf-8') as f:
-                data = json.load(f)
-        except Exception:
-            pass
-
+    ns = _load_context_ns()
+    summaries = ns.setdefault("summaries", {})
     key = session_name if session_name else "__default__"
-    data[key] = {
+    summaries[key] = {
         "summary": summary,
         "ts": datetime.now().isoformat()
     }
-
-    try:
-        with open(CONTEXT_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    _save_context_ns(ns)
 
 
 def load_context(session_name):
@@ -90,15 +90,10 @@ def load_context(session_name):
     :param session_name: 会话名
     :return: str 摘要文本（不存在时返回空字符串）
     """
-    if not CONTEXT_FILE.exists():
-        return ""
-    try:
-        with open(CONTEXT_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        key = session_name if session_name else "__default__"
-        return data.get(key, {}).get("summary", "")
-    except Exception:
-        return ""
+    ns = _load_context_ns()
+    summaries = ns.get("summaries", {})
+    key = session_name if session_name else "__default__"
+    return summaries.get(key, {}).get("summary", "")
 
 
 def clear_context(session_name):
@@ -106,15 +101,9 @@ def clear_context(session_name):
     清除指定会话的上下文摘要
     :param session_name: 会话名
     """
-    if not CONTEXT_FILE.exists():
-        return
-    try:
-        with open(CONTEXT_FILE, 'r', encoding='utf-8') as f:
-            data = json.load(f)
-        key = session_name if session_name else "__default__"
-        if key in data:
-            del data[key]
-        with open(CONTEXT_FILE, 'w', encoding='utf-8') as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    ns = _load_context_ns()
+    summaries = ns.get("summaries", {})
+    key = session_name if session_name else "__default__"
+    if key in summaries:
+        del summaries[key]
+        _save_context_ns(ns)

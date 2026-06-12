@@ -1,6 +1,6 @@
 """命令处理器 —— disk"""
 
-from fr_cli.command.registry import register
+from fr_cli.command.registry import register, _TRIGGERS_DISK
 
 @register(
     name="disk_ls",

@@ -62,46 +62,32 @@ class ImageModelConfig:
         self._register_builtin_providers()
 
     def _register_builtin_providers(self):
-        """注册内置图片提供商"""
+        """从 ModelFactory 注册内置图片提供商，避免硬编码 model/base_url"""
+        from fr_cli.core.model_factory import get_model_factory
 
-        # 智谱 CogView
-        self.register_provider(ImageProvider(
-            name="智谱 CogView-4",
-            provider_id="zhipu",
-            model="cogview-4",
-            api_key="",
-            size="1024x1024"
-        ))
+        factory = get_model_factory()
+        image_provider_map = [
+            ("智谱 CogView-4", "zhipu"),
+            ("MiniMax 图片", "minimax"),
+            ("通义万相", "qwen"),
+            ("StepFun 图片", "stepfun"),
+        ]
 
-        # MiniMax 图片
-        self.register_provider(ImageProvider(
-            name="MiniMax 图片",
-            provider_id="minimax",
-            model="image-01",
-            api_key="",
-            base_url="https://api.minimax.chat/v1",
-            size="1024x1024"
-        ))
-
-        # 通义万相
-        self.register_provider(ImageProvider(
-            name="通义万相",
-            provider_id="qwen",
-            model="wanx2.1-t2i-turbo",
-            api_key="",
-            base_url="https://dashscope.aliyuncs.com/api/v2",
-            size="1024x1024"
-        ))
-
-        # StepFun 图片
-        self.register_provider(ImageProvider(
-            name="StepFun 图片",
-            provider_id="stepfun",
-            model="step-1-image",
-            api_key="",
-            base_url="https://api.stepfun.com/v1",
-            size="1024x1024"
-        ))
+        for name, provider_id in image_provider_map:
+            cfg = factory.get_config(provider_id)
+            if not cfg:
+                continue
+            image_model = cfg.get("image_model")
+            if not image_model:
+                continue
+            self.register_provider(ImageProvider(
+                name=name,
+                provider_id=provider_id,
+                model=image_model,
+                api_key="",
+                base_url=cfg.get("base_url"),
+                size="1024x1024"
+            ))
 
     def register_provider(self, provider: ImageProvider):
         """注册图片提供商"""
@@ -251,7 +237,7 @@ class ImageGenerator:
             client = ZhipuAI(api_key=self.provider.api_key or os.getenv("ZHIPU_API_KEY"))
 
             response = client.images.generation(
-                model="cogview-4",
+                model=self.provider.model,
                 prompt=prompt,
                 size=size,
                 quality=quality
@@ -276,7 +262,7 @@ class ImageGenerator:
             )
 
             response = client.images.generate(
-                model="image-01",
+                model=self.provider.model,
                 prompt=prompt,
                 size=size
             )
@@ -298,7 +284,7 @@ class ImageGenerator:
                 url=f"{self.provider.base_url}/services/aigc/text-to-image/imageCreation",
                 headers={"Authorization": f"Bearer {self.provider.api_key or os.getenv('DASHSCOPE_API_KEY')}"},
                 json={
-                    "model": "wanx2.1-t2i-turbo",
+                    "model": self.provider.model,
                     "input": {"prompt": prompt},
                     "parameters": {"size": size}
                 },
@@ -424,6 +410,13 @@ class TerminalImageDisplay:
     @staticmethod
     def _detect_method() -> str:
         """检测终端支持的显示方法"""
+        from fr_cli.ui.ui import _NO_COLOR
+
+        # NO_COLOR / prompt_toolkit patch_stdout 环境下，原始转义序列会显示为乱码，
+        # 强制回退到最安全的 ASCII 字符画。
+        if _NO_COLOR:
+            return "ascii"
+
         term = os.environ.get("TERM_PROGRAM", "")
 
         if term == "iTerm.app":

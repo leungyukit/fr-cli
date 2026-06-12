@@ -106,6 +106,28 @@ fr-cli
 /exit              退出
 ```
 
+### 🖥️ 非交互 / 批处理模式
+
+fr-cli 支持在不进入 REPL 的情况下执行单次命令或单次 AI 对话，适用于脚本、cron、管道等场景：
+
+```bash
+# 执行一条 slash 命令后退出
+fr-cli -c "/model current"
+fr-cli -c "/ls"
+
+# 向 AI 提问后退出
+fr-cli "请总结 README.md"
+fr-cli -p "Python 如何读取 JSON？"
+
+# 从文件或标准输入读取提示词
+cat article.txt | fr-cli -s
+fr-cli -f prompt.txt
+
+# 静默模式（跳过启动 banner，只输出核心结果）
+fr-cli -q -c "/model current"
+fr-cli -q -p "1+1等于几"
+```
+
 ### 🤖 AI 模型配置
 
 ```bash
@@ -316,7 +338,7 @@ fr_cli/
 
 ## 📂 配置目录
 
-> 配置统一在 `~/.fr_cli/` 目录下，旧路径 `~/.zhipu_cli_config.json` 等会在首次启动时自动迁移。
+> 配置统一在 `~/.fr_cli/` 目录下，旧路径（如 `~/.zhipu_cli_config.json`）会在首次启动时自动迁移到新路径。
 
 | 路径 | 说明 |
 |------|------|

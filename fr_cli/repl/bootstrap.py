@@ -188,8 +188,13 @@ def print_startup_banner(state, cfg, show_logo: bool = False):
     print_simple_banner(state, __version__)
 
 
-def bootstrap(show_logo: bool = False):
-    """启动引导主入口：返回 (cfg, state)"""
+def bootstrap(show_logo: bool = False, show_banner: bool = True):
+    """启动引导主入口：返回 (cfg, state)
+
+    Args:
+        show_logo: True 时显示佛像 ASCII art，False 时显示简洁 banner
+        show_banner: False 时跳过启动画面（用于批处理 / 非交互模式）
+    """
     try:
         cfg = init_config()
     except ConfigError:
@@ -201,5 +206,6 @@ def bootstrap(show_logo: bool = False):
     sp = load_system_prompt(state, cfg.get("lang", "zh"))
     start_history_loader(state, sp)
     start_context_loader(state)
-    print_startup_banner(state, cfg, show_logo=show_logo)
+    if show_banner:
+        print_startup_banner(state, cfg, show_logo=show_logo)
     return cfg, state

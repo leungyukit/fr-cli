@@ -33,11 +33,11 @@ def _load_providers_from_factory():
             else:
                 client_cls = OpenAICompatibleClient
 
-            default_model = cfg.get("model", "glm-4-flash")
+            default_model = cfg.get("model")
             _PROVIDERS[pid] = {
                 "name": cfg.get("name", pid),
                 "default_model": default_model,
-                "models": cfg.get("models", [default_model]),
+                "models": cfg.get("models") or ([default_model] if default_model else []),
                 "client_class": client_cls,
                 "base_url": cfg.get("base_url"),
                 "token_plan_base_url": cfg.get("token_plan_base_url"),
@@ -291,8 +291,8 @@ class MockLLMClient(BaseLLMClient):
                 f"【Mock 模式 🧪】当前未配置 API Key 或 LLM 不可用。\n"
                 f"你刚才说的是：{short}\n\n"
                 f"**配置真实 LLM 的方式：**\n"
-                f"- `/key sk-xxx` 设置当前提供商（zhipu）的 key\n"
-                f"- `/providers use deepseek` 切换到其他提供商\n"
+                f"- `/key sk-xxx` 设置当前提供商的 key\n"
+                f"- `/providers use <厂商>` 切换到其他提供商\n"
                 f"- `/providers setup` 交互式配置\n\n"
                 f"**Mock 模式仍能用的功能：**\n"
                 f"- `/help` / `/cat` / `/ls` / `/web` 等命令\n"
@@ -335,16 +335,22 @@ def create_llm_client(cfg: dict, prefer_saved_model: bool = True):
         # 未配置 provider，回退到 Mock（状态栏显示"未配置"）
         return MockLLMClient(model="未配置"), None, "未配置"
 
-    default_model = _PROVIDERS.get(provider, {}).get("default_model", "glm-4-flash")
+    provider_info = _PROVIDERS.get(provider, {})
+    default_model = provider_info.get("default_model")
 
     providers_cfg = cfg.get("providers", {})
     pcfg = providers_cfg.get(provider, {})
 
     # 优先读取用户保存的 model，无配置时回退到 factory 默认
     if prefer_saved_model:
-        model = pcfg.get("model", default_model)
+        model = pcfg.get("model") or default_model
     else:
         model = default_model
+
+    # 没有任何可用模型时回退到第一个 provider 的默认模型（兜底）
+    if not model and _PROVIDERS:
+        first = next(iter(_PROVIDERS.values()))
+        model = first.get("default_model")
 
     api_key = pcfg.get("key") or cfg.get("key", "")
 

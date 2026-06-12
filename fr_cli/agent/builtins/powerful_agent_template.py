@@ -17,8 +17,8 @@
 
 示例配置：
 {
-    "provider": "kimi-k2",
-    "model": "kimi-k2-0905-preview",
+    "provider": "<your-provider>",
+    "model": "<your-model>",
     "key": "your-api-key"
 }
 """
@@ -641,10 +641,17 @@ class PowerfulAgent:
         self.a2a = A2AIntegration(name, context.get("state"))
         self.evolution = EvolutionSystem(name)
 
-        # 从 context 获取配置
+        # 从 context 获取配置；未指定时回退到 ModelFactory 首个 provider
         self.client = context.get("client")
-        self.provider = context.get("provider", "zhipu")
-        self.model = context.get("model", "glm-4-flash")
+        self.provider = context.get("provider")
+        self.model = context.get("model")
+        if not self.provider:
+            from fr_cli.core.model_factory import get_model_factory
+            factory = get_model_factory()
+            providers = factory.list_providers()
+            if providers:
+                self.provider = providers[0]
+                self.model = factory.get_model_name(self.provider)
         self.persona = context.get("persona", "")
         self.skills = context.get("skills", "")
         self.lang = context.get("lang", "zh")
@@ -900,8 +907,8 @@ if __name__ == "__main__":
     # 示例：创建并运行 Agent
     example_context = {
         "client": None,  # 在实际运行时由 fr-cli 提供
-        "provider": "kimi-k2",
-        "model": "kimi-k2-0905-preview",
+        "provider": "<your-provider>",
+        "model": "<your-model>",
         "persona": "你是一个专业的代码审查员，擅长发现代码中的问题和优化点。",
         "skills": "代码审查、性能优化、重构建议",
         "lang": "zh",

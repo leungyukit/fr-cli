@@ -151,7 +151,7 @@ import json
 from pathlib import Path
 from ui import YELLOW, CYAN, RESET, RED
 
-CONFIG_FILE = Path.home() / ".zhipu_cli_config.json"
+CONFIG_FILE = Path.home() / ".fr_cli" / "config.json"
 DEFAULT_LIMIT = 20000
 
 def load_config():

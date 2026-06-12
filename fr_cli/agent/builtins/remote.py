@@ -1,11 +1,15 @@
 """
 @remote 内置 Agent —— 远程 SSH 操作助手
 支持多机配置、配置向导、AI 生成远程命令。
+
+远程主机配置统一收敛到 ~/.fr_cli/config.json 的 remote.hosts 命名空间。
+旧文件 ~/.fr_cli/remote/hosts.json 会在首次加载时一次性迁移。
 """
-from pathlib import Path
+from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.conf.paths import REMOTE_HOSTS_FILE
 
-REMOTE_CFG_PATH = REMOTE_HOSTS_FILE  # from fr_cli.conf.paths
+_NS_KEY = "remote"
+REMOTE_CFG_PATH = REMOTE_HOSTS_FILE  # 保留用于一次性迁移
 
 REMOTE_SYS_PROMPT = """你是一个远程系统命令专家。请根据目标主机的操作系统类型和用户需求，生成最合适的远程命令。
 
@@ -21,13 +25,14 @@ REMOTE_SYS_PROMPT = """你是一个远程系统命令专家。请根据目标主
 
 
 def _load_hosts():
-    from fr_cli.agent.builtins._utils import load_json_config
-    return load_json_config(REMOTE_CFG_PATH)
+    ns = load_namespace(_NS_KEY, default={"hosts": {}}, old_path=REMOTE_CFG_PATH)
+    return ns.get("hosts", {})
 
 
 def _save_hosts(hosts):
-    from fr_cli.agent.builtins._utils import save_json_config
-    save_json_config(REMOTE_CFG_PATH, hosts)
+    ns = load_namespace(_NS_KEY, default={"hosts": {}})
+    ns["hosts"] = hosts
+    save_namespace(_NS_KEY, ns)
 
 
 def list_hosts():

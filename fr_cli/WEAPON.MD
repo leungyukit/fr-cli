@@ -176,7 +176,7 @@
   - AI 调用: `mcp_call({"server": "服务器名", "tool": "工具名", "arguments": {...}})`
   - REPL 管理: `/mcp_list`, `/mcp_add`, `/mcp_del`, `/mcp_enable`, `/mcp_disable`, `/mcp_refresh`
 - **触发关键词**: mcp, 外部工具, 外部神通, 调用工具, use tool, invoke tool
-- **配置持久化**: `~/.zhipu_cli_config.json` 的 `mcp.servers` 字段
+- **配置持久化**: `~/.fr_cli/config.json` 的 `mcp.servers` 字段
 - **示例**:
   ```
   /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp

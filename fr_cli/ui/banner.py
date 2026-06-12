@@ -10,7 +10,7 @@ import os
 import shutil
 import re
 from fr_cli.ui.ui import (
-    RED, GREEN, CYAN, MAGENTA, YELLOW, BOLD, DIM, RESET,
+    RED, GREEN, CYAN, MAGENTA, YELLOW, BOLD, DIM, RESET, GRAY,
     get_display_width, _NO_COLOR,
 )
 from fr_cli import __version__
@@ -45,7 +45,7 @@ def _box_line(content: str, width: int) -> str:
         right_pad = ""
     else:
         right_pad = " " * (inner - 2 - cw)
-    return f"\033[90m│{RESET}{left_pad}{content}{right_pad}\033[90m│{RESET}"
+    return f"{GRAY}│{RESET}{left_pad}{content}{right_pad}{GRAY}│{RESET}"
 
 
 def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: str,
@@ -65,7 +65,7 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
     horizontal = "─" * (width - 2)
 
     print()
-    print(f"\033[90m╭{horizontal}╮{RESET}")
+    print(f"{GRAY}╭{horizontal}╮{RESET}")
 
     # 准备内容
     if allowed_dirs:
@@ -114,7 +114,7 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
         print(_box_line(line, width))
 
     # 底部框线
-    print(f"\033[90m╰{horizontal}╯{RESET}")
+    print(f"{GRAY}╰{horizontal}╯{RESET}")
     print()
 
 

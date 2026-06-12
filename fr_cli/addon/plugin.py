@@ -38,19 +38,19 @@ def exec_plugin(name, path, args, lang):
         print(f"{RED}❌ 非法插件名: {name}{RESET}")
         return
 
-    import json, shlex
+    import json
     # 使用 json.dumps 安全序列化参数，防止字符串逃逸注入
     safe_args = json.dumps(args)
     runner_code = f"""
 import sys, json, runpy
-sys.path.insert(0, {shlex.quote(str(PLUGIN_DIR))})
-mod = runpy.run_module({shlex.quote(name)}, run_name='__main__')
+sys.path.insert(0, {json.dumps(str(PLUGIN_DIR), ensure_ascii=False)})
+mod = runpy.run_module({json.dumps(name, ensure_ascii=False)}, run_name='__main__')
 run_fn = mod.get('run')
 if run_fn is None:
     print("Error: 插件缺少 run 函数", file=sys.stderr)
 else:
     try:
-        print(run_fn(json.loads({safe_args})))
+        print(run_fn(json.loads({json.dumps(safe_args, ensure_ascii=False)})))
     except Exception as e:
         print(f"Error: {{e}}", file=sys.stderr)
 """

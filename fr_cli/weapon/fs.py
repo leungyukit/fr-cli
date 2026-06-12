@@ -2,10 +2,75 @@
 虚拟文件系统 (VFS) - 安全沙盒引擎
 限制AI和用户只能在允许的目录内操作
 """
+import difflib
 import os
 from pathlib import Path
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import GREEN, RED, CYAN, RESET
+from fr_cli.ui.ui import GREEN, RED, CYAN, YELLOW, RESET
+
+
+def _is_binary_content(data: bytes) -> bool:
+    """简单启发式判断内容是否为二进制"""
+    if not data:
+        return False
+    # 若包含空字节，则认为是二进制
+    if b"\x00" in data:
+        return True
+    # 尝试用 utf-8 解码，失败则视为二进制
+    try:
+        data.decode("utf-8")
+        return False
+    except UnicodeDecodeError:
+        return True
+
+
+def _format_diff(old_lines: list, new_lines: list, path: str, l: str = "zh", max_lines: int = 80) -> str:
+    """生成带颜色的统一格式 diff 文本"""
+    # path 可能是绝对路径，使用文件名作为 diff 标签更简洁
+    label = Path(path).name
+    diff = list(difflib.unified_diff(
+        old_lines,
+        new_lines,
+        fromfile=f"a/{label}",
+        tofile=f"b/{label}",
+        lineterm="",
+    ))
+    if not diff:
+        return ""
+
+    truncated = False
+    if len(diff) > max_lines:
+        diff = diff[:max_lines]
+        truncated = True
+
+    lines = []
+    for line in diff:
+        if line.startswith("+++") or line.startswith("---") or line.startswith("@@"):
+            lines.append(f"{CYAN}{line}{RESET}")
+        elif line.startswith("+"):
+            lines.append(f"{GREEN}{line}{RESET}")
+        elif line.startswith("-"):
+            lines.append(f"{RED}{line}{RESET}")
+        else:
+            lines.append(line)
+
+    if truncated:
+        lines.append(f"{YELLOW}{T('diff_truncated', l)}{RESET}")
+
+    return "\n".join(lines)
+
+
+def _preview_content(content: str, l: str = "zh", max_lines: int = 20) -> str:
+    """生成新文件/追加内容的颜色预览"""
+    lines = content.splitlines()
+    if not lines:
+        return ""
+    truncated = len(lines) > max_lines
+    preview = lines[:max_lines]
+    result = "\n".join(f"{GREEN}+{line}{RESET}" for line in preview)
+    if truncated:
+        result += f"\n{YELLOW}{T('diff_preview_truncated', l, len(preview))}{RESET}"
+    return result
 
 class VFS:
     def __init__(self, allowed_dirs):
@@ -77,30 +142,68 @@ class VFS:
     
     def write(self, fn, content, l, mode='w', encoding='utf-8'):
         """安全写入文件
-        
+
+        覆盖已有文件时会显示统一 diff，追加/新建文件时显示内容预览。
+
         Args:
             fn: 文件名
             content: 文件内容
             l: 语言
             mode: 写入模式 ('w'=覆盖, 'a'=追加)
             encoding: 文件编码
-        
+
         Returns:
             (success, message)
         """
         target = self._resolve(fn)
         if not target: return False, f"{RED}{T('err_bound', l)}{RESET}"
-        
+
         try:
             # 确保父目录存在（覆盖和追加模式都需要）
             parent = target.parent
             if not parent.exists():
                 parent.mkdir(parents=True, exist_ok=True)
-            
+
+            # 生成变更展示
+            output_lines = []
+            is_new = not target.exists()
+            is_overwrite = mode == 'w' and target.exists()
+            is_append = mode == 'a' and target.exists()
+
+            if is_new:
+                preview = _preview_content(content, l)
+                if preview:
+                    output_lines.append(f"{CYAN}{T('diff_new_file', l, str(target))}{RESET}")
+                    output_lines.append(preview)
+            elif is_overwrite:
+                try:
+                    old_bytes = target.read_bytes()
+                    if _is_binary_content(old_bytes):
+                        output_lines.append(f"{YELLOW}{T('diff_no_binary', l, str(target))}{RESET}")
+                    else:
+                        old_text = old_bytes.decode("utf-8")
+                        old_lines = old_text.splitlines(keepends=True)
+                        new_lines = content.splitlines(keepends=True)
+                        diff_text = _format_diff(old_lines, new_lines, str(target), l)
+                        if diff_text:
+                            output_lines.append(f"{CYAN}{T('diff_overwrite', l, str(target))}{RESET}")
+                            output_lines.append(diff_text)
+                except Exception:
+                    # 读取旧内容失败时跳过 diff 展示
+                    pass
+            elif is_append:
+                preview = _preview_content(content, l)
+                if preview:
+                    output_lines.append(f"{CYAN}{T('diff_append', l, str(target))}{RESET}")
+                    output_lines.append(preview)
+
             # 写入文件
             with open(target, mode, encoding=encoding) as f:
                 f.write(content)
-            
+
+            if output_lines:
+                print("\n".join(output_lines))
+
             return True, f"{GREEN}{T('ok_write', l, str(target))}{RESET}"
         except PermissionError:
             return False, f"{RED}{T('err_write_perm', l)}{RESET}"

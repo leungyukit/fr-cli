@@ -1,6 +1,6 @@
 """命令处理器 —— session"""
 
-from fr_cli.command.registry import register
+from fr_cli.command.registry import register, _TRIGGERS_SESSION
 
 @register(
     name="save_session",

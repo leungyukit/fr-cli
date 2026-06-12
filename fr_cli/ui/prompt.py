@@ -32,6 +32,7 @@ try:
 except ImportError:
     HAS_PT = False
 
+from fr_cli.ui.ui import YELLOW, RESET
 from fr_cli.conf.paths import ROOT
 
 
@@ -168,6 +169,7 @@ class FanRenCompleter(Completer):
     COMMAND_EXAMPLES = {
         # 模型/配置
         "model": "/model 3 或 /model deepseek:deepseek-chat",
+        "model config": "/model config",
         "key": "/key sk-xxx",
         "limit": "/limit 4096",
         "lang": "/lang en",
@@ -439,7 +441,7 @@ class FanRenPrompt:
         if HAS_PT:
             self._init_tty()
         else:
-            print(f"\033[93m⚠️ prompt_toolkit 未安装，使用基础 input()\033[0m", file=sys.stderr)
+            print(f"{YELLOW}⚠️ prompt_toolkit 未安装，使用基础 input(){RESET}", file=sys.stderr)
             print(f"  安装: pip install prompt_toolkit>=3.0.0", file=sys.stderr)
 
     def _init_tty(self):
@@ -470,7 +472,7 @@ class FanRenPrompt:
         self._session = PromptSession(
             history=FileHistory(str(history_file)),
             completer=self._completer,
-            complete_while_typing=False,  # 禁用自动补全，避免唯一匹配时自动提交
+            complete_while_typing=True,   # 输入 / / @ 时自动弹出补全菜单
             key_bindings=self._kb,
             mouse_support=False,
             bottom_toolbar=_toolbar,
@@ -501,11 +503,25 @@ class FanRenPrompt:
         """构建快捷键绑定"""
         kb = KeyBindings()
 
-        @kb.add("/")
+        @kb.add("/", eager=True)
         def _(event):
-            """输入 / 时自动触发补全菜单"""
+            """输入 / 时自动触发补全菜单
+
+            eager=True 确保在 prompt_toolkit 默认可打印字符绑定之前处理，
+            从而可靠地触发补全菜单。
+            """
             event.current_buffer.insert_text("/")
             event.current_buffer.start_completion(select_first=False)
+
+        @kb.add("tab", eager=True)
+        @kb.add("c-i", eager=True)
+        def _(event):
+            """Tab / Ctrl+I 触发或切换补全"""
+            b = event.current_buffer
+            if b.complete_state:
+                b.complete_next()
+            else:
+                b.start_completion(select_first=False)
 
         @kb.add("enter")
         def _(event):

@@ -11,22 +11,8 @@ services:
     tty: true
     # 卷挂载：持久化所有配置与数据到宿主机
     volumes:
-      # 主配置文件
-      - ~/.zhipu_cli_config.json:/root/.zhipu_cli_config.json
-      # 会话历史
-      - ~/.zhipu_cli_history:/root/.zhipu_cli_history
-      # 插件目录
-      - ~/.zhipu_cli_plugins:/root/.zhipu_cli_plugins
-      # 上下文记忆
-      - ~/.zhipu_cli_context.json:/root/.zhipu_cli_context.json
-      # Agent 分身
-      - ~/.fr_cli_agents:/root/.fr_cli_agents
-      # MasterAgent 配置
-      - ~/.fr_cli_master:/root/.fr_cli_master
-      # 远程 Agent 配置
-      - ~/.fr_cli_remote_agents.json:/root/.fr_cli_remote_agents.json
-      # 自动会话
-      - ~/.fr_cli_sessions:/root/.fr_cli_sessions
+      # 统一配置根目录（包含 config.json、context.json、sessions、plugins、agents、master 等）
+      - ~/.fr_cli:/root/.fr_cli
       # 工作目录（宿主机当前目录映射到容器 workspace）
       - .:/app/workspace
     # 如需暴露 Agent HTTP 服务，取消下行注释并指定端口

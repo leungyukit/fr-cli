@@ -205,19 +205,31 @@ class ConfigManager:
         self._load_config_file()
 
     def _load_env(self):
-        """从环境变量加载"""
-        for key in ["ZHIPU_API_KEY", "MOONSHOT_API_KEY", "DEEPSEEK_API_KEY",
-                    "QWEN_API_KEY", "OPENAI_API_KEY", "ANTHROPIC_API_KEY"]:
+        """从环境变量加载 API Key。
+
+        provider → env_key 映射优先从 ModelFactory 读取，避免硬编码。
+        对于未在工厂中声明的厂商，保留少量兜底映射。
+        """
+        # 兜底映射（仅覆盖 factory 中没有的厂商）
+        fallback_env_map = {
+            "ANTHROPIC_API_KEY": "anthropic",
+        }
+
+        env_to_provider = dict(fallback_env_map)
+
+        try:
+            from fr_cli.core.model_factory import get_model_factory
+            factory = get_model_factory()
+            for provider_id in factory.list_providers():
+                cfg = factory.get_config(provider_id)
+                env_key = cfg.get("env_key")
+                if env_key:
+                    env_to_provider[env_key] = provider_id
+        except Exception:
+            pass
+
+        for key, provider in env_to_provider.items():
             if key in os.environ:
-                provider = key.lower().replace("_api_key", "")
-                if "zhipu" in provider:
-                    provider = "zhipu"
-                elif "moonshot" in provider or "kimi" in provider:
-                    provider = "kimi"
-                elif "deepseek" in provider:
-                    provider = "deepseek"
-                elif "qwen" in provider:
-                    provider = "qwen"
                 self.config.setdefault("providers", {})
                 self.config["providers"].setdefault(provider, {})
                 self.config["providers"][provider]["key"] = os.environ[key]

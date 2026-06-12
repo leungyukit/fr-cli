@@ -40,25 +40,7 @@ button:hover { background: #357abd; }
 <form id="configForm">
   <label>当前提供商</label>
   <select name="provider" id="provider">
-    <option value="zhipu">智谱 AI</option>
-    <option value="zhipu-coding">智谱 GLM Coding Plan</option>
-    <option value="openai">OpenAI</option>
-    <option value="deepseek">DeepSeek</option>
-    <option value="kimi">Kimi</option>
-    <option value="kimi-k2">Kimi K2</option>
-    <option value="kimi-code">Kimi Code</option>
-    <option value="qwen">通义千问</option>
-    <option value="stepfun">阶跃星辰</option>
-    <option value="stepfun-step-plan">阶跃星辰 Step Plan</option>
-    <option value="step-3">Step-3</option>
-    <option value="minimax">MiniMax</option>
-    <option value="minimax-m27">MiniMax M2.7</option>
-    <option value="minimax-token-plan">MiniMax Token Plan</option>
-    <option value="spark">讯飞星火</option>
-    <option value="doubao">豆包</option>
-    <option value="mimo">小米 MiMo</option>
-    <option value="mimo-token-plan">小米 MiMo Token Plan</option>
-    <option value="longcat">LongCat</option>
+    <!-- 选项由 /api/providers 动态填充 -->
   </select>
 
   <label>API Key</label>
@@ -88,8 +70,18 @@ button:hover { background: #357abd; }
 </div>
 
 <script>
+async function loadProviders() {
+  try {
+    const res = await fetch('/api/providers');
+    const providers = await res.json();
+    const select = document.getElementById('provider');
+    select.innerHTML = providers.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+  } catch(e) { console.error(e); }
+}
+
 async function loadConfig() {
   try {
+    await loadProviders();
     const res = await fetch('/api/config');
     const cfg = await res.json();
     if (cfg.provider) document.getElementById('provider').value = cfg.provider;
@@ -150,6 +142,8 @@ class ConfigHandler(BaseHTTPRequestHandler):
             self.wfile.write(HTML_PAGE.encode('utf-8'))
         elif self.path == '/api/config':
             self._send_json(self._load_config())
+        elif self.path == '/api/providers':
+            self._send_json(self._list_providers())
         else:
             self.send_error(404)
 
@@ -173,7 +167,7 @@ class ConfigHandler(BaseHTTPRequestHandler):
         from fr_cli.conf.config import load_config
         cfg = load_config()
         safe_cfg = {
-            "provider": cfg.get("provider", "zhipu"),
+            "provider": cfg.get("provider", ""),
             "limit": cfg.get("limit", 20000),
             "lang": cfg.get("lang", "zh"),
             "allowed_dirs": cfg.get("allowed_dirs", []),
@@ -182,6 +176,13 @@ class ConfigHandler(BaseHTTPRequestHandler):
         if key:
             safe_cfg["key"] = key[:8] + "****"
         return safe_cfg
+
+    def _list_providers(self):
+        from fr_cli.core.llm import list_providers
+        try:
+            return list_providers()
+        except Exception:
+            return []
 
     def _save_config(self, data):
         from fr_cli.conf.config import load_config, save_config
