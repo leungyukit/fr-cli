@@ -12,7 +12,7 @@
 2. **向后兼容是必须的**
    - 旧路径首次启动自动迁移到新位置
    - 旧命令/旧模块保留为 deprecated alias
-   - 测试基线 118 passed 不变
+   - 测试基线 357 passed 不变
 
 3. **TUI 优先于 CLI**
    - 终端支持时用 prompt_toolkit 完整 TUI
@@ -28,27 +28,33 @@
 fr_cli/
 ├── main.py                    # 主入口（TUI 主循环）
 ├── conf/
-│   ├── paths.py               # 【唯一】所有路径常量 + 旧路径迁移
+│   ├── paths.py               # 所有路径常量 + 旧路径迁移
 │   ├── config.py              # 主配置读写
-│   └── wizard.py              # 邮件/云盘配置向导
+│   └── wizard.py              # 邮件/云盘/M365 配置向导
 ├── core/                      # 编排层（无业务逻辑）
 │   ├── core.py                # AppState —— DI 容器
-│   ├── chat.py                # handle_ai_chat：传统流式对话
+│   ├── chat.py                # 传统流式对话
 │   ├── intent.py              # 意图判定
-│   ├── thinking.py            # 思维模式（direct/cot/tot/react）
+│   ├── thinking.py            # 思维模式
 │   ├── stream.py              # 流式输出
 │   ├── llm.py                 # 多模型客户端
 │   ├── model_factory.py       # 模型工厂
+│   ├── result.py              # Result 统一返回风格
+│   ├── store.py               # JsonStore 持久化抽象
+│   ├── usage.py               # LLM 用量统计
 │   ├── recommender.py         # 功能推荐
 │   └── sysmon.py              # 系统状态监控
-├── ui/
-│   ├── ui.py                  # 颜色常量、清屏、宽度计算
-│   ├── banner.py              # 【新】红色实心螃蟹启动画面
-│   └── prompt.py              # 【新】prompt_toolkit TUI 输入面板
+├── ui/                        # 终端 UI
+│   ├── ui.py                  # 颜色/宽度/动画
+│   ├── prompt.py              # prompt_toolkit TUI
+│   ├── banner.py              # 启动 banner
+│   ├── splash.py              # 终端图片协议探测
+│   └── ...
 ├── command/                   # 命令调度层
 │   ├── registry.py            # 统一工具注册表（@register 装饰器）
 │   ├── executor.py            # AI 回复解析 + 调度
-│   └── security.py            # 安全确认封装
+│   ├── security.py            # 安全确认封装
+│   └── registered/*.py        # 按类目拆分的工具实现
 ├── memory/                    # 记忆与历史
 │   ├── history.py             # 手动保存的会话
 │   ├── session.py             # 按日期自动存档
@@ -56,75 +62,52 @@ fr_cli/
 ├── security/
 │   └── security.py            # 四阶安全确认
 ├── lang/
-│   └── i18n.py                # 中英文硬编码字典
+│   ├── i18n.py                # T() 国际化
+│   └── translations/          # 中文/英文翻译字典
 ├── weapon/                    # 武器库
 │   ├── fs.py                  # VFS 沙盒
-│   ├── mail.py                # IMAP/SMTP
+│   ├── mail.py / m365.py      # 邮件 / Microsoft 365
 │   ├── web.py                 # 搜索 + 抓取
-│   ├── cron.py                # 定时任务（state_provider 化）
-│   ├── disk.py                # 阿里云盘
-│   ├── vision.py              # 多模态看图
+│   ├── cron.py                # 定时任务
+│   ├── disk.py                # 云盘
+│   ├── vision.py              # 多模态看图/画图
 │   ├── launcher.py            # 本机应用启动
 │   ├── dataframe.py           # Excel/CSV 读取
 │   ├── mcp.py                 # MCP 外部神通
+│   ├── network.py / remote.py # 网络探测 / 远程 SSH
+│   ├── ocr.py / charts.py     # OCR / 图表
 │   └── loader.py              # 工具描述加载
 ├── agent/                     # Agent 分身系统
-│   ├── __init__.py            # AGENTS_DIR re-export
 │   ├── manager.py             # CRUD
 │   ├── executor.py            # 执行
-│   ├── generator.py           # AI 自动生成
-│   ├── workflow.py            # 工作流引擎
-│   ├── server.py              # Agent HTTP REST API
-│   ├── client.py              # 远程 Agent 客户端
+│   ├── client.py              # 本地/远程/内置 Agent 调用
 │   ├── remote.py              # 远程 Agent 注册表
-│   ├── image.py               # 图片模型（合并自 image_and_parallel）
-│   ├── parallel.py            # 并行执行
-│   ├── context_files.py       # 项目上下文文件
+│   ├── server.py              # Agent HTTP REST API
+│   ├── workflow.py            # 工作流引擎
+│   ├── dispatch.py            # @name 前缀调度
+│   ├── swarm.py / swarm_resolver.py  # 蜂群多 Agent 协作
+│   ├── master.py              # MasterAgent 自我进化
+│   ├── generator.py           # AI 自动生成 Agent
 │   ├── shell_mode.py          # Shell 模式
-│   ├── master/                # MasterAgent 自我进化
-│   │   ├── __init__.py
-│   │   ├── core.py            # ReAct 主循环
-│   │   ├── skills.py          # 技能（合并自 agent/skills.py）
-│   │   ├── personality.py     # 个性（合并自 agent/personality.py）
-│   │   ├── status.py          # 状态文件原子写入
-│   │   └── prompts.py
-│   ├── builtins/              # 内置 Agent
-│   │   ├── _utils.py
-│   │   ├── local.py           # @local（已 shlex 安全化）
-│   │   ├── remote.py          # @remote
-│   │   ├── spider.py          # @spider
-│   │   ├── db.py              # @db（已 SQL 注入/多语句防护）
-│   │   ├── rag.py             # @RAG
-│   │   └── rag_watcher_daemon.py
-│   └── _legacy/               # 旧模块（deprecated，保留兼容）
-│       ├── hermes.py          # → master/skills.py
-│       ├── hermes_daemon.py   # → daemon/
-│       ├── personality.py     # → master/personality.py
-│       ├── skills.py          # → master/skills.py
-│       ├── image_and_parallel.py  # → image.py + parallel.py
-│       ├── coding_helper.py   # → master/coding.py
-│       ├── gateway.py         # → daemon/
-│       ├── a2a.py             # 未使用，保留
-│       ├── acp.py             # 未使用，保留
-│       └── plugin_system.py   # 未使用，保留
-├── daemon/                    # 【新】统一守护
-│   ├── __init__.py
-│   ├── manager.py             # 启动/停止/状态
-│   ├── daemon.py              # 主循环
-│   ├── cron.py                # 定时任务
-│   ├── http.py                # HTTP 路由
-│   └── token.py               # Bearer Token
-├── repl/
-│   ├── commands.py            # 主命令处理器
-│   ├── slash.py               # / 命令专用
-│   └── at.py                  # @ Agent 拦截
+│   ├── hermes.py / hermes_daemon.py  # Hermes 守护
+│   ├── personality.py / skills.py    # 人设/技能
+│   └── builtins/              # 内置 Agent
+│       ├── local.py / remote.py / db.py / spider.py
+│       ├── rag.py / stock.py
+│       └── rag_watcher_daemon.py
+├── dynamic_builder/           # 动态构建系统
+├── gatekeeper/                # Gatekeeper 守护
+├── repl/                      # REPL 命令与路由
+│   ├── router.py              # 输入路由
+│   ├── queue.py               # 对话队列
+│   ├── bootstrap.py           # 启动引导
+│   ├── actions.py             # e/r/u 快捷键
+│   ├── commands.py            # 兼容层重导出
+│   └── commands/*.py          # 各命令处理器
 ├── addon/
 │   └── plugin.py              # 旧式 Plugin
-├── breakthrough/
-│   └── update.py              # 远程更新
-└── 标记 deprecated 但保留的旧模块：
-    ├── gatekeeper/ 整个目录  → 整合到 daemon/
-    └── （其他迁移完成的）
+└── breakthrough/
+    └── update.py              # 远程更新
 ```
 
 ## 3. 数据流
@@ -224,8 +207,10 @@ from fr_cli.conf.paths import XXX
     security="sec_read",
 )
 def _my_tool(deps, **kwargs):
-    return result, None
+    return Result.ok(result)
 ```
+
+兼容旧写法 `(data, error)`，注册表会自动归一化为 `Result`。
 
 注册表自动：
 - 参数校验
@@ -249,11 +234,11 @@ def _my_tool(deps, **kwargs):
 | Hermes 守护 | `agent/hermes_daemon.py` Bearer Token |
 | ! shell 二次确认 | `main.py` peek_ai_commands + 用户确认 |
 | 邮件正文 | `command/registry.py` <email_message> 标签 |
-| Workflow 表达式 | `agent/workflow_system.py` AST 白名单（无 eval） |
+| Workflow 循环检测 | `agent/workflow.py` 依赖图 DFS（无 eval） |
 
 ## 6. 测试策略
 
-- 基线 118 passed / 19 failed（19 个失败是已存在的 provider 缺失，不归我修）
+- 基线 357 passed（持续维护，所有迁移需保持此基线）
 - 集成测试：tests/test_integration_real.py 覆盖 AppState 初始化、命令执行、Agent 上下文
 - Agent HTTP 服务：tests/test_agent_server.py
 - 内置 Agent：tests/test_builtins.py
@@ -281,7 +266,7 @@ def _my_tool(deps, **kwargs):
     aliases=["/mytool"],
 )
 def _my_tool(deps, **kwargs):
-    return f"收到: {kwargs['input']}", None
+    return Result.ok(f"收到: {kwargs['input']}")
 ```
 
 ### 8.2 新增一个内置 Agent（@ 前缀）
@@ -294,7 +279,7 @@ def handle_my_agent(user_input: str, state):
     pass
 ```
 
-在 `repl/commands.py` 的 main.py 路由区加 elif。
+在 `agent/dispatch.py` 的 `BUILTIN_AGENTS` 字典中注册，并在 `repl/router.py` 中确保 `@` 前缀路由正确分发。
 
 ### 8.3 新增一个用户 Agent
 
@@ -308,7 +293,7 @@ def handle_my_agent(user_input: str, state):
 ```python
 def run(context, **kwargs):
     # 你的逻辑
-    return result, None
+    return Result.ok(result)
 ```
 
 ### 8.4 新增配置文件路径

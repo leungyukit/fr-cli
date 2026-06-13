@@ -27,6 +27,7 @@ ZH_DICT = {
   "err_posix": "❌ 走火入魔:",
   "err_bound": "⚠️ 禁止穿越结界",
   "err_no_file": "⚠️ 卷轴不存在",
+  "grep_no_match": "未找到匹配 '{}' 的内容 (文件: {})",
   "ok_dir_add": "✅ 洞府 [{}] 已开辟",
   "err_dir_no": "❌ 目录不存在",
   "ok_cd": "✅ 穿梭至: {}",

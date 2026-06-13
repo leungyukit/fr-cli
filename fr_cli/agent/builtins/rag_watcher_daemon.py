@@ -102,7 +102,7 @@ def run_daemon():
     _setup_signal_handlers()
 
     _log("=" * 50)
-    _log(f"RAG 知识库守护进程启动")
+    _log("RAG 知识库守护进程启动")
     _log(f"  知识库目录: {kb_dir}")
     _log(f"  向量数据库: {db_path}")
     _log(f"  扫描间隔:   {interval} 秒")

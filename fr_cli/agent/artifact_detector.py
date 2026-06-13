@@ -5,7 +5,6 @@ AI 回复产物检测器 —— 统一检测插件/Agent 代码结构
 消除重复代码，保证行为一致性。
 """
 
-import sys
 from fr_cli.ui.ui import RED, GREEN, YELLOW, DIM, RESET
 from fr_cli.lang.i18n import T
 from fr_cli.addon.plugin import extract_code, PLUGIN_DIR

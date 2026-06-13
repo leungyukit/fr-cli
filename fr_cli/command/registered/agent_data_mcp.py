@@ -8,6 +8,7 @@
 import json
 from fr_cli.command.registry import register
 from fr_cli.ui.ui import GREEN, RED, RESET
+from fr_cli.core.result import Result
 
 
 # ============== Agent 分身 ==============
@@ -28,6 +29,7 @@ def _make_compat_state(deps):
     triggers=["创建Agent", "新建Agent", "生成Agent", "create agent", "new agent"],
     description="根据需求自动生成 Agent 分身",
     params={"name": str, "description": str},
+    security="sec_create_agent",
     aliases=["/agent_create"],
 )
 def _agent_create(deps, **kwargs):
@@ -43,7 +45,7 @@ def _agent_create(deps, **kwargs):
         save_skills(name, result["skills"])
     if result["code"]:
         save_agent_code(name, result["code"])
-    return f"Agent [{name}] 创建完成！路径: {d}", None
+    return Result.ok(f"Agent [{name}] 创建完成！路径: {d}")
 
 
 @register(
@@ -57,7 +59,7 @@ def _agent_create(deps, **kwargs):
 def _agent_run(deps, **kwargs):
     from fr_cli.agent.executor import run_agent
     result, err = run_agent(kwargs["name"], _make_compat_state(deps))
-    return (result, None) if not err else (None, err)
+    return Result.from_tuple(result, err)
 
 
 @register(
@@ -72,7 +74,7 @@ def _agent_call(deps, **kwargs):
     """MasterAgent 调用其他 Agent（支持本地和远程）"""
     from fr_cli.agent.client import call_agent
     result, err = call_agent(kwargs["name"], _make_compat_state(deps), user_input=kwargs.get("user_input", ""))
-    return (result, None) if not err else (None, err)
+    return Result.from_tuple(result, err)
 
 
 # ============== 数据卷轴 ==============
@@ -87,8 +89,8 @@ def _agent_call(deps, **kwargs):
 )
 def _read_excel(deps, **kwargs):
     from fr_cli.weapon.dataframe import read_excel
-    res, err = read_excel(kwargs["path"], lang=deps.lang)
-    return (res, None) if not err else (None, err)
+    res, err = read_excel(kwargs["path"], lang=deps.lang, vfs=deps.vfs)
+    return Result.from_tuple(res, err)
 
 
 @register(
@@ -101,8 +103,8 @@ def _read_excel(deps, **kwargs):
 )
 def _read_csv(deps, **kwargs):
     from fr_cli.weapon.dataframe import read_csv
-    res, err = read_csv(kwargs["path"], lang=deps.lang)
-    return (res, None) if not err else (None, err)
+    res, err = read_csv(kwargs["path"], lang=deps.lang, vfs=deps.vfs)
+    return Result.from_tuple(res, err)
 
 
 # ============== MCP ==============
@@ -116,21 +118,22 @@ def _read_csv(deps, **kwargs):
 def _mcp_list(deps, **kwargs):
     mcp = getattr(deps, "mcp", None)
     if not mcp:
-        return None, "MCP 管理器未初始化"
+        return Result.fail("MCP 管理器未初始化")
     servers = mcp.list_servers()
     if not servers:
-        return "暂无 MCP 服务器配置。", None
+        return Result.ok("暂无 MCP 服务器配置。")
     lines = ["📡 MCP 服务器列表:"]
     for s in servers:
         status = f"{GREEN}● 启用{RESET}" if s.get("enabled", True) else f"{RED}● 禁用{RESET}"
         lines.append(f"  [{s['name']}] {status} | 传输: {s.get('transport', 'stdio')} | 命令: {s.get('command', 'N/A')}")
-    return "\n".join(lines), None
+    return Result.ok("\n".join(lines))
 
 
 @register(
     name="mcp_call",
     description="调用指定 MCP 服务器的工具",
     params={"server": str, "tool": str, "arguments": dict},
+    security="sec_mcp_call",
     aliases=["/mcp_call"],
 )
 def _mcp_call(deps, **kwargs):
@@ -146,7 +149,7 @@ def _mcp_call(deps, **kwargs):
         except Exception:
             arguments = {}
     result, err = mcp.call_tool_sync(server, tool, arguments)
-    return (result, None) if not err else (None, err)
+    return Result.from_tuple(result, err)
 
 
 # ============== P3 快速工具 ==============
@@ -159,7 +162,7 @@ def _mcp_call(deps, **kwargs):
 )
 def _voice(deps, **kwargs):
     from fr_cli.repl.quick_actions import cmd_voice
-    return cmd_voice(deps, []), None
+    return Result.ok(cmd_voice(deps, []))
 
 
 @register(
@@ -171,7 +174,7 @@ def _voice(deps, **kwargs):
 def _screenshot(deps, **kwargs):
     from fr_cli.repl.quick_actions import cmd_screenshot
     region = kwargs.get("region", "")
-    return cmd_screenshot(deps, ["/screenshot", region] if region else ["/screenshot"]), None
+    return Result.ok(cmd_screenshot(deps, ["/screenshot", region] if region else ["/screenshot"]))
 
 
 @register(
@@ -182,7 +185,7 @@ def _screenshot(deps, **kwargs):
 )
 def _drag(deps, **kwargs):
     from fr_cli.repl.quick_actions import cmd_drag_hint
-    return cmd_drag_hint(deps, []), None
+    return Result.ok(cmd_drag_hint(deps, []))
 
 
 @register(
@@ -194,7 +197,7 @@ def _drag(deps, **kwargs):
 def _ide(deps, **kwargs):
     from fr_cli.repl.quick_actions import cmd_ide_template
     ide = kwargs.get("ide", "vscode")
-    return cmd_ide_template(deps, ["/ide", ide]), None
+    return Result.ok(cmd_ide_template(deps, ["/ide", ide]))
 
 
 @register(
@@ -205,8 +208,7 @@ def _ide(deps, **kwargs):
 )
 def _init_project(deps, **kwargs):
     from fr_cli.core.project import init_project
-    msg = init_project()
-    return msg, None
+    return Result.ok(init_project())
 
 
 @register(
@@ -228,7 +230,7 @@ def _pref(deps, **kwargs):
             lines.append(f"    /{cmd}: {count} 次")
     else:
         lines.append("  还没有记录（命令会被自动统计）")
-    return "\n".join(lines), None
+    return Result.ok("\n".join(lines))
 
 
 @register(
@@ -241,12 +243,12 @@ def _recent(deps, **kwargs):
     from fr_cli.memory.session import list_sessions
     sessions = list_sessions()
     if not sessions:
-        return "📂 暂无自动会话存档", None
+        return Result.ok("📂 暂无自动会话存档")
     lines = ["📚 最近会话（按日期倒序）："]
     for s in sessions[:5]:
         lines.append(f"  📁 {s.get('path', '?').split('/')[-1]}  ({s.get('size_kb', 0):.1f} KB)")
-    lines.append(f"\n  切换: /session_load <N>")
-    return "\n".join(lines), None
+    lines.append("\n  切换: /session_load <N>")
+    return Result.ok("\n".join(lines))
 
 
 @register(
@@ -260,21 +262,22 @@ def _cache(deps, **kwargs):
     s = cache_stats()
     if "clear" in str(kwargs):
         cache_clear()
-        return "🗑️  缓存已清空", None
-    return (
+        return Result.ok("🗑️  缓存已清空")
+    return Result.ok(
         f"💾 响应缓存统计：\n"
         f"  条目: {s['entries']} / 100\n"
         f"  命中: {s['hits']}\n"
         f"  未命中: {s['misses']}\n"
         f"  命中率: {s['hit_rate']}\n"
         f"  TTL: 5 分钟"
-    ), None
+    )
 
 
 @register(
     name="local_llm",
     description="检测并切换到本地 ollama（无需 API key）",
     params={},
+    security="sec_exec",
     aliases=["/local_llm", "/ollama"],
 )
 def _local_llm(deps, **kwargs):
@@ -284,4 +287,4 @@ def _local_llm(deps, **kwargs):
     s = _S()
     s.cfg = deps.cfg
     s.reinit_client = lambda: None
-    return cmd_local_llm(s, []), None
+    return Result.ok(cmd_local_llm(s, []))

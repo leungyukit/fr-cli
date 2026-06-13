@@ -9,27 +9,27 @@ import os
 import json
 import yaml
 import importlib.resources as resources
-from typing import Dict, Any, Optional
+from typing import Dict, Optional
 
 from fr_cli.conf.paths import MODELS_YAML
 
 
 class ModelFactory:
     """模型工厂 - 从配置文件加载并创建模型"""
-    
+
     _instance = None
     _config = None
-    
+
     def __new__(cls):
         if cls._instance is None:
             cls._instance = super().__new__(cls)
         return cls._instance
-    
+
     def load_config(self, config_path: str = None):
         """从配置文件加载模型配置"""
         if config_path is None:
             config_path = MODELS_YAML
-        
+
         if os.path.exists(config_path):
             with open(config_path, 'r', encoding='utf-8') as f:
                 if config_path.endswith('.yaml') or config_path.endswith('.yml'):
@@ -39,7 +39,7 @@ class ModelFactory:
         else:
             self._config = self._get_default_config()
         return self
-    
+
     def _get_default_config(self):
         """获取默认配置 —— 从包内 default_models.yaml 加载。
 
@@ -73,11 +73,11 @@ class ModelFactory:
         config = self._config.get(provider_id)
         if not config:
             raise ValueError(f"Provider {provider_id} not found")
-        
+
         client_type = config.get("client", "OpenAICompatibleClient")
-        
+
         from fr_cli.core.llm import ZhipuLLMClient, OpenAICompatibleClient, WenxinLLMClient
-        
+
         if client_type == "ZhipuLLMClient":
             return ZhipuLLMClient(api_key)
         elif client_type == "OpenAICompatibleClient":
@@ -87,18 +87,18 @@ class ModelFactory:
             return WenxinLLMClient(api_key)
         else:
             raise ValueError(f"Unknown client type: {client_type}")
-    
+
     def get_model_name(self, provider_id: str) -> Optional[str]:
         """获取模型名称；未知 provider 返回 None"""
         config = self._config.get(provider_id)
         if not config:
             return None
         return config.get("model")
-    
+
     def list_providers(self):
         """列出所有 Provider"""
         return list(self._config.keys())
-    
+
     def get_config(self, provider_id: str) -> Dict:
         """获取 Provider 配置"""
         return self._config.get(provider_id, {})
@@ -119,13 +119,13 @@ def build_models_dict() -> Dict[str, Dict]:
     """从配置文件构建模型字典（供 llm.py 使用）"""
     factory = get_model_factory()
     result = {}
-    
+
     client_map = {
         "ZhipuLLMClient": "ZhipuLLMClient",
         "OpenAICompatibleClient": "OpenAICompatibleClient",
         "WenxinLLMClient": "WenxinLLMClient"
     }
-    
+
     for provider_id in factory.list_providers():
         config = factory.get_config(provider_id)
         result[provider_id] = {
@@ -136,5 +136,5 @@ def build_models_dict() -> Dict[str, Dict]:
             "token_plan_base_url": config.get("token_plan_base_url"),
             "is_token_plan": config.get("is_token_plan", False),
         }
-    
+
     return result

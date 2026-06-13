@@ -5,12 +5,14 @@ Agent 管理器 —— 分身掌管者
 import shutil
 from pathlib import Path
 from fr_cli.agent import AGENTS_DIR
+from fr_cli.core.store import JsonStore
 
 
 PERSONA_FILE = "persona.md"
 MEMORY_FILE = "memory.md"
 SKILLS_FILE = "skills.md"
 AGENT_CODE_FILE = "agent.py"
+WORKFLOW_FILE = "workflow.md"
 PROGRESS_FILE = "progress.json"
 AGENT_CONFIG_FILE = "config.json"
 
@@ -48,6 +50,8 @@ def create_agent_dir(name: str) -> Path:
         _write_md(d, MEMORY_FILE, "")
     if not (d / AGENT_CONFIG_FILE).exists():
         _write_md(d, AGENT_CONFIG_FILE, "{}")
+    if not (d / WORKFLOW_FILE).exists():
+        _write_md(d, WORKFLOW_FILE, f"# {name} 工作流\n\n## 步骤1：处理输入\n- **action**: ai_generate\n- **params**:\n  - prompt: \"{{{{user_input}}}}\"\n")
 
     return d
 
@@ -142,33 +146,27 @@ def load_agent_module(name: str):
 
 # ---------- 定时任务进度读写 ----------
 
-import json
 from datetime import datetime
+
+
+def _agent_progress_store(name: str) -> JsonStore:
+    """Agent 定时任务进度的 JsonStore"""
+    return JsonStore(_agent_dir(name) / PROGRESS_FILE, default=dict)
 
 
 def load_progress(name: str) -> dict:
     """读取 Agent 的定时任务执行进度"""
-    f = _agent_dir(name) / PROGRESS_FILE
-    if not f.exists():
-        return {}
-    try:
-        return json.loads(f.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    return _agent_progress_store(name).read()
 
 
 def save_progress(name: str, data: dict):
     """保存 Agent 的定时任务执行进度"""
-    f = _agent_dir(name) / PROGRESS_FILE
-    try:
-        f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    _agent_progress_store(name).write(data)
 
 
 def append_progress(name: str, result: str, user_input: str = "", status: str = "success", max_history: int = 50):
     """追加一条执行记录到 Agent 进度文件
-    
+
     Args:
         result: 执行结果摘要
         user_input: 触发此次执行的输入（定时任务的 input 或用户输入）
@@ -206,26 +204,32 @@ def get_progress_history(name: str, limit: int = 10) -> list:
     return history[-limit:] if history else []
 
 
+def load_agent_description(name: str) -> str:
+    """从 persona.md 第一行提取 Agent 描述/标题"""
+    persona = load_persona(name).strip()
+    if not persona:
+        return ""
+    first_line = persona.splitlines()[0].strip()
+    # 去掉 Markdown 标题标记
+    if first_line.startswith("#"):
+        first_line = first_line.lstrip("#").strip()
+    return first_line
+
+
 # ---------- Agent 专属配置读写 ----------
+
+def _agent_config_store(name: str) -> JsonStore:
+    """Agent 专属模型配置的 JsonStore"""
+    return JsonStore(_agent_dir(name) / AGENT_CONFIG_FILE, default=dict)
+
 
 def load_agent_config(name: str) -> dict:
     """读取 Agent 的专属模型配置（config.json）"""
-    f = _agent_dir(name) / AGENT_CONFIG_FILE
-    if not f.exists():
-        return {}
-    try:
-        return json.loads(f.read_text(encoding="utf-8"))
-    except Exception:
-        return {}
+    return _agent_config_store(name).read()
 
 
 def save_agent_config(name: str, data: dict):
     """保存 Agent 的专属模型配置到 config.json"""
-    d = _agent_dir(name)
     # 确保 Agent 目录存在，避免在无效目录创建孤立文件
-    d.mkdir(parents=True, exist_ok=True)
-    f = d / AGENT_CONFIG_FILE
-    try:
-        f.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
-    except Exception:
-        pass
+    _agent_dir(name).mkdir(parents=True, exist_ok=True)
+    _agent_config_store(name).write(data)

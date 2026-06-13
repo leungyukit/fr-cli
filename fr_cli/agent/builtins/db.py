@@ -6,6 +6,7 @@
 """
 from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.conf.paths import DATABASE_FILE
+from fr_cli.core.result import Result
 
 _NS_KEY = "databases"
 DB_CFG_PATH = DATABASE_FILE  # 保留用于一次性迁移
@@ -163,12 +164,12 @@ def _has_multiple_statements(sql: str) -> bool:
 
 
 def _exec_sql(conn, sql, db_type):
-    """执行 SQL 并返回结果"""
+    """执行 SQL 并返回 Result。"""
     cursor = conn.cursor()
     try:
         sql = sql.strip()
         if _has_multiple_statements(sql):
-            return None, "禁止执行多条 SQL 语句（检测到语句分隔符 ';'）"
+            return Result.fail("禁止执行多条 SQL 语句（检测到语句分隔符 ';'）")
         sql = sql.rstrip(";")
         cursor.execute(sql)
 
@@ -176,16 +177,16 @@ def _exec_sql(conn, sql, db_type):
         if sql.lower().startswith("select") or sql.lower().startswith("show") or sql.lower().startswith("desc"):
             rows = cursor.fetchall()
             if db_type == "mysql":
-                return rows, None
+                return Result.ok(rows)
             else:
                 # 将 pyodbc/psycopg2 的行转为字典列表
                 cols = [desc[0] for desc in cursor.description] if cursor.description else []
-                return [{cols[i]: row[i] for i in range(len(cols))} for row in rows], None
+                return Result.ok([{cols[i]: row[i] for i in range(len(cols))} for row in rows])
         else:
             conn.commit()
-            return f"受影响行数: {cursor.rowcount}", None
+            return Result.ok(f"受影响行数: {cursor.rowcount}")
     except Exception as e:
-        return None, str(e)
+        return Result.fail(str(e))
 
 
 def handle_db(user_input, state):
@@ -259,10 +260,11 @@ def handle_db(user_input, state):
             print(f"{DIM}已取消。{RESET}")
             return
 
-        result, err = _exec_sql(conn, sql_text, db_cfg["type"])
-        if err:
-            print(f"{RED}❌ 执行失败: {err}{RESET}")
+        exec_result = _exec_sql(conn, sql_text, db_cfg["type"])
+        if exec_result.is_fail():
+            print(f"{RED}❌ 执行失败: {exec_result.error}{RESET}")
         else:
+            result = exec_result.unwrap()
             if isinstance(result, list):
                 print(f"\n{GREEN}返回 {len(result)} 行:{RESET}")
                 for i, row in enumerate(result[:20]):

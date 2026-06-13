@@ -1,7 +1,7 @@
 """
 终端UI、颜色定义与动画引擎
 """
-import sys, time, platform, os
+import sys, platform, os
 
 # 原始 ANSI 颜色代码表（供 set_no_color 恢复使用）
 _COLOR_CODES = {

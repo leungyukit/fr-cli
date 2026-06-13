@@ -5,7 +5,6 @@ master_prompt.py 修复测试
 背景：之前的问题是在提示词模板中，JSON 代码块中的花括号 { 和 }
          被 Python 的 .format() 方法错误解释为格式化占位符。
 """
-import json
 import pytest
 
 

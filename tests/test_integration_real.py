@@ -11,7 +11,6 @@
     但会验证客户端实例化、配置解析、缓存、上下文切换等全部内部逻辑。
 """
 import json
-import os
 import shutil
 import sys
 import tempfile
@@ -68,7 +67,7 @@ class RealTestEnv:
 
 def test_real_config_load_save():
     """真实测试：配置原子写入、读取、备份"""
-    from fr_cli.conf.config import load_config, save_config, CONFIG_FILE, CONFIG_BACKUP
+    from fr_cli.conf.config import load_config, save_config
 
     env = RealTestEnv()
     # 重定向配置路径到临时目录（save_config 使用模块级常量）
@@ -246,8 +245,7 @@ def test_real_appstate_client_cache():
 def test_real_agent_config_lifecycle():
     """真实测试：Agent config.json 的完整生命周期"""
     from fr_cli.agent.manager import (
-        load_agent_config, save_agent_config, list_agents, agent_exists,
-        create_agent_dir, load_persona, save_persona
+        load_agent_config, save_agent_config, list_agents
     )
 
     env = RealTestEnv()
@@ -286,7 +284,6 @@ def test_real_agent_config_lifecycle():
 def test_real_agent_llm_resolution():
     """真实测试：Agent 专属模型解析的完整链路"""
     from fr_cli.core.core import AppState
-    from fr_cli.agent.manager import save_agent_config
 
     env = RealTestEnv()
     try:
@@ -368,31 +365,30 @@ def test_real_executor_agent_context():
         assert deps.client is state.client
         assert deps.model_name == "glm-4-flash"
 
-        # push 后 deps 切换
+        # v2.4.4：显式传 client/model_name 来覆盖（取代 push/pop 栈）
         from fr_cli.core.llm import create_llm_client_for
         fake_cfg = {"providers": {"deepseek": {"key": "fake-ds-key"}}}
         agent_client, _, _ = create_llm_client_for("deepseek", "deepseek-chat", fake_cfg)
-        executor.push_agent_context(agent_client, "deepseek-chat")
-
-        deps = executor._get_deps()
+        deps = executor._get_deps(client=agent_client, model_name="deepseek-chat")
         assert deps.client is agent_client
         assert deps.model_name == "deepseek-chat"
 
-        # pop 后恢复全局
-        executor.pop_agent_context()
+        # 不传 client 时仍用全局（无栈残留）
         deps = executor._get_deps()
         assert deps.client is state.client
         assert deps.model_name == "glm-4-flash"
 
-        # 嵌套 push/pop（验证栈语义，虽然当前是单槽位）
+        # push_agent_context/pop_agent_context 在 v2.4.4 已是 no-op（保留仅为兼容）
         executor.push_agent_context(agent_client, "m1")
-        executor.push_agent_context(state.client, "m2")  # 第二次覆盖
+        executor.push_agent_context(state.client, "m2")
         deps = executor._get_deps()
-        assert deps.model_name == "m2"
+        # 既然是 no-op，deps 仍应是全局（这是 v2.4.4 的预期——避免旧代码意外污染）
+        assert deps.model_name == "glm-4-flash"
         executor.pop_agent_context()
+        executor.pop_agent_context()
+        # 全局仍干净
         deps = executor._get_deps()
-        assert deps.model_name == "m1"  # 应恢复为 m1
-        executor.pop_agent_context()
+        assert deps.model_name == "glm-4-flash"
 
         print("✅ test_real_executor_agent_context 通过")
     finally:
@@ -400,10 +396,13 @@ def test_real_executor_agent_context():
 
 
 def test_real_executor_agent_context_in_run_agent():
-    """真实测试：run_agent 执行期间 executor 上下文自动切换"""
+    """真实测试：run_agent 执行期间 Agent 代码能通过 _get_deps(client=..., model_name=...) 拿到专属 LLM 上下文。
+
+    v2.4.4 变更：取消 push_agent_context/pop_agent_context 栈式覆盖后，Agent 代码必须
+    显式传入 client/model_name 才能使用 Agent 专属 LLM 配置（之前是隐式从栈里取）。
+    """
     from fr_cli.core.core import AppState
     from fr_cli.agent.executor import run_agent
-    from fr_cli.agent.manager import save_agent_config
 
     env = RealTestEnv()
     try:
@@ -420,10 +419,11 @@ def test_real_executor_agent_context_in_run_agent():
         }
         state = AppState(cfg)
 
-        # Agent 代码中读取 executor._get_deps() 来验证上下文
+        # v2.4.4：Agent 代码必须显式传 client/model_name 才能拿到 Agent 专属 LLM 上下文
         test_code = '''
 def run(context, **kwargs):
-    deps = context["executor"]._get_deps()
+    # 显式传 client/model_name（取代 push_agent_context 栈）
+    deps = context["executor"]._get_deps(client=context["client"], model_name=context["model"])
     return f"provider={deps.model_name}|client_key={deps.client.api_key}"
 '''
         env.make_agent("ctx_agent", code=test_code, cfg={
@@ -435,7 +435,7 @@ def run(context, **kwargs):
         assert "provider=deepseek-chat" in result
         assert "client_key=ds-k" in result
 
-        # 执行完毕后全局应恢复
+        # 执行完毕后全局应保持（无栈污染）
         deps = state.executor._get_deps()
         assert deps.model_name == "glm-4-flash"
 
@@ -548,13 +548,14 @@ def test_real_workflow_agent_context():
 
         # 执行 workflow（stream_cnt 需要真实 API，这里会失败，
         # 但我们验证执行前后 executor 上下文已正确切换/恢复）
-        result, err, steps = run_workflow("wf_agent", state, user_input="hello")
+        wf_result = run_workflow("wf_agent", state, user_input="hello")
 
         # 无论 workflow 内部是否成功，执行后全局上下文必须恢复
         deps = state.executor._get_deps()
         assert deps.model_name == "glm-4-flash", f"workflow 执行后未恢复全局模型: {deps.model_name}"
 
         # 如果因无真实 Key 导致 ai_generate 失败，这是预期的
+        err = wf_result.error
         if err and "API" in str(err) or "密钥" in str(err) or "key" in str(err).lower():
             print("   (workflow 因无外部 API Key 而失败，属于预期行为)")
 

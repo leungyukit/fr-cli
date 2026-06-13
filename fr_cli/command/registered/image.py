@@ -3,6 +3,7 @@
 - analyze_image / generate_image
 """
 from fr_cli.command.registry import register
+from fr_cli.core.result import Result
 
 
 @register(
@@ -18,10 +19,10 @@ def _analyze_image(deps, msgs=None, **kwargs):
     from fr_cli.weapon.vision import prep_see_msg
     from fr_cli.core.stream import stream_cnt
     if not msgs:
-        return None, "No message history available"
+        return Result.fail("No message history available")
     prep_see_msg(msgs, kwargs["path"], kwargs.get("text", ""), vfs=deps.vfs)
     txt, _, response_time, _ = stream_cnt(deps.client, deps.model_name, msgs, deps.lang)
-    return f"图片分析结果:\n{txt}\n耗时: {response_time:.2f}秒", None
+    return Result.ok(f"图片分析结果:\n{txt}\n耗时: {response_time:.2f}秒")
 
 
 @register(
@@ -33,5 +34,5 @@ def _analyze_image(deps, msgs=None, **kwargs):
 def _generate_image(deps, **kwargs):
     from fr_cli.weapon.vision import gen_img
     out_dir = deps.vfs.cwd if deps.vfs else "."
-    ok, res = gen_img(deps.client, kwargs["prompt"], out_dir, deps.lang)
-    return (res, None) if ok else (None, res)
+    result = gen_img(deps.client, kwargs["prompt"], out_dir, deps.lang)
+    return result

@@ -86,7 +86,7 @@ def handle_local(user_input, state):
             if ps_exe:
                 res = subprocess.run([ps_exe, "-Command", cmd_text], capture_output=True, text=True, timeout=30)
             else:
-                res = _run_cmd_safely(cmd_text, timeout=30, allow_shell=True)
+                res = _run_cmd_safely(cmd_text, timeout=30)
         else:
             res = _run_cmd_safely(cmd_text, timeout=30)
         out = res.stdout + res.stderr
@@ -106,14 +106,12 @@ def handle_local(user_input, state):
         print(f"{RED}❌ 执行失败: {e}{RESET}")
 
 
-def _run_cmd_safely(cmd_text: str, timeout: int = 30, allow_shell: bool = False):
-    """安全执行命令：POSIX 用 shlex.split + shell=False；仅在显式 allow_shell=True 时降级。"""
+def _run_cmd_safely(cmd_text: str, timeout: int = 30):
+    """安全执行命令：始终使用 shlex.split + shell=False，禁止回退到 shell=True。"""
     try:
         cmd_list = shlex.split(cmd_text)
     except ValueError:
-        # shlex 解析失败（包含未闭合引号等）—— 视情况降级
-        if allow_shell:
-            return subprocess.run(cmd_text, shell=True, capture_output=True, text=True, timeout=timeout)
+        # shlex 解析失败（包含未闭合引号等）—— 拒绝执行，不回退到 shell=True
         return subprocess.CompletedProcess(args=cmd_text, returncode=1, stdout="", stderr="命令解析失败")
     if not cmd_list:
         return subprocess.CompletedProcess(args=cmd_text, returncode=1, stdout="", stderr="空命令")

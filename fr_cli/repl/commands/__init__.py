@@ -9,7 +9,7 @@ from fr_cli.repl.commands.base import (
     _cmd_update, _cmd_mode, _cmd_banner, _cmd_tutorial,
 )
 from fr_cli.repl.commands.config import (
-    _cmd_model, _cmd_key, _cmd_providers, _cmd_limit, _cmd_lang,
+    _cmd_model, _cmd_key, _cmd_providers, _cmd_limit, _cmd_lang, _cmd_usage,
 )
 from fr_cli.repl.commands.fs import _cmd_dir, _cmd_dirs, _cmd_rmdir
 from fr_cli.repl.commands.session import (
@@ -42,3 +42,6 @@ from fr_cli.repl.commands.cron import (
     _cmd_agent_cron_add, _cmd_agent_cron_list, _cmd_agent_cron_del,
 )
 from fr_cli.repl.commands.dev import _cmd_master, _cmd_commit, _cmd_pr, _cmd_review
+from fr_cli.repl.commands.ocr import _cmd_ocr_config
+from fr_cli.repl.commands.stock import _cmd_stock_config
+from fr_cli.repl.commands.build import _cmd_build

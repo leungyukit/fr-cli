@@ -4,9 +4,6 @@
 避免用户看到 ?[92m 这类转义字符。
 """
 
-import sys
-import os
-import importlib
 
 import pytest
 
@@ -124,18 +121,3 @@ class TestNoColorControl:
         finally:
             ui.set_no_color(original_no_color)
 
-    def test_image_display_fallback_to_ascii_when_no_color(self, monkeypatch):
-        """NO_COLOR 时图片显示应回退到 ascii，避免 iTerm2/Kitty 转义序列泄漏"""
-        from fr_cli.ui import ui
-        from fr_cli.agent.image_and_parallel import TerminalImageDisplay
-
-        original_no_color = ui._NO_COLOR
-        try:
-            ui.set_no_color(True)
-            # 即使终端标识为 iTerm2/Kitty，也应返回 ascii
-            monkeypatch.setenv("TERM_PROGRAM", "iTerm.app")
-            monkeypatch.setenv("KITTY_WINDOW_ID", "1")
-            monkeypatch.setenv("TERM", "xterm-256color")
-            assert TerminalImageDisplay._detect_method() == "ascii"
-        finally:
-            ui.set_no_color(original_no_color)

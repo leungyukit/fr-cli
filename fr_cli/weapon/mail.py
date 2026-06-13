@@ -4,6 +4,7 @@
 import re
 from html.parser import HTMLParser
 from fr_cli.lang.i18n import T
+from fr_cli.core.result import Result
 
 class _HTMLTextExtractor(HTMLParser):
     """将 HTML 提取为纯文本 —— 去除标签，保留换行"""
@@ -52,7 +53,7 @@ class MailClient:
         self.email = cfg.get("email", "")
         self.password = cfg.get("password", "")
         self.connected = False
-        
+
         # 尝试连接（可选依赖检查）
         try:
             import imaplib
@@ -72,11 +73,11 @@ class MailClient:
             self.connected = False
 
     def inbox(self, lang):
-        """获取收件箱列表"""
+        """获取收件箱列表，返回 Result[list]。"""
         if not self.connected:
-            return None, T("mail_no_cfg", lang)
+            return Result.fail(T("mail_no_cfg", lang))
         if not self.imap_server or not self.email or not self.password:
-            return None, T("mail_no_cfg", lang)
+            return Result.fail(T("mail_no_cfg", lang))
 
         mail = None
         try:
@@ -108,9 +109,9 @@ class MailClient:
                     "from": from_addr[:30]
                 })
 
-            return mails, None
+            return Result.ok(mails)
         except Exception as e:
-            return None, f"{T('mail_err', lang)} {e}"
+            return Result.fail(f"{T('mail_err', lang)} {e}")
         finally:
             if mail:
                 try:
@@ -120,9 +121,9 @@ class MailClient:
                     pass
 
     def read(self, mail_id, lang):
-        """读取指定邮件"""
+        """读取指定邮件，返回 Result[dict]。"""
         if not self.connected:
-            return None, T("mail_no_cfg", lang)
+            return Result.fail(T("mail_no_cfg", lang))
 
         mail = None
         try:
@@ -174,14 +175,14 @@ class MailClient:
                 else:
                     body = raw
 
-            return {
+            return Result.ok({
                 "sub": subject,
                 "from": from_addr,
                 "date": date,
                 "body": body
-            }, None
+            })
         except Exception as e:
-            return None, f"{T('mail_err', lang)} {e}"
+            return Result.fail(f"{T('mail_err', lang)} {e}")
         finally:
             if mail:
                 try:
@@ -191,19 +192,19 @@ class MailClient:
                     pass
 
     def send(self, to, subject, body, lang):
-        """发送邮件"""
+        """发送邮件，返回 Result。"""
         if not self.connected:
-            return False, T("mail_no_cfg", lang)
+            return Result.fail(T("mail_no_cfg", lang))
         if not self.smtp_server or not self.email or not self.password:
-            return False, T("mail_no_cfg", lang)
+            return Result.fail(T("mail_no_cfg", lang))
 
         # 安全校验：防止邮件头注入
         import email.utils
         if '\n' in to or '\r' in to or '\n' in subject or '\r' in subject:
-            return False, "❌ 邮件地址或主题包含非法字符"
+            return Result.fail("❌ 邮件地址或主题包含非法字符")
         parsed = email.utils.parseaddr(to)
         if not parsed[1] or '@' not in parsed[1]:
-            return False, "❌ 收件人地址格式无效"
+            return Result.fail("❌ 收件人地址格式无效")
 
         server = None
         try:
@@ -216,9 +217,9 @@ class MailClient:
             server.login(self.email, self.password)
             server.send_message(msg)
 
-            return True, None
+            return Result.ok(True)
         except Exception as e:
-            return False, f"{T('mail_err', lang)} {e}"
+            return Result.fail(f"{T('mail_err', lang)} {e}")
         finally:
             if server:
                 try:

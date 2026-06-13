@@ -6,10 +6,8 @@ P3 工具集：语音输入 / 截屏 / 拖文件 / VSCode 集成
 import os
 import sys
 import subprocess
-import shlex
-import tempfile
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 
 # ==================== 平台检测 ====================
@@ -77,7 +75,7 @@ def screenshot(region: Optional[str] = None) -> Optional[str]:
     cmd.append(str(out_file))
 
     try:
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        _ = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
         if out_file.exists():
             return str(out_file)
         return None
@@ -100,7 +98,6 @@ def detect_dragged_files(text: str) -> list:
       '/Users/.../foo.png' '/Users/.../bar.py'
     """
     import re
-    import os
 
     found = []
     # 模式 1：file:// URL

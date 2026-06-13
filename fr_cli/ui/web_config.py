@@ -6,7 +6,6 @@
 import json
 import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
-from pathlib import Path
 
 HTML_PAGE = """
 <!DOCTYPE html>

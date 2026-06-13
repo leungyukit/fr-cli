@@ -16,7 +16,6 @@ import time
 import json
 import signal
 import atexit
-from pathlib import Path
 
 # 确保项目根目录在 Python 路径中
 _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))

@@ -2,30 +2,10 @@
 REPL 命令路由处理器
 从 main.py 提取的所有 / 命令实现，减轻主模块负担。
 """
-import sys
 
-from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
-    CYAN, RED, YELLOW, GREEN, DIM, RESET,
-    print_bye
+    CYAN, RED, YELLOW, GREEN, DIM, RESET
 )
-from fr_cli.agent.shell_mode import ShellMode
-from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
-from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
-from fr_cli.memory.session import (
-    list_sessions as list_auto_sessions,
-    load_session as load_auto_session,
-    delete_session as delete_auto_session,
-)
-from fr_cli.addon.plugin import extract_code
-from fr_cli.core.stream import stream_cnt
-from fr_cli.core.sysmon import get_sys_stats
-from fr_cli.agent.manager import (
-    create_agent_dir, save_agent_code, save_persona, save_skills,
-    save_memory, agent_exists, list_agents, delete_agent,
-    load_persona, load_memory, load_skills,
-)
-from fr_cli.agent.executor import run_agent
 
 
 
@@ -103,7 +83,7 @@ def _cmd_agent_publish(state, parts):
     print(f"\n{YELLOW}⚠️ 安全提示：{RESET}")
     print(f"  - 当前绑定: {state.agent_server.host}")
     if state.agent_server.host == "127.0.0.1":
-        print(f"  - 仅本地可访问。如需公网暴露，请使用 ngrok / cloudflared / frp 等内网穿透工具")
+        print("  - 仅本地可访问。如需公网暴露，请使用 ngrok / cloudflared / frp 等内网穿透工具")
     return False
 
 
@@ -122,11 +102,12 @@ def _cmd_remote_agent_scan(state, parts):
         return False
 
     print(f"{CYAN}🔍 正在扫描 {host}:{port} ...{RESET}")
-    info, err = scan_remote_host(host, port, token)
-    if err:
-        print(f"{RED}{err}{RESET}")
+    result = scan_remote_host(host, port, token)
+    if result.is_fail():
+        print(f"{RED}{result.error}{RESET}")
         return False
 
+    info = result.unwrap()
     print(f"{GREEN}✅ 发现服务: {info['service']} v{info['version']}{RESET}")
     agents = info.get("agents", [])
     if not agents:

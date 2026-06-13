@@ -13,6 +13,7 @@ sentence-transformers>=2.2.0
 paramiko>=3.0.0
 selenium>=4.10.0
 watchdog>=3.0.0
+pymupdf>=1.23.0
 
 # 以下为可选云存储依赖，按需安装：
 # bypy (百度网盘)

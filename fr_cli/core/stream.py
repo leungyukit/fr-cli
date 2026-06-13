@@ -8,7 +8,6 @@
 """
 import sys
 import time
-import threading
 import re
 from fr_cli.ui.ui import RESET, DIM, CYAN, RED, GREEN, MAGENTA, CODE_BG, CODE_FG, _NO_COLOR
 from fr_cli.lang.i18n import T

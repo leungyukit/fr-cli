@@ -7,11 +7,8 @@
 - 用户看不到 traceback（除非显式 /debug）
 """
 import os
-import sys
 import traceback
 import logging
-from datetime import datetime
-from pathlib import Path
 
 from fr_cli.conf.paths import ROOT
 

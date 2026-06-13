@@ -9,6 +9,7 @@ Agent HTTP 服务 —— 将分身能力发布为 Web API
 - CORS 限制为同源，不再开放 *
 - 支持 IP 白名单（可选）
 """
+import concurrent.futures
 import json
 import secrets
 import threading
@@ -19,6 +20,7 @@ from fr_cli.agent.manager import list_agents, load_persona, load_memory, load_sk
 from fr_cli.agent.workflow import load_workflow
 from fr_cli.agent.executor import run_agent
 from fr_cli.agent.workflow import run_workflow as wf_run
+from fr_cli.core.result import Result
 
 
 class _AgentHTTPHandler(BaseHTTPRequestHandler):
@@ -64,6 +66,13 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
         self._send_cors_headers()
         self.end_headers()
         self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+
+    def _send_result(self, result: Result, status_ok=200, status_fail=500):
+        """将 Result 对象序列化为标准 JSON 响应"""
+        if result.is_ok():
+            self._send_json(status_ok, {"result": result.unwrap(), "error": None})
+        else:
+            self._send_json(status_fail, {"result": None, "error": result.error})
 
     def _read_json(self):
         try:
@@ -148,6 +157,28 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
 
         self._send_json(404, {"error": "Not found"})
 
+    def _extract_timeout(self, body, default=120, max_timeout=600):
+        """从请求体中解析超时时间，限制在合理范围内"""
+        timeout = body.get("timeout", default)
+        try:
+            timeout = float(timeout)
+        except (TypeError, ValueError):
+            timeout = default
+        if timeout <= 0:
+            timeout = default
+        return min(timeout, max_timeout)
+
+    def _run_with_timeout(self, func, timeout, *args, **kwargs):
+        """在线程池中执行函数并设置超时；超时后尝试取消任务"""
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(func, *args, **kwargs)
+            try:
+                return future.result(timeout=timeout)
+            except concurrent.futures.TimeoutError:
+                # 若任务尚未开始，可取消；已开始则无法强行中断
+                future.cancel()
+                raise
+
     def do_POST(self):
         if not self._check_ip():
             self._send_json(403, {"error": "IP not allowed"})
@@ -170,12 +201,19 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
                 return
             state = self.server._state
             user_input = body.get("input", "")
-            kwargs = body.get("kwargs", {})
+            kwargs = body.get("kwargs") or {}
             if user_input:
                 kwargs["user_input"] = user_input
-            result, error = run_agent(name, state, **kwargs)
-            resp = {"result": result, "error": error}
-            self._send_json(200 if not error else 500, resp)
+            timeout = self._extract_timeout(body, default=120, max_timeout=600)
+            try:
+                result = self._run_with_timeout(run_agent, timeout, name, state, **kwargs)
+            except concurrent.futures.TimeoutError:
+                self._send_result(Result.fail(f"Agent 执行超时（{timeout:g}秒）"), status_fail=504)
+                return
+            except Exception as exc:
+                self._send_result(Result.fail(f"Agent 执行异常: {exc}"), status_fail=500)
+                return
+            self._send_result(result, status_ok=200, status_fail=500)
             return
 
         # /agents/<name>/workflow
@@ -187,10 +225,25 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
                 return
             state = self.server._state
             user_input = body.get("input", "")
-            kwargs = body.get("kwargs", {})
-            final, error, steps = wf_run(name, state, user_input=user_input, **kwargs)
-            resp = {"result": final, "error": error, "steps": steps}
-            self._send_json(200 if not error else 500, resp)
+            kwargs = body.get("kwargs") or {}
+            timeout = self._extract_timeout(body, default=180, max_timeout=600)
+            try:
+                wf_result = self._run_with_timeout(
+                    wf_run, timeout, name, state, user_input=user_input, **kwargs
+                )
+            except concurrent.futures.TimeoutError:
+                self._send_json(
+                    504, {"result": None, "error": f"工作流执行超时（{timeout:g}秒）", "steps": []}
+                )
+                return
+            except Exception as exc:
+                self._send_json(500, {"result": None, "error": f"工作流执行异常: {exc}", "steps": []})
+                return
+            if wf_result.is_ok():
+                final, steps = wf_result.unwrap()
+                self._send_json(200, {"result": final, "error": None, "steps": steps})
+            else:
+                self._send_json(500, {"result": None, "error": wf_result.error, "steps": []})
             return
 
         self._send_json(404, {"error": "Not found"})
@@ -220,9 +273,9 @@ class AgentHTTPServer:
             self._server._ip_whitelist = self._ip_whitelist
 
     def start(self):
-        """启动 HTTP 服务（后台线程）"""
+        """启动 HTTP 服务（后台线程），返回 Result[msg]"""
         if self.is_running():
-            return False, f"服务已在运行: http://{self.host}:{self.port}"
+            return Result.fail(f"服务已在运行: http://{self.host}:{self.port}")
 
         self._token = secrets.token_urlsafe(16)
         self._server = HTTPServer((self.host, self.port), _AgentHTTPHandler)
@@ -240,18 +293,18 @@ class AgentHTTPServer:
         )
         if self.host == "127.0.0.1":
             msg += "\n  ⚠️ 当前仅绑定 127.0.0.1，外部无法访问。如需公网暴露请使用 ngrok 或修改 host。"
-        return True, msg
+        return Result.ok(msg)
 
     def stop(self):
-        """停止 HTTP 服务"""
+        """停止 HTTP 服务，返回 Result[msg]"""
         if not self.is_running():
-            return False, "服务未运行"
+            return Result.fail("服务未运行")
         self._server.shutdown()
         self._server.server_close()
         self._server = None
         self._thread = None
         self._token = None
-        return True, "Agent HTTP 服务已停止"
+        return Result.ok("Agent HTTP 服务已停止")
 
     def is_running(self):
         return self._server is not None and self._thread is not None and self._thread.is_alive()

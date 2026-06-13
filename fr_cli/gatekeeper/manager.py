@@ -5,15 +5,21 @@ Gatekeeper 管理器 —— 守护进程管理器
 import os
 import sys
 import time
-import json
 import signal
 import subprocess
 from pathlib import Path
 from fr_cli.conf.paths import DAEMON_PID_FILE, DAEMON_STOP_FILE, DAEMON_CONFIG_FILE
+from fr_cli.core.result import Result
+from fr_cli.core.store import JsonStore
 
 PID_FILE = DAEMON_PID_FILE
 STOP_FILE = DAEMON_STOP_FILE
 DAEMON_CONFIG_FILE = DAEMON_CONFIG_FILE
+
+
+def _daemon_store():
+    """返回基于当前 DAEMON_CONFIG_FILE 的 JsonStore"""
+    return JsonStore(DAEMON_CONFIG_FILE, default=dict)
 
 
 class GatekeeperManager:
@@ -64,13 +70,12 @@ class GatekeeperManager:
 
     @staticmethod
     def save_daemon_config(cfg):
-        """保存守护进程配置供下次启动使用"""
+        """保存守护进程配置供下次启动使用，返回 Result"""
         try:
-            with open(DAEMON_CONFIG_FILE, "w", encoding="utf-8") as f:
-                json.dump(cfg, f, ensure_ascii=False, indent=2)
+            _daemon_store().write(cfg)
+            return Result.ok("配置已保存")
         except Exception as e:
-            return False, str(e)
-        return True, "配置已保存"
+            return Result.fail(str(e))
 
     def is_running(self):
         pid = self._read_pid()
@@ -82,15 +87,15 @@ class GatekeeperManager:
         return False
 
     def start(self):
-        """启动守护进程"""
+        """启动守护进程，返回 Result"""
         if self.is_running():
             pid = self._read_pid()
-            return False, f"Gatekeeper 守护进程已在运行 (PID: {pid})"
+            return Result.fail(f"Gatekeeper 守护进程已在运行 (PID: {pid})")
 
         self._cleanup_files()
         daemon_script = self._daemon_script_path()
         if not daemon_script.exists():
-            return False, f"守护进程脚本不存在: {daemon_script}"
+            return Result.fail(f"守护进程脚本不存在: {daemon_script}")
 
         try:
             kwargs = {}
@@ -111,36 +116,36 @@ class GatekeeperManager:
                 time.sleep(0.3)
                 pid = self._read_pid()
                 if pid and self._is_pid_alive(pid):
-                    return True, f"Gatekeeper 守护进程已启动 (PID: {pid})"
+                    return Result.ok(f"Gatekeeper 守护进程已启动 (PID: {pid})")
                 if proc.poll() is not None:
-                    return False, "守护进程启动后立即退出，请检查配置。"
+                    return Result.fail("守护进程启动后立即退出，请检查配置。")
 
-            return True, f"Gatekeeper 守护进程已启动 (PID: {proc.pid})"
+            return Result.ok(f"Gatekeeper 守护进程已启动 (PID: {proc.pid})")
         except Exception as e:
-            return False, f"启动失败: {e}"
+            return Result.fail(f"启动失败: {e}")
 
     def stop(self):
-        """停止守护进程"""
+        """停止守护进程，返回 Result"""
         pid = self._read_pid()
         if not pid:
             self._cleanup_files()
-            return False, "Gatekeeper 守护进程未运行。"
+            return Result.fail("Gatekeeper 守护进程未运行。")
 
         if not self._is_pid_alive(pid):
             self._cleanup_files()
-            return False, "Gatekeeper 守护进程未运行（已清理残留状态）。"
+            return Result.fail("Gatekeeper 守护进程未运行（已清理残留状态）。")
 
         # 写入停止标记
         try:
             STOP_FILE.write_text("1", encoding="utf-8")
         except Exception as e:
-            return False, f"发送停止信号失败: {e}"
+            return Result.fail(f"发送停止信号失败: {e}")
 
         # 等待进程自行退出
         for _ in range(15):
             if not self._is_pid_alive(pid):
                 self._cleanup_files()
-                return True, "Gatekeeper 守护进程已停止。"
+                return Result.ok("Gatekeeper 守护进程已停止。")
             time.sleep(0.5)
 
         # 强制终止
@@ -158,11 +163,11 @@ class GatekeeperManager:
         for _ in range(5):
             if not self._is_pid_alive(pid):
                 self._cleanup_files()
-                return True, "Gatekeeper 守护进程已停止。"
+                return Result.ok("Gatekeeper 守护进程已停止。")
             time.sleep(0.5)
 
         self._cleanup_files()
-        return True, "Gatekeeper 守护进程已强制停止。"
+        return Result.ok("Gatekeeper 守护进程已强制停止。")
 
     def status(self):
         """查询守护进程状态"""
@@ -181,13 +186,7 @@ def get_manager():
 
 def read_daemon_config():
     """读取当前守护进程配置"""
-    if DAEMON_CONFIG_FILE.exists():
-        try:
-            with open(DAEMON_CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+    return _daemon_store().read()
 
 
 def sync_gatekeeper_cron_jobs(cron_jobs=None, agent_crons=None, append=False):
@@ -212,8 +211,7 @@ def sync_gatekeeper_cron_jobs(cron_jobs=None, agent_crons=None, append=False):
         cfg["agent_crons"] = existing + [j for j in agent_crons if j not in existing]
 
     try:
-        with open(DAEMON_CONFIG_FILE, "w", encoding="utf-8") as f:
-            json.dump(cfg, f, ensure_ascii=False, indent=2)
+        _daemon_store().write(cfg)
         return True
     except Exception:
         return False

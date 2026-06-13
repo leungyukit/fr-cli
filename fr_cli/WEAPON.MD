@@ -28,6 +28,14 @@
 - **调用方式**: mail_inbox, mail_read, mail_send
 - **触发关键词**: 邮件, mail, email, 发邮件, 收件箱, inbox, 发送邮件, 查看邮件
 
+## m365_email
+- **名称**: Microsoft 365 邮件工具
+- **功能**: 通过 Microsoft Graph API 查看收件箱、读取邮件、发送邮件，支持 MFA
+- **程序路径**: fr_cli/weapon/m365.py
+- **调用方式**: m365_inbox, m365_read, m365_send
+- **配置命令**: /m365_config setup
+- **触发关键词**: m365, microsoft 365, outlook 365, 微软邮箱, Office 365
+
 ## web_search
 - **名称**: 网络搜索工具
 - **功能**: 搜索网络内容和获取网页
@@ -128,11 +136,9 @@
 
 ## builtin_rag
 - **名称**: @RAG 本地知识库助手
-- **功能**: ChromaDB 向量检索 + CrossEncoder 重排序(Rerank) + 大模型最佳片段判定。后台自动向量化监控目录。支持两种监控模式：
-  - 向量检索：使用 all-MiniLM-L6-v2 嵌入模型，检索 top-15 候选
-  - Rerank 重排序：使用 cross-encoder/ms-marco-MiniLM-L-6-v2 对候选重新打分，取 top-3
-  - 大模型判定：让 LLM 从 top-3 中评估相关性/完整性/准确性，选出最佳片段 ★【最佳】
-  - 最终生成：优先基于最佳片段回答，可综合其他片段补充
+- **功能**: ChromaDB 向量检索 + 大模型综合生成。后台自动向量化监控目录。支持两种监控模式：
+  - 向量检索：使用 all-MiniLM-L6-v2 嵌入模型，检索 top-8 相关片段
+  - 综合生成：将检索到的片段一次性交给大模型，由其综合回答并标注来源
   - 内置模式（daemon 线程）：`/rag_dir <目录>` 后自动启动
   - 独立模式（系统进程）：`/rag_watch start [目录] [--interval N]`，退出终端后仍继续运行
 - **程序路径**: fr_cli/agent/builtins/rag.py
@@ -184,44 +190,6 @@
   >>> 用 MCP 工具读取 /tmp/hello.txt
   🧙 仙人 【调用：mcp_call({"server": "fs", "tool": "read_file", "arguments": {"path": "/tmp/hello.txt"}})】
   ```
-
----
-
-## a2a_protocol
-- **名称**: Agent2Agent Protocol (A2A) - Agent 互操作协议
-- **功能**: 支持 Agent 之间的互操作，实现 Agent 发现、注册、能力匹配、任务委托和结果返回
-- **程序路径**: fr_cli/agent/a2a.py
-- **调用方式**:
-  - AI 调用: `agent_call({"name": "Agent名", "user_input": "任务描述"})`
-  - 发现: `discover_all_agents()` 获取所有可用 Agent
-  - 注册: `AgentRegistry.register(agent_info)`
-- **触发关键词**: agent, agent_call, A2A, agent互操作, 委托任务, 多agent协作
-
-核心组件:
-  - AgentRegistry: Agent 注册表（单例模式），管理所有 Agent 的注册与发现
-  - AgentInfo: Agent 信息，包含名称、类型、描述、能力列表、端点等
-  - A2AClient: A2A 客户端，用于调用其他 Agent
-  - A2AServer: A2A 服务器，提供 HTTP 接口供远程调用
-  - TaskRequest/TaskResult: 任务请求和结果数据结构
-
-使用示例:
-  ```
-  # MasterAgent 可自动发现并调用其他 Agent
-  >>> 帮我调用 code-agent 生成一个快速排序算法
-  🧙 仙人 【调用：agent_call({"name": "code-agent", "user_input": "生成快速排序算法"})】
-  ```
-
-Agent 能力类型:
-  - code_generation: 代码生成
-  - code_review: 代码审查
-  - data_analysis: 数据分析
-  - web_search: 网络搜索
-  - file_operation: 文件操作
-  - database: 数据库操作
-  - image_processing: 图像处理
-  - text_generation: 文本生成
-  - translation: 翻译
-  - general: 通用能力
 
 ---
 

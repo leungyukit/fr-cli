@@ -2,13 +2,11 @@
 W2 收尾实现 —— 一次性把中等 + 长线 18 项中剩余的"小优化"全部加上
 """
 import re
-import sys
 import subprocess
 from pathlib import Path
-from typing import Optional, List, Dict
+from typing import Optional, Dict
 
-from fr_cli.ui.ui import RED, GREEN, YELLOW, CYAN, DIM, RESET, get_display_width
-from fr_cli.conf.paths import ROOT
+from fr_cli.ui.ui import GREEN, YELLOW, CYAN, DIM, RESET, CODE_FG
 
 
 # ==================== 中等-5：AI 回答太长自动折叠 ====================
@@ -82,7 +80,7 @@ def first_run_wizard(cfg: dict, _prompt=None) -> dict:
     print(f"\n{CYAN}Step 3/4: 选择模型{RESET}")
     default_model = providers[idx]["default_model"]
     print(f"  默认: {default_model}")
-    print(f"  输入自定义模型名（直接回车用默认）")
+    print("  输入自定义模型名（直接回车用默认）")
     try:
         model = input(f"👉 模型 [{default_model}]: ").strip() or default_model
     except (EOFError, KeyboardInterrupt):

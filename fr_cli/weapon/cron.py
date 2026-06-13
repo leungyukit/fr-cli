@@ -6,8 +6,13 @@
 import threading
 import subprocess
 import shlex
+from pathlib import Path
 from fr_cli.ui.ui import RED, GREEN, DIM, YELLOW, RESET
 from fr_cli.lang.i18n import T
+from fr_cli.core.store import JsonStore
+
+
+CRON_STORE_FILE = Path.home() / ".fr_cli" / "cron.json"
 
 
 class CronManager:
@@ -51,10 +56,10 @@ class CronManager:
                     return
                 else:
                     from fr_cli.agent.executor import run_agent
-                    result, err = run_agent(agent_name, state, user_input=agent_input)
-                    out = (result or "")[:200]
-                    if err:
-                        out = f"Error: {err}"
+                    agent_result = run_agent(agent_name, state, user_input=agent_input)
+                    out = (agent_result.unwrap_or("") or "")[:200]
+                    if agent_result.is_fail():
+                        out = f"Error: {agent_result.error}"
                     print(f"{DIM}[Cron {job_id}] Agent[{agent_name}]{RESET} {out}")
             else:
                 # 执行 shell 命令（安全：不使用 shell=True）
@@ -129,6 +134,7 @@ class CronManager:
         job["timer"].daemon = True
         job["timer"].start()
 
+        self._persist()
         return job_id, T("cron_ok", lang, job_id, interval)
 
     def list_jobs(self, lang):
@@ -154,7 +160,24 @@ class CronManager:
             if job["timer"]:
                 job["timer"].cancel()
             self.jobs.remove(job)
+        self._persist()
         return True, T("cron_killed", lang, job_id)
+
+    def _persist(self):
+        """将任务配置持久化到 ~/.fr_cli/cron.json（不含线程对象）"""
+        try:
+            JsonStore(CRON_STORE_FILE, default=list).write(self.export_jobs())
+        except Exception:
+            pass
+
+    def load_persistent_jobs(self, lang="zh", state=None, state_provider=None):
+        """从 ~/.fr_cli/cron.json 恢复定时任务"""
+        try:
+            jobs = JsonStore(CRON_STORE_FILE, default=list).read()
+            if isinstance(jobs, list):
+                self.import_jobs(jobs, lang=lang, state=state, state_provider=state_provider)
+        except Exception:
+            pass
 
     def sync_jobs(self, job_configs, lang="zh", state=None, state_provider=None):
         """同步任务列表：根据配置增删任务，保持当前任务与配置一致
@@ -190,6 +213,7 @@ class CronManager:
                     state=state,
                     state_provider=state_provider,
                 )
+        self._persist()
 
     def export_jobs(self):
         """导出所有定时任务为可持久化的字典列表（不含线程对象）"""

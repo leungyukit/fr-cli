@@ -12,13 +12,29 @@ from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import CYAN, DIM, RESET, YELLOW, RED, GREEN
 from fr_cli.core.stream import stream_cnt
 from fr_cli.weapon.loader import get_available_tools
-from fr_cli.addon.plugin import exec_plugin, extract_code, PLUGIN_DIR
+from fr_cli.addon.plugin import exec_plugin
 from fr_cli.core.recommender import recommend_features
 from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
 from fr_cli.ui.markdown import render_markdown
 from fr_cli.core.intent import should_force_tool, classify_intent, has_info_fetch_intent, has_save_intent
+
+
+def _record_usage(state, usage):
+    """将 stream_cnt 返回的 usage 记录到用量统计"""
+    if not usage or not hasattr(state, "usage"):
+        return
+    try:
+        state.usage.record(
+            provider=state.provider or "unknown",
+            model=state.model_name or "unknown",
+            prompt_tokens=usage.get("prompt_tokens", 0),
+            completion_tokens=usage.get("completion_tokens", 0),
+            total_tokens=usage.get("total_tokens"),
+        )
+    except Exception:
+        pass
 
 
 def _fetch_mcp_tools(mcp_manager):
@@ -60,6 +76,10 @@ def handle_ai_chat(state, u):
     if not state.model_name:
         print(f"{YELLOW}⚠️ 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
         return
+
+    # 计划模式：LLM 先制定结构化计划，用户确认后逐步执行
+    if getattr(state, 'thinking_mode', 'direct') == "plan":
+        return _handle_plan_mode(state, u)
 
     # MasterAgent 自我进化主控模式接管（ReAct 循环 + 自主工具调用）
     if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
@@ -117,6 +137,18 @@ def handle_ai_chat(state, u):
         if mcp_desc:
             tools_info += mcp_desc + "\n"
             tools_info += "\n调用 MCP 工具时，请使用格式：【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n"
+
+        # 注入本地/远程 Agent 分身，让大模型知道可协作的独立 Agent
+        try:
+            from fr_cli.agent.client import discover_all_agents
+            agents = discover_all_agents()
+            if agents:
+                tools_info += "\n=== 可协作的独立Agent ===\n"
+                for a in agents:
+                    tools_info += f"- [{a['type']}] {a['name']}: {a['description']}\n"
+                tools_info += "\n调用方式: 【调用：agent_call({\"name\": \"Agent名\", \"user_input\": \"任务描述\"})】\n"
+        except Exception:
+            pass
         # 信息获取规范：当用户需要调用外部信息源时，采用双源回答模式
         if has_info_fetch_intent(u):
             tools_info += """\n
@@ -186,6 +218,8 @@ def handle_ai_chat(state, u):
     except Exception as e:
         print(f"{RED}{friendly_print(e)}{RESET}")
         return
+    if usage:
+        _record_usage(state, usage)
     updated_messages.append({"role": "assistant", "content": txt})
 
     # 自动执行 AI 响应中的命令
@@ -245,6 +279,7 @@ def handle_ai_chat(state, u):
         updated_messages.append({"role": "assistant", "content": final_txt})
 
         if final_usage:
+            _record_usage(state, final_usage)
             usage = final_usage
         response_time += final_response_time
 
@@ -293,6 +328,90 @@ def handle_ai_chat(state, u):
     # 返回统计信息供底部状态栏使用
     return {
         "response_time": response_time,
+        "input_tokens": usage.get('prompt_tokens', 0) if usage else 0,
+        "output_tokens": usage.get('completion_tokens', 0) if usage else 0,
+        "total_tokens": usage.get('total_tokens', 0) if usage else 0,
+    }
+
+
+def _handle_plan_mode(state, u):
+    """计划模式主流程：生成计划 → 确认 → 执行 → 汇总"""
+    from fr_cli.core.plan import (
+        generate_plan, render_plan, execute_plan,
+        summarize_execution, save_plan
+    )
+    from fr_cli.ui.prompt import create_prompt
+
+    lang = state.lang
+    prompt = create_prompt(state)
+
+    # 1. 生成计划
+    plan = generate_plan(state, u, lang)
+    if not plan:
+        print(f"{RED}{'❌ 计划生成失败' if lang == 'zh' else '❌ Failed to generate plan'}{RESET}")
+        return
+
+    state.active_plan = plan
+    state.plan_step_idx = 0
+
+    # 2. 展示计划
+    print()
+    print(render_plan(plan, lang))
+    print()
+
+    # 3. 用户确认
+    confirm_msg = "是否执行该计划？" if lang == "zh" else "Execute this plan?"
+    if not prompt.confirm(confirm_msg, default=True):
+        print(f"{YELLOW}{'🛑 已取消执行' if lang == 'zh' else '🛑 Cancelled'}{RESET}")
+        state.active_plan = None
+        return
+
+    # 4. 执行计划
+    step_results = execute_plan(state, plan, lang)
+
+    # 5. 持久化
+    save_plan(state, plan, step_results)
+
+    # 6. 汇总结果
+    summary, usage = summarize_execution(state, u, plan, step_results, lang)
+
+    # 7. 更新消息历史与上下文
+    plan_text = render_plan(plan, lang)
+    result_summary = "\n".join(
+        f"步骤 {i}: {'成功' if ok else '失败'}\n{txt[:500]}"
+        for i, (ok, txt) in enumerate(step_results, 1)
+    )
+
+    updated_messages = copy.deepcopy(state.messages)
+    user_prompt = u
+    if state.vfs.cwd:
+        user_prompt += T("ctx_dir", lang, state.vfs.cwd)
+
+    updated_messages.append({"role": "user", "content": f"[计划模式] {user_prompt}"})
+    updated_messages.append({
+        "role": "assistant",
+        "content": f"**执行计划**\n{plan_text}\n\n**执行结果**\n{result_summary}\n\n**总结**\n{summary}"
+    })
+
+    # 更新记忆上下文
+    recent = extract_recent_turns(updated_messages, 5)
+    state.context_summary = build_context_summary(recent, lang)
+    save_context(state.sn, state.context_summary)
+
+    state.messages = updated_messages
+
+    # 自动按日期存档会话
+    if not state.auto_session_path:
+        path = create_session(state.messages, session_id=getattr(state, "session_id", None))
+        if path:
+            state.auto_session_path = path
+            print(f"{DIM}💾 {Path(path).name}{RESET}")
+    else:
+        update_session(state.auto_session_path, state.messages)
+
+    # 返回统计信息
+    return {
+        "response_time": 0.0,
         "input_tokens": usage.get('prompt_tokens', 0) if usage else 0,
         "output_tokens": usage.get('completion_tokens', 0) if usage else 0,
         "total_tokens": usage.get('total_tokens', 0) if usage else 0,

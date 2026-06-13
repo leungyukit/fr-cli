@@ -7,7 +7,7 @@ Skills 系统 - 参考 Hermes Agent 实现
 import os
 import json
 import time
-from typing import Dict, List, Optional, Callable
+from typing import Dict, List, Optional
 from dataclasses import dataclass, field
 
 

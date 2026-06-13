@@ -14,11 +14,8 @@ _last_sample = {
 
 
 def _has_psutil():
-    try:
-        import psutil
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+    return importlib.util.find_spec("psutil") is not None
 
 
 def get_cpu_percent():

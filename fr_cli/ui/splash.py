@@ -30,7 +30,7 @@ import shutil
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Optional
 
 try:
     from PIL import Image
@@ -85,7 +85,6 @@ def detect_terminal() -> TerminalCapability:
 
     term = os.environ.get("TERM", "")
     term_program = os.environ.get("TERM_PROGRAM", "")
-    wt_session = os.environ.get("WT_SESSION")
 
     # 1. Kitty 协议(Kitty、WezTerm)
     if term_program == "WezTerm":

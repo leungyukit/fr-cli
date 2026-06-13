@@ -2,14 +2,11 @@
 REPL 命令路由处理器
 从 main.py 提取的所有 / 命令实现，减轻主模块负担。
 """
-import sys
 
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
-    CYAN, RED, YELLOW, GREEN, DIM, RESET,
-    print_bye
+    CYAN, RED, YELLOW, GREEN, DIM, RESET
 )
-from fr_cli.agent.shell_mode import ShellMode
 from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
 from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import (
@@ -17,15 +14,6 @@ from fr_cli.memory.session import (
     load_session as load_auto_session,
     delete_session as delete_auto_session,
 )
-from fr_cli.addon.plugin import extract_code
-from fr_cli.core.stream import stream_cnt
-from fr_cli.core.sysmon import get_sys_stats
-from fr_cli.agent.manager import (
-    create_agent_dir, save_agent_code, save_persona, save_skills,
-    save_memory, agent_exists, list_agents, delete_agent,
-    load_persona, load_memory, load_skills,
-)
-from fr_cli.agent.executor import run_agent
 
 
 
@@ -124,7 +112,7 @@ def _cmd_session_del(state, parts):
 
 def _cmd_new(state, parts):
     """开创新轮回 —— 重置会话、生成新 UUID、重新显示启动画面"""
-    from fr_cli.repl.bootstrap import print_startup_banner, load_system_prompt
+    from fr_cli.repl.bootstrap import print_startup_banner
     from fr_cli.lang.i18n import T
 
     # 1. 保存当前会话（若已有自动存档路径则已自动保存，无需额外操作）

@@ -10,7 +10,6 @@ fr-cli 配置文件路径集中管理 —— 单一真相源
 3. 旧路径兼容层：read 仍能从旧路径读（迁移没完成时不丢数据）
 4. 一次迁移后置位标志，避免重复 IO
 """
-import os
 import shutil
 from pathlib import Path
 
@@ -18,6 +17,9 @@ from pathlib import Path
 # 单一根目录
 # =================================================================
 ROOT = Path.home() / ".fr_cli"
+
+# 运行时用量统计
+USAGE_FILE = ROOT / "usage.json"
 
 
 # =================================================================
@@ -133,6 +135,7 @@ REMOTE_HOSTS_FILE = REMOTE_DIR / "hosts.json"
 
 # 业务配置
 DATABASE_FILE = ROOT / "database.json"
+M365_FILE = ROOT / "m365.json"
 GATEWAY_FILE = ROOT / "gateway.json"
 PERSONALITIES_FILE = ROOT / "personalities.json"
 SKILLS_DIR = ROOT / "skills"
@@ -170,11 +173,9 @@ def read_with_fallback(primary: Path, fallbacks: list, binary: bool = False) -> 
     迁移在启动时统一做。
     """
     if primary.exists():
-        mode = "rb" if binary else "r"
         return primary.read_bytes() if binary else primary.read_text(encoding="utf-8")
     for fb in fallbacks:
         if fb.exists():
-            mode = "rb" if binary else "r"
             return fb.read_bytes() if binary else fb.read_text(encoding="utf-8")
     return None
 

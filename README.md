@@ -34,7 +34,7 @@
 
 ### 🎯 特色功能
 - **视觉能力**：图片生成 (CogView) 与多模态识别 (GLM-4V)
-- **邮件收发**：支持 IMAP/SMTP（防头注入）
+- **邮件收发**：支持 IMAP/SMTP 与 Microsoft 365 现代认证（OAuth2 + MFA，防头注入）
 - **定时任务**：后台定时执行命令（shlex 安全解析）
 - **云盘集成**：百度/阿里/OneDrive 网盘
 - **插件系统**：AI 生成代码自动保存为插件（子进程隔离）
@@ -101,6 +101,15 @@ fr-cli
 /mcp_list                   列出 MCP 服务器及工具
 /mcp_add <名> <命令> [参数]  添加 MCP 服务器
 /mcp_del <名>               删除 MCP 服务器
+
+/mail setup        配置 IMAP/SMTP 邮箱
+/mail inbox        查看收件箱
+/mail read <id>    读取邮件
+/mail send <to> <sub> <body>   发送邮件
+/m365_config setup 配置 Microsoft 365 邮箱（OAuth2 + MFA）
+/m365_inbox        查看 Microsoft 365 收件箱
+/m365_read <id>    读取 Microsoft 365 邮件
+/m365_send <to> <sub> <body>   发送 Microsoft 365 邮件
 
 /help              查看帮助
 /exit              退出
@@ -392,6 +401,15 @@ fr_cli/
 **Q: 邮件发送失败?**
 - QQ/163 邮箱需使用「授权码」而非登录密码
 - 授权码在邮箱设置 → 账户 → 开启 IMAP/SMTP 服务后生成
+
+**Q: Microsoft 365 / Outlook 邮箱如何使用?**
+Microsoft 365 已禁用基本认证，需使用 OAuth2 现代认证：
+1. 在 Azure AD 注册应用，添加 `Mail.Read`、`Mail.Send`、`User.Read` 委派权限
+2. 复制 Application (client) ID 和 Directory (tenant) ID
+3. 执行 `/m365_config setup`，按向导完成设备码或授权码登录（支持 MFA）
+4. 之后使用 `/m365_inbox`、`/m365_read <id>`、`/m365_send <to> <sub> <body>`
+
+Token 缓存于 `~/.fr_cli/m365.json`，文件权限 `0o600`。
 
 **Q: 搜索功能无法使用?**
 ```bash

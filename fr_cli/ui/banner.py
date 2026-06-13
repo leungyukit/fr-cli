@@ -6,11 +6,10 @@
 - 框外：── input ──... 分隔线（让用户视觉上看到"输入区"开始）
 - TUI prompt_toolkit 接管 input 区
 """
-import os
 import shutil
 import re
 from fr_cli.ui.ui import (
-    RED, GREEN, CYAN, MAGENTA, YELLOW, BOLD, DIM, RESET, GRAY,
+    CYAN, YELLOW, BOLD, DIM, RESET, GRAY,
     get_display_width, _NO_COLOR,
 )
 from fr_cli import __version__
@@ -120,7 +119,7 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
 
 def print_input_separator(width: int = None):
     """在 TUI 输入区上方打印分隔线：── input ──────...
-    
+
     直接使用当前终端窗口宽度，不受 banner 框宽上限限制，
     确保分隔线始终铺满终端整行。
     """

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fr-cli"
-version = "2.4.2"
+version = "2.5.0"
 description = "凡人打字机 - 支持多模型(Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo)的终极全能终端工具"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -36,6 +36,7 @@ dependencies = [
     "pyyaml>=6.0.0",
     "prompt_toolkit>=3.0.0",  # TUI 输入面板
     "Pillow>=10.0.0",  # 启动封面图片编码(Kitty / iTerm2 / Sixel)
+    "pymupdf>=1.23.0",  # PDF 渲染为图片，供 OCR 使用
 ]
 
 [project.optional-dependencies]
@@ -75,3 +76,20 @@ include = ["fr_cli*"]
 
 [tool.setuptools.package-data]
 fr_cli = ["conf/default_models.yaml", "assets/*.jpeg", "assets/*.png", "assets/*.jpg", "WEAPON.MD", "README.md"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 120
+
+[tool.ruff.lint]
+# 当前阶段：F（Pyflakes 死代码）+ E/W（pycodestyle），但忽略与项目历史风格冲突的规则
+select = ["F", "E", "W"]
+# 忽略项目 intentionally 保留的风格：
+# E401 多导入一行、E701/E702 单行 if/return、E402 可选依赖延迟导入、
+# E501 行长度、E741 单字母变量、E731 lambda 赋值
+ignore = ["F403", "F405", "E401", "E701", "E702", "E402", "E501", "E741", "E731"]
+
+[tool.ruff.lint.per-file-ignores]
+# 重导出兼容层：显式导入但未直接使用，用于保持旧接口可用
+"fr_cli/repl/commands.py" = ["F401", "F811", "F841"]
+"fr_cli/repl/commands/__init__.py" = ["F401", "F811", "F841"]

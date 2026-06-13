@@ -174,9 +174,9 @@ def _resolve_app(name):
 
 
 def open_file(path, lang="zh"):
-    """用系统默认程序打开文件或 URL（跨平台）"""
+    """用系统默认程序打开文件或 URL（跨平台），返回 (result, error)"""
     if not path:
-        return False, "路径为空" if lang == "zh" else "Empty path"
+        return None, "路径为空" if lang == "zh" else "Empty path"
     try:
         if SYSTEM == "Darwin":
             subprocess.Popen(["open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
@@ -184,15 +184,15 @@ def open_file(path, lang="zh"):
             subprocess.Popen(["start", "", path], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         else:
             subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        return True, f"已打开: {path}" if lang == "zh" else f"Opened: {path}"
+        return f"已打开: {path}" if lang == "zh" else f"Opened: {path}", None
     except Exception as e:
-        return False, str(e)
+        return None, str(e)
 
 
 def launch_app(name, target=None, lang="zh"):
-    """启动指定应用程序，可选传入文件/URL 作为目标"""
+    """启动指定应用程序，可选传入文件/URL 作为目标，返回 (result, error)"""
     if not name:
-        return False, "应用名称为空" if lang == "zh" else "Empty app name"
+        return None, "应用名称为空" if lang == "zh" else "Empty app name"
 
     app = _resolve_app(name)
 
@@ -227,9 +227,9 @@ def launch_app(name, target=None, lang="zh"):
         msg = f"已启动: {name}" if lang == "zh" else f"Launched: {name}"
         if target:
             msg += f" ({target})"
-        return True, msg
+        return msg, None
     except Exception as e:
-        return False, str(e)
+        return None, str(e)
 
 
 def list_apps(lang="zh"):

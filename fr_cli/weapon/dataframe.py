@@ -11,8 +11,12 @@ def _try_import_pandas():
         return None
 
 
-def read_excel(path, max_rows=1000, lang="zh"):
-    """读取 Excel 文件，返回文本摘要"""
+def read_excel(path, max_rows=1000, lang="zh", vfs=None):
+    """读取 Excel 文件，返回文本摘要。如果传入 vfs，先校验路径在沙盒内。"""
+    if vfs is not None:
+        result = vfs.check(path)
+        if result.is_fail():
+            return None, result.error or "路径不在允许范围内"
     pd = _try_import_pandas()
     if not pd:
         return None, "缺少 pandas/openpyxl (pip install pandas openpyxl)"
@@ -23,8 +27,12 @@ def read_excel(path, max_rows=1000, lang="zh"):
         return None, str(e)
 
 
-def read_csv(path, max_rows=1000, lang="zh"):
-    """读取 CSV 文件，返回文本摘要"""
+def read_csv(path, max_rows=1000, lang="zh", vfs=None):
+    """读取 CSV 文件，返回文本摘要。如果传入 vfs，先校验路径在沙盒内。"""
+    if vfs is not None:
+        result = vfs.check(path)
+        if result.is_fail():
+            return None, result.error or "路径不在允许范围内"
     pd = _try_import_pandas()
     if not pd:
         return None, "缺少 pandas (pip install pandas)"
@@ -62,8 +70,8 @@ def _df_to_summary(df, path, lang):
     return "\n".join(lines)
 
 
-def analyze_dataframe(path, query, client, model, lang="zh"):
-    """读取表格并提交给大模型分析"""
+def analyze_dataframe(path, query, client, model, lang="zh", vfs=None):
+    """读取表格并提交给大模型分析。如果传入 vfs，先校验路径在沙盒内。"""
     pd = _try_import_pandas()
     if not pd:
         return None, "缺少 pandas"
@@ -71,14 +79,14 @@ def analyze_dataframe(path, query, client, model, lang="zh"):
     # 根据扩展名判断类型
     ext = str(path).lower().split(".")[-1] if "." in str(path) else ""
     if ext in ("xlsx", "xls"):
-        summary, err = read_excel(path, lang=lang)
+        summary, err = read_excel(path, lang=lang, vfs=vfs)
     elif ext in ("csv",):
-        summary, err = read_csv(path, lang=lang)
+        summary, err = read_csv(path, lang=lang, vfs=vfs)
     else:
         # 尝试两种
-        summary, err = read_csv(path, lang=lang)
+        summary, err = read_csv(path, lang=lang, vfs=vfs)
         if err:
-            summary, err = read_excel(path, lang=lang)
+            summary, err = read_excel(path, lang=lang, vfs=vfs)
 
     if err:
         return None, err

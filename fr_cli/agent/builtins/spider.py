@@ -14,6 +14,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import urljoin, urlparse
+from fr_cli.core.result import Result
 
 # 尝试导入可选依赖
 _requests = None
@@ -754,7 +755,7 @@ def _save_page(url, html, output_dir):
 # ---------- 主爬取逻辑 ----------
 def crawl(url, depth=1, output_base=None, lang="zh", state=None):
     """自适应爬取指定 URL，返回 (saved_files, errors, stats)"""
-    from fr_cli.ui.ui import CYAN, GREEN, RED, DIM, YELLOW, RESET
+    from fr_cli.ui.ui import CYAN, GREEN, RED, DIM, RESET
 
     if depth < 1:
         depth = 1
@@ -836,7 +837,7 @@ def crawl(url, depth=1, output_base=None, lang="zh", state=None):
     if state and (stats["total_pages"] >= 2 or errors):
         _reflect_and_evolve(stats, errors, memory, state)
 
-    return saved, errors, stats
+    return Result.ok((saved, errors, stats))
 
 
 def _reflect_and_evolve(stats, errors, memory, state):
@@ -899,7 +900,7 @@ def _reflect_and_evolve(stats, errors, memory, state):
 # ---------- 入口 ----------
 def handle_spider(user_input, state):
     """处理 @spider 前缀的请求"""
-    from fr_cli.ui.ui import CYAN, GREEN, RED, YELLOW, DIM, RESET
+    from fr_cli.ui.ui import CYAN, GREEN, RED, DIM, RESET
 
     text = user_input[len("@spider"):].strip()
     if not text:
@@ -924,7 +925,7 @@ def handle_spider(user_input, state):
     print(f"{CYAN}🕷️ 开始自适应爬取: {url} | 深度: {depth}{RESET}")
     print(f"{DIM}  爬虫会根据页面结构自动分析最优策略...{RESET}")
 
-    saved, errors, stats = crawl(url, depth, output_dir, state.lang, state=state)
+    saved, errors, stats = crawl(url, depth, output_dir, state.lang, state=state).unwrap()
 
     print(f"\n{GREEN}═══ 爬取完成 ═══{RESET}")
     print(f"{GREEN}  成功: {len(saved)} 个页面{RESET}")

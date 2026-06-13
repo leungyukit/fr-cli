@@ -16,6 +16,7 @@
 import sys, os
 import argparse
 from datetime import datetime
+from fr_cli.ui.ui import RED
 
 # 添加项目根目录到 Python 路径
 project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -41,11 +42,8 @@ def _should_disable_colors_early() -> bool:
                    "-s", "--stdin", "-h", "--help"}
     if any(arg in sys.argv[1:] for arg in batch_flags):
         return False
-    try:
-        import prompt_toolkit
-        return True
-    except ImportError:
-        return False
+    import importlib.util
+    return importlib.util.find_spec("prompt_toolkit") is not None
 
 
 if _should_disable_colors_early():
@@ -262,6 +260,12 @@ def main():
         if u in state.aliases:
             u = state.aliases[u]
 
+        # @agent_name 直接调用 Agent 分身（不走普通 AI 对话队列）
+        if u.startswith("@"):
+            from fr_cli.agent.dispatch import dispatch_agent_call
+            if dispatch_agent_call(state, u):
+                continue
+
         # 命令分发（/ 开头走 router，普通文本走 AI 对话队列）
         if u.startswith("/"):
             should_break = dispatch_command(state, u)
@@ -278,86 +282,3 @@ def main():
 
 if __name__ == "__main__":
     sys.exit(main() or 0)
-
-    # 创建 TUI 输入面板
-    prompt = create_prompt(state)
-    state._prompt = prompt  # 供 scenario 等模块使用
-    prompt.update_status(
-        model=state.display_model,
-        provider=state.display_provider,
-        directory=cfg.get("allowed_dirs", [""])[0] if cfg.get("allowed_dirs") else "",
-        session=state.sn,
-        limit=state.limit,
-        mode=state.thinking_mode,
-    )
-
-    # 创建对话队列管理器（普通 AI 对话走队列，支持并发输入）
-    state._queue_mgr = ChatQueueManager(state, prompt)
-
-    # ================= 主循环 =================
-    first_iter = True
-    while True:
-        # 分隔线 ── input ────（Kimi Code 风格：自带"input"标签）
-        print_input_separator()
-
-        # 第一次引导提示（只在 TTY 下显示）
-        prefix_hint = ""
-        if first_iter and (not hasattr(prompt, "_is_tty") or prompt._is_tty):
-            prefix_hint = "首次使用？输入 /tutorial 开始教程，或 /help 查看所有命令"
-        first_iter = False
-
-        u = prompt.get_input(prefix_hint=prefix_hint)
-        if u is None:  # Ctrl+D 退出
-            if state._queue_mgr.is_processing or state._queue_mgr.peek():
-                print(f"{YELLOW}正在处理队列中的问题，请稍候...{RESET}")
-                state._queue_mgr.wait_for_complete()
-            print_bye()
-            break
-        if not u:
-            continue
-
-        # 时间戳（简洁格式）
-        input_time = datetime.now()
-        time_str = input_time.strftime("%H:%M:%S")
-        print(f"{DIM}▸ {time_str}{RESET}")
-
-        # 处理 e/r/u 动作（来自 TUI 快捷键）
-        if u == "__ACTION__:edit":
-            action_edit_last_ai(state, prompt)
-            continue
-        if u == "__ACTION__:retry":
-            action_retry_last_user(state, prompt)
-            continue
-        if u == "__ACTION__:undo":
-            action_undo_last(state)
-            continue
-
-        # /undo N 撤销多轮
-        if u.startswith("/undo "):
-            try:
-                n = int(u.split()[1])
-                action_undo_last(state, n=n)
-            except (ValueError, IndexError):
-                print(f"{YELLOW}用法: /undo N（撤销 N 轮对话）{RESET}")
-            continue
-
-        # 别名替换
-        if u in state.aliases:
-            u = state.aliases[u]
-
-        # 命令分发（/ 开头走 router，普通文本走 AI 对话队列）
-        if u.startswith("/"):
-            should_break = dispatch_command(state, u)
-            if should_break:
-                # _cmd_exit 已经打印过 print_bye，这里不再重复
-                break
-        else:
-            # 普通对话走队列（支持用户在 AI 回答期间继续输入）
-            queue_mgr = state._queue_mgr
-            if queue_mgr.is_processing:
-                print(f"{DIM}⏳ 已加入队列，AI 回答完成后自动处理...{RESET}")
-            queue_mgr.process(u)
-
-
-if __name__ == "__main__":
-    main()

@@ -2,30 +2,11 @@
 REPL 命令路由处理器
 从 main.py 提取的所有 / 命令实现，减轻主模块负担。
 """
-import sys
 
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
-    CYAN, RED, YELLOW, GREEN, DIM, RESET,
-    print_bye
+    CYAN, GREEN, DIM, RESET
 )
-from fr_cli.agent.shell_mode import ShellMode
-from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
-from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
-from fr_cli.memory.session import (
-    list_sessions as list_auto_sessions,
-    load_session as load_auto_session,
-    delete_session as delete_auto_session,
-)
-from fr_cli.addon.plugin import extract_code
-from fr_cli.core.stream import stream_cnt
-from fr_cli.core.sysmon import get_sys_stats
-from fr_cli.agent.manager import (
-    create_agent_dir, save_agent_code, save_persona, save_skills,
-    save_memory, agent_exists, list_agents, delete_agent,
-    load_persona, load_memory, load_skills,
-)
-from fr_cli.agent.executor import run_agent
 
 
 
@@ -48,6 +29,7 @@ def _print_help(state, topic):
         "session": "session", "sess": "session",
         "plugin": "plugin", "plugins": "plugin", "skill": "plugin", "skills": "plugin",
         "mail": "mail", "email": "mail",
+        "m365": "m365", "microsoft365": "m365", "office365": "m365",
         "cron": "cron", "timer": "cron", "schedule": "cron",
         "web": "web", "search": "web",
         "disk": "disk", "cloud": "disk",
@@ -68,7 +50,7 @@ def _print_help(state, topic):
     # ---------- 主题详细帮助（保持原有逻辑）----------
     if mapped:
         if mapped == "all":
-            for t in ["config", "fs", "session", "plugin", "mail", "cron", "web", "disk", "vision", "shell", "tools", "security", "app", "agent", "builtin", "dataframe", "gatekeeper", "mcp"]:
+            for t in ["config", "fs", "session", "plugin", "mail", "m365", "cron", "web", "disk", "vision", "shell", "tools", "security", "app", "agent", "builtin", "dataframe", "gatekeeper", "mcp"]:
                 print(T(f"help_detail_{t}", lang))
                 print()
         else:
@@ -153,6 +135,17 @@ def _print_help(state, topic):
                 ("@remote <srv>", "远程 SSH", "@remote myserver df -h"),
                 ("@spider <URL>", "网页爬虫", "@spider https://example.com"),
                 ("@RAG <q>", "知识库问答", "@RAG 部署流程是什么"),
+                ("@stock <query>", "股票量化", "@stock 查询茅台股价"),
+            ]),
+            ("邮件", [
+                ("/mail setup", "邮件配置", "/mail setup"),
+                ("/mail inbox", "查看收件箱", "/mail inbox"),
+                ("/mail read <id>", "读取邮件", "/mail read 1"),
+                ("/mail send", "发送邮件", '/mail send a@b.com "主题" "正文"'),
+                ("/m365_config", "M365 配置", "/m365_config setup"),
+                ("/m365_inbox", "M365 收件箱", "/m365_inbox"),
+                ("/m365_read <id>", "M365 读邮件", "/m365_read <message_id>"),
+                ("/m365_send", "M365 发邮件", '/m365_send a@b.com "主题" "正文"'),
             ]),
             ("工具", [
                 ("/web <query>", "网页搜索", "/web Python 异步"),
@@ -167,6 +160,7 @@ def _print_help(state, topic):
                 ("/shell", "Shell 模式", "/shell"),
                 ("/mode <mode>", "思维模式", "/mode cot"),
                 ("/queue", "查看队列", "/queue"),
+                ("/usage [days]", "用量统计", "/usage 7"),
                 ("/tutorial", "交互教程", "/tutorial"),
                 ("/help <topic>", "主题帮助", "/help agent"),
                 ("/exit", "退出程序", "/exit"),
@@ -208,6 +202,17 @@ def _print_help(state, topic):
                 ("@remote <srv>", "Remote SSH", "@remote myserver df -h"),
                 ("@spider <URL>", "Web crawler", "@spider https://example.com"),
                 ("@RAG <q>", "Knowledge Q&A", "@RAG deployment process"),
+                ("@stock <query>", "Stock quant", "@stock quote 600519"),
+            ]),
+            ("Mail", [
+                ("/mail setup", "Mail setup", "/mail setup"),
+                ("/mail inbox", "Inbox", "/mail inbox"),
+                ("/mail read <id>", "Read mail", "/mail read 1"),
+                ("/mail send", "Send mail", '/mail send a@b.com "Subject" "Body"'),
+                ("/m365_config", "M365 config", "/m365_config setup"),
+                ("/m365_inbox", "M365 inbox", "/m365_inbox"),
+                ("/m365_read <id>", "M365 read", "/m365_read <message_id>"),
+                ("/m365_send", "M365 send", '/m365_send a@b.com "Subject" "Body"'),
             ]),
             ("Tools", [
                 ("/web <query>", "Web search", "/web Python async"),
@@ -222,6 +227,7 @@ def _print_help(state, topic):
                 ("/shell", "Shell mode", "/shell"),
                 ("/mode <mode>", "Thinking mode", "/mode cot"),
                 ("/queue", "View queue", "/queue"),
+                ("/usage [days]", "Usage stats", "/usage 7"),
                 ("/tutorial", "Tutorial", "/tutorial"),
                 ("/help <topic>", "Topic help", "/help agent"),
                 ("/exit", "Exit", "/exit"),
@@ -254,9 +260,9 @@ def _print_help(state, topic):
 
     # 底部提示
     if is_zh:
-        print(f"{_dim('详情: /help <主题>  主题: config, model, fs, session, agent, tools, mcp, all')}")
+        print(f"{_dim('详情: /help <主题>  主题: config, model, fs, session, agent, mail, m365, tools, mcp, all')}")
     else:
-        print(f"{_dim('Details: /help <topic>  Topics: config, model, fs, session, agent, tools, mcp, all')}")
+        print(f"{_dim('Details: /help <topic>  Topics: config, model, fs, session, agent, mail, m365, tools, mcp, all')}")
     print()
 
 

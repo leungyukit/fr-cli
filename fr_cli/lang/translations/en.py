@@ -27,6 +27,7 @@ EN_DICT = {
   "err_posix": "❌ Error:",
   "err_bound": "⚠️ Denied",
   "err_no_file": "⚠️ Not found",
+  "grep_no_match": "No match for '{}' in file: {}",
   "ok_dir_add": "✅ Dir [{}] added",
   "err_dir_no": "❌ Not exists",
   "ok_cd": "✅ Dir: {}",

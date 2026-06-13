@@ -7,6 +7,7 @@
 """
 from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.conf.paths import REMOTE_HOSTS_FILE
+from fr_cli.core.result import Result
 
 _NS_KEY = "remote"
 REMOTE_CFG_PATH = REMOTE_HOSTS_FILE  # 保留用于一次性迁移
@@ -61,7 +62,7 @@ def delete_host(alias):
 
 
 def _exec_ssh(host_cfg, command):
-    """通过 ssh 命令执行远程操作（使用 paramiko 避免命令注入）"""
+    """通过 ssh 命令执行远程操作（使用 paramiko 避免命令注入），返回 Result[str]。"""
     ip = host_cfg["ip"]
     port = host_cfg.get("port", 22)
     user = host_cfg["user"]
@@ -71,7 +72,7 @@ def _exec_ssh(host_cfg, command):
     try:
         import paramiko
     except ImportError:
-        return None, "缺少 paramiko (pip install paramiko)"
+        return Result.fail("缺少 paramiko (pip install paramiko)")
 
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
@@ -93,17 +94,17 @@ def _exec_ssh(host_cfg, command):
         out = stdout.read().decode("utf-8", errors="ignore")
         err = stderr.read().decode("utf-8", errors="ignore")
         client.close()
-        return out + err, None
+        return Result.ok(out + err)
     except Exception as e:
-        return None, str(e)
+        return Result.fail(str(e))
 
 
 def _detect_os(host_cfg):
-    """探测远程主机操作系统"""
-    out, err = _exec_ssh(host_cfg, "uname -s")
-    if err:
-        return "Unknown", err
-    return out.strip() or "Linux", None
+    """探测远程主机操作系统，返回 Result[str]。"""
+    result = _exec_ssh(host_cfg, "uname -s")
+    if result.is_fail():
+        return result
+    return Result.ok(result.unwrap().strip() or "Linux")
 
 
 def handle_remote(user_input, state):
@@ -150,10 +151,11 @@ def handle_remote(user_input, state):
         return
 
     # 探测 OS
-    os_name, err = _detect_os(host_cfg)
-    if err:
-        print(f"{RED}无法连接主机 [{alias}]: {err}{RESET}")
+    os_result = _detect_os(host_cfg)
+    if os_result.is_fail():
+        print(f"{RED}无法连接主机 [{alias}]: {os_result.error}{RESET}")
         return
+    os_name = os_result.unwrap()
 
     prompt = REMOTE_SYS_PROMPT.format(os_name=os_name)
     messages = [
@@ -182,10 +184,11 @@ def handle_remote(user_input, state):
         print(f"{DIM}已取消。{RESET}")
         return
 
-    out, err = _exec_ssh(host_cfg, cmd_text)
-    if err:
-        print(f"{RED}❌ 执行失败: {err}{RESET}")
+    exec_result = _exec_ssh(host_cfg, cmd_text)
+    if exec_result.is_fail():
+        print(f"{RED}❌ 执行失败: {exec_result.error}{RESET}")
     else:
+        out = exec_result.unwrap()
         if out.strip():
             print(f"\n{GREEN}{out.strip()[:3000]}{RESET}")
         else:

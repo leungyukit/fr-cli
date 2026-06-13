@@ -8,11 +8,12 @@ import ast
 from types import SimpleNamespace
 from fr_cli.command.registry import get_registry
 from fr_cli.addon.plugin import exec_plugin
+from fr_cli.core.result import Result
 
 
 def _build_deps(state, client=None, model_name=None):
     """根据 AppState 动态构建依赖命名空间（每次调用实时反射，避免快照过时）
-    
+
     Args:
         client: 可选的覆盖 client（如 Agent 专属模型）
         model_name: 可选的覆盖模型名
@@ -38,48 +39,58 @@ class CommandExecutor:
     直接持有 AppState，每次调用时动态构建依赖快照，彻底消除状态过时问题。
 
     公共接口（保持向后兼容）：
-      - invoke_tool(tool_name, kwargs, msgs=None): 结构化工具调用
-      - execute(cmd_str, msgs=None): 命令字符串调用
-      - process_ai_commands(ai_response, msgs=None): 解析并执行 AI 回复中的命令标记
+      - invoke_tool(tool_name, kwargs, msgs=None, client=None, model_name=None): 结构化工具调用
+      - execute(cmd_str, msgs=None, skip_security=False, client=None, model_name=None): 命令字符串调用
+      - process_ai_commands(ai_response, msgs=None, client=None, model_name=None, skip_security=False): 解析并执行 AI 回复中的命令标记
+
+    v2.4.4 行为变更：
+      - 取消 `_agent_ctx_stack` 栈式 Agent 上下文覆盖（之前的并发竞态根因）
+      - 改为每次调用显式传入 `client` / `model_name`（覆盖全局 default）
+      - `push_agent_context` / `pop_agent_context` 仍保留为兼容接口，但实际为 no-op
+        （保留调用站点不报错，新代码不要再使用）
     """
 
     def __init__(self, state):
         self.state = state
         self._reg = get_registry()
-        # Agent 专属模型上下文覆盖（栈结构，支持嵌套 Agent 调用）
-        self._agent_ctx_stack = []
 
     # ------------------------------------------------------------------
-    # Agent 上下文覆盖管理
+    # Agent 上下文覆盖（v2.4.4 弃用接口，保留仅为兼容）
     # ------------------------------------------------------------------
     def push_agent_context(self, client, model_name):
-        """临时将工具调用的 LLM 上下文切换为 Agent 专属配置"""
-        self._agent_ctx_stack.append((client, model_name))
+        """v2.4.4 弃用：此接口现在为 no-op，client/model_name 改为显式传入 invoke_tool/execute/process_ai_commands。
+
+        保留此接口仅为兼容旧代码（agent/executor.py / agent/workflow.py），新代码请改用
+        invoke_tool(tool_name, kwargs, client=..., model_name=...) 直接传参。
+        """
+        # no-op：避免调用方报错，但行为不再依赖于全局栈
+        return
 
     def pop_agent_context(self):
-        """恢复工具调用的 LLM 上下文为全局默认"""
-        if self._agent_ctx_stack:
-            self._agent_ctx_stack.pop()
+        """v2.4.4 弃用：no-op（与 push_agent_context 配对的占位接口）"""
+        return
 
-    def _get_deps(self):
-        """构建依赖命名空间，优先使用 Agent 专属覆盖"""
-        if self._agent_ctx_stack:
-            client, model_name = self._agent_ctx_stack[-1]
-            return _build_deps(self.state, client, model_name)
-        return _build_deps(self.state)
+    def _get_deps(self, client=None, model_name=None):
+        """构建依赖命名空间，client/model_name 显式覆盖（v2.4.4 取代 push/pop 栈）"""
+        return _build_deps(self.state, client=client, model_name=model_name)
 
     # ------------------------------------------------------------------
     # 第一层：结构化工具调用
     # ------------------------------------------------------------------
-    def invoke_tool(self, tool_name, kwargs, msgs=None, skip_security=False):
-        """根据工具名和结构化参数，通过注册表调度执行。返回 (result, error)
+    def invoke_tool(self, tool_name, kwargs, msgs=None, skip_security=False,
+                    client=None, model_name=None):
+        """根据工具名和结构化参数，通过注册表调度执行。返回 Result。
 
         Args:
             skip_security: 跳过安全确认。默认为 False（走 sec_* 检查）。
+            client / model_name: v2.4.4 起，显式覆盖 LLM 上下文（取代 push_agent_context 栈）。
+                传 None 时使用 AppState 默认。
         """
-        return self._reg.dispatch(
-            self._get_deps(), tool_name, msgs=msgs, skip_security=skip_security, **kwargs
+        data, err = self._reg.dispatch(
+            self._get_deps(client=client, model_name=model_name),
+            tool_name, msgs=msgs, skip_security=skip_security, **kwargs
         )
+        return Result.ok(data) if err is None else Result.fail(err)
 
     def peek_ai_commands(self, ai_response):
         """Dry-run：解析 AI 响应中所有调用标记，返回人类可读的描述列表（不执行）。
@@ -122,20 +133,32 @@ class CommandExecutor:
     # ------------------------------------------------------------------
     # 第二层：传统命令解析（用户输入 / 插件调用）
     # ------------------------------------------------------------------
-    def execute(self, cmd_str, msgs=None):
-        """执行单个命令并返回结果 (result, error)
-        已分词检查插件后，直接通过注册表内部接口调度，避免重复 split。"""
+    def execute(self, cmd_str, msgs=None, skip_security=False, client=None, model_name=None):
+        """执行单个命令并返回 Result。
+        已分词检查插件后，直接通过注册表内部接口调度，避免重复 split。
+
+        Args:
+            skip_security: 跳过 sec_* 确认。
+                - 用户在 REPL 输入 /cmd 时为 False（保留安全确认语义）
+                - AI 通过【命令：...】触发时为 False（v2.4.4 修复：AI 命令串也走 sec_*）
+                - 内部已确认过的批量调度可显式传 True
+            client / model_name: v2.4.4 起，显式覆盖 LLM 上下文。
+        """
         parts = cmd_str.strip().split()
         if not parts:
-            return None, "Empty command"
+            return Result.fail("Empty command")
         cmd = parts[0].lstrip("/")
         # 插件命令优先直接处理（保持 mock 路径兼容）
         if cmd in self.state.plugins:
             p_args = ' '.join(parts[1:]) if len(parts) > 1 else ""
             exec_plugin(cmd, self.state.plugins[cmd], p_args, self.state.lang)
-            return f"Plugin {cmd} executed", None
+            return Result.ok(f"Plugin {cmd} executed")
         # 其余命令通过注册表内部接口直接调度，避免 dispatch_cmd 再次 split
-        return self._reg._dispatch_cmd_parts(self._get_deps(), parts, msgs=msgs)
+        data, err = self._reg._dispatch_cmd_parts(
+            self._get_deps(client=client, model_name=model_name),
+            parts, msgs=msgs, skip_security=skip_security
+        )
+        return Result.ok(data) if err is None else Result.fail(err)
 
     # ------------------------------------------------------------------
     # 第三层：AI 回复解析
@@ -269,7 +292,8 @@ class CommandExecutor:
             i = end + 1
         return calls
 
-    def process_ai_commands(self, ai_response, msgs=None, skip_security=False):
+    def process_ai_commands(self, ai_response, msgs=None, skip_security=False,
+                            client=None, model_name=None):
         """
         解析AI响应中的调用标记并自动执行
         支持三种格式：
@@ -281,6 +305,8 @@ class CommandExecutor:
         Args:
             skip_security: 跳过安全确认。默认 False（会走 sec_* 检查）。
                 调用方在已经做过人工确认后传 True。
+            client / model_name: v2.4.4 起，显式覆盖 LLM 上下文（Agent 专属模型）
+                —— 取代旧版 push_agent_context/pop_agent_context 栈。
         """
         results = []
         markers_to_remove = []
@@ -294,11 +320,15 @@ class CommandExecutor:
                 results.append(f"❌ 参数解析失败: {tool_name}\n   原始参数: {arg_str}")
                 markers_to_remove.append(marker)
                 continue
-            result, error = self.invoke_tool(tool_name, kwargs, msgs, skip_security=skip_security)
-            if error:
-                results.append(f"❌ 工具调用失败: {tool_name}\n   {error}")
+            invoke_result = self.invoke_tool(
+                tool_name, kwargs, msgs,
+                skip_security=skip_security,
+                client=client, model_name=model_name,
+            )
+            if invoke_result.is_fail():
+                results.append(f"❌ 工具调用失败: {tool_name}\n   {invoke_result.error}")
             else:
-                r = str(result) if result is not None else ""
+                r = str(invoke_result.unwrap()) if invoke_result.unwrap() is not None else ""
                 if len(r) > 5000:
                     r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
                 results.append(f"✅ 工具调用成功: {tool_name}\n   结果: {r}")
@@ -309,13 +339,17 @@ class CommandExecutor:
         for m in re.finditer(pattern_cmd, ai_response):
             cmd_str = m.group(1).strip()
             marker = m.group(0)
-            # 【命令：...】 走 execute → _dispatch_cmd_parts → 内部 skip_security=True
-            # 这是历史行为（AI 命令串默认放行），保留兼容；调用方已可通过 peek_ai_commands 提前确认
-            result, error = self.execute(cmd_str, msgs)
-            if error:
-                results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
+            # v2.4.4 行为变更：AI 命令串也走 sec_* 确认（之前 skip_security=True 留下
+            # prompt injection 绕过面）。与【调用：...】对齐。调用方可继续传
+            # skip_security=True 跳过（如已通过 peek_ai_commands 提前让用户确认）。
+            exec_result = self.execute(
+                cmd_str, msgs, skip_security=skip_security,
+                client=client, model_name=model_name,
+            )
+            if exec_result.is_fail():
+                results.append(f"❌ 命令执行失败: {cmd_str}\n   {exec_result.error}")
             else:
-                r = str(result) if result is not None else ""
+                r = str(exec_result.unwrap()) if exec_result.unwrap() is not None else ""
                 if len(r) > 5000:
                     r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
                 results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {r}")
@@ -329,11 +363,14 @@ class CommandExecutor:
             path = m.group(2)
             content = m.group(3)
             cmd_str = f"/{action} {path} {content}"
-            result, error = self.execute(cmd_str, msgs)
-            if error:
-                results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
+            exec_result = self.execute(
+                cmd_str, msgs, skip_security=skip_security,
+                client=client, model_name=model_name,
+            )
+            if exec_result.is_fail():
+                results.append(f"❌ 命令执行失败: {cmd_str}\n   {exec_result.error}")
             else:
-                r = str(result) if result is not None else ""
+                r = str(exec_result.unwrap()) if exec_result.unwrap() is not None else ""
                 if len(r) > 5000:
                     r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
                 results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {r}")
@@ -353,11 +390,14 @@ class CommandExecutor:
             if already:
                 continue
             cmd_str = f"/{action} {args}"
-            result, error = self.execute(cmd_str, msgs)
-            if error:
-                results.append(f"❌ 命令执行失败: {cmd_str}\n   {error}")
+            exec_result = self.execute(
+                cmd_str, msgs, skip_security=skip_security,
+                client=client, model_name=model_name,
+            )
+            if exec_result.is_fail():
+                results.append(f"❌ 命令执行失败: {cmd_str}\n   {exec_result.error}")
             else:
-                r = str(result) if result is not None else ""
+                r = str(exec_result.unwrap()) if exec_result.unwrap() is not None else ""
                 if len(r) > 5000:
                     r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
                 results.append(f"✅ 命令执行成功: {cmd_str}\n   结果: {r}")

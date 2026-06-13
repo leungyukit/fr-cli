@@ -4,11 +4,11 @@
 
 **🇨🇳 中文简介**
 
-支持：多模型 AI 对话（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）、MasterAgent 自我进化主控、思维模式切换（direct/CoT/ToT/ReAct）、文件沙盒操作、联网搜索（SSRF 防护）、图片生成与识别、邮件收发、定时任务（shlex 安全解析）、云盘集成、会话记忆、按日期自动存档、插件进化（子进程隔离）、四阶安全拦截、Shell 管道直通 AI。
+支持：多模型 AI 对话（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）、MasterAgent 自我进化主控、思维模式切换（direct/CoT/ToT/ReAct）、文件沙盒操作、联网搜索（SSRF 防护）、图片生成与识别、邮件收发（IMAP/SMTP + Microsoft 365 OAuth2/MFA）、定时任务（shlex 安全解析）、云盘集成、会话记忆、按日期自动存档、插件进化（子进程隔离）、四阶安全拦截、Shell 管道直通 AI。
 
 **🇺🇸 English Intro**
 
-The ultimate all-knowing terminal tool supporting multiple LLM providers (Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark). Supports AI chat, MasterAgent self-evolving controller, thinking modes (direct/CoT/ToT/ReAct), virtual filesystem, web search (SSRF-protected), image generation & vision, email, cron jobs (shlex-safe), cloud drive, session memory, auto date-based archiving, self-evolving plugins (subprocess-isolated), and powerful Shell piping.
+The ultimate all-knowing terminal tool supporting multiple LLM providers (Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark). Supports AI chat, MasterAgent self-evolving controller, thinking modes (direct/CoT/ToT/ReAct), virtual filesystem, web search (SSRF-protected), image generation & vision, email (IMAP/SMTP + Microsoft 365 OAuth2/MFA), cron jobs (shlex-safe), cloud drive, session memory, auto date-based archiving, self-evolving plugins (subprocess-isolated), and powerful Shell piping.
 
 ---
 
@@ -51,6 +51,14 @@ fr-cli
 /mcp_list          列出 MCP 服务器及工具
 /mcp_add <名> <命令> [参数]  添加 MCP 服务器
 /mcp_del <名>      删除 MCP 服务器
+/mail setup        配置 IMAP/SMTP 邮箱
+/mail inbox        查看收件箱
+/mail read <id>    读取邮件
+/mail send <to> <sub> <body>   发送邮件
+/m365_config setup 配置 Microsoft 365 邮箱（OAuth2 + MFA）
+/m365_inbox        查看 Microsoft 365 收件箱
+/m365_read <id>    读取 Microsoft 365 邮件
+/m365_send <to> <sub> <body>   发送 Microsoft 365 邮件
 /help              查看全部命令
 /exit              退出
 ```
@@ -98,7 +106,8 @@ fr_cli/
 │   ├── fs.py            # 虚拟文件系统 VFS
 │   ├── web.py           # 网络搜索与网页抓取（SSRF 防护）
 │   ├── vision.py        # 图片生成 (CogView) / 多模态 (GLM-4V)
-│   ├── mail.py          # 邮件客户端（防头注入）
+│   ├── mail.py          # 邮件客户端（IMAP/SMTP，防头注入）
+│   ├── m365.py          # Microsoft 365 邮件客户端（OAuth2 + MFA）
 │   ├── disk.py          # 云盘适配器
 │   ├── cron.py          # 定时任务（shlex + shell=False）
 │   ├── launcher.py      # 本地应用启动器（跨平台）
@@ -131,10 +140,11 @@ fr_cli/
 ## 📦 可选依赖
 
 ```bash
-pip install fr-cli[all]          # 全功能（含网盘）
+pip install fr-cli[all]          # 全功能（含网盘 / Microsoft 365）
 pip install fr-cli[baidu]        # 百度网盘
 pip install fr-cli[aliyun]       # 阿里云盘
 pip install fr-cli[onedrive]     # OneDrive
+pip install fr-cli[cloud]        # 网盘 + Microsoft 365（含 msal）
 ```
 
 ---

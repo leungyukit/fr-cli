@@ -4,7 +4,6 @@
 """
 import re, subprocess, sys
 from fr_cli.conf.paths import PLUGIN_DIR
-from pathlib import Path
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import RED, DIM, RESET
 

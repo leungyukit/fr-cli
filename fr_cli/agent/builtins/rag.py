@@ -43,7 +43,6 @@ class RAGManager:
     """RAG 知识库管理器 —— 向量存储 + 文件监控 + 检索生成"""
 
     DEFAULT_MODEL = "all-MiniLM-L6-v2"
-    RERANKER_MODEL = "cross-encoder/ms-marco-MiniLM-L-6-v2"
     CHUNK_SIZE = 500
     CHUNK_OVERLAP = 50
 
@@ -53,7 +52,6 @@ class RAGManager:
         self.client = None
         self.collection = None
         self.embedder = None
-        self.reranker = None
         self._watcher_thread = None
         self._stop_watcher = threading.Event()
         self._file_state = {}  # path -> (mtime, hash)
@@ -71,11 +69,6 @@ class RAGManager:
         self.client = chroma.PersistentClient(path=str(self.db_path))
         self.collection = self.client.get_or_create_collection(name="kb")
         self.embedder = st.SentenceTransformer(self.DEFAULT_MODEL)
-        try:
-            from sentence_transformers import CrossEncoder
-            self.reranker = CrossEncoder(self.RERANKER_MODEL)
-        except Exception:
-            self.reranker = None
         self._initialized = True
         return True
 
@@ -215,94 +208,8 @@ class RAGManager:
 
     # ---------- 检索生成 ----------
 
-    def _rerank(self, question, candidates, candidate_metas):
-        """使用 CrossEncoder 对候选片段重新排序"""
-        if not self.reranker or not candidates:
-            return candidates, candidate_metas
-
-        pairs = [[question, doc] for doc in candidates]
-        scores = self.reranker.predict(pairs)
-        # 按分数降序排序
-        indexed = list(enumerate(scores))
-        indexed.sort(key=lambda x: x[1], reverse=True)
-        sorted_candidates = [candidates[i] for i, _ in indexed]
-        sorted_metas = [candidate_metas[i] for i, _ in indexed]
-        return sorted_candidates, sorted_metas
-
-    def _judge_best_doc(self, question, docs, client, model, lang):
-        """让大模型从 top-3 片段中判定哪一条最适合用于回答"""
-        if len(docs) <= 1:
-            return 0
-
-        if lang == "zh":
-            judge_prompt = f"""你是一个知识库检索结果评估专家。以下是从向量库中检索出的候选片段，请评估哪一个最适合用来回答用户问题。
-
-评估标准（每项1-10分）：
-1. 相关性：片段内容与用户问题的匹配程度
-2. 完整性：片段是否包含足够的信息来回答问题
-3. 准确性：片段信息是否直接对应问题的核心诉求
-
-请对每条片段打分并给出简短理由，然后明确指出最佳片段的编号（只输出1/2/3中的一个数字）。
-
-用户问题: {question}
-
-片段1:
-{docs[0] if len(docs) > 0 else "(无)"}
-
-片段2:
-{docs[1] if len(docs) > 1 else "(无)"}
-
-片段3:
-{docs[2] if len(docs) > 2 else "(无)"}
-
-请严格按以下格式输出：
-片段1评分: X分 | 理由: ...
-片段2评分: X分 | 理由: ...
-片段3评分: X分 | 理由: ...
-最佳片段编号: N"""
-        else:
-            judge_prompt = f"""You are a knowledge base retrieval evaluation expert. Please evaluate which of the following candidate snippets is most suitable for answering the user's question.
-
-Scoring criteria (1-10 each):
-1. Relevance: How well the snippet matches the user's question
-2. Completeness: Whether the snippet contains enough information to answer
-3. Accuracy: Whether the information directly addresses the core question
-
-Please score each snippet with a brief rationale, then clearly indicate the best snippet number (output only 1/2/3).
-
-User Question: {question}
-
-Snippet 1:
-{docs[0] if len(docs) > 0 else "(none)"}
-
-Snippet 2:
-{docs[1] if len(docs) > 1 else "(none)"}
-
-Snippet 3:
-{docs[2] if len(docs) > 2 else "(none)"}
-
-Strict output format:
-Snippet 1 score: X | Rationale: ...
-Snippet 2 score: X | Rationale: ...
-Snippet 3 score: X | Rationale: ...
-Best snippet number: N"""
-
-        from fr_cli.core.stream import stream_cnt
-        messages = [{"role": "user", "content": judge_prompt}]
-        txt, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=1024, silent=True)
-        # 从回复中提取最佳片段编号
-        import re
-        match = re.search(r"最佳片段编号[:：]\s*(\d)", txt)
-        if not match:
-            match = re.search(r"Best snippet number[:：]\s*(\d)", txt)
-        if match:
-            idx = int(match.group(1)) - 1
-            if 0 <= idx < len(docs):
-                return idx
-        return 0
-
-    def query(self, question, client, model, lang="zh", top_k=5):
-        """向量检索 -> Rerank 重排序 -> 大模型判定最佳片段 -> 生成回答"""
+    def query(self, question, client, model, lang="zh", top_k=8):
+        """向量检索 -> 取 Top-K 片段 -> 大模型综合生成回答"""
         if not self._ensure_initialized():
             return None, "缺少依赖: pip install chromadb sentence-transformers"
 
@@ -310,10 +217,12 @@ Best snippet number: N"""
             if self.collection.count() == 0:
                 return None, "知识库为空，请先设置知识库目录并同步。"
 
-            # Step 1: 向量检索，扩大候选池（取更多候选供 reranker 筛选）
-            retrieve_k = max(top_k * 3, 15)
             q_emb = self.embedder.encode([question]).tolist()
-            results = self.collection.query(query_embeddings=q_emb, n_results=retrieve_k, include=["documents", "metadatas"])
+            results = self.collection.query(
+                query_embeddings=q_emb,
+                n_results=max(top_k, 1),
+                include=["documents", "metadatas"],
+            )
 
         candidates = []
         candidate_metas = []
@@ -326,31 +235,16 @@ Best snippet number: N"""
         if not candidates:
             return None, "未检索到相关知识。"
 
-        # Step 2: Rerank 重排序
-        reranked_docs, reranked_metas = self._rerank(question, candidates, candidate_metas)
-
-        # Step 3: 取 top-3
-        top3_docs = reranked_docs[:3]
-        top3_metas = reranked_metas[:3]
-
-        # Step 4: 大模型判定哪一条最适合
-        best_idx = self._judge_best_doc(question, top3_docs, client, model, lang)
-        best_doc = top3_docs[best_idx]
-        best_meta = top3_metas[best_idx]
-        best_source = best_meta.get("source", "未知")
-
-        # Step 5: 构建增强 prompt，将 top-3 全部放入，但特别标注最佳片段
+        # 构造带来源标注的上下文
         doc_blocks = []
-        for idx, (doc, meta) in enumerate(zip(top3_docs, top3_metas), 1):
-            marker = " ★【最佳】" if idx - 1 == best_idx else ""
+        for idx, (doc, meta) in enumerate(zip(candidates, candidate_metas), 1):
             source = meta.get("source", "未知")
-            doc_blocks.append(f"片段{idx}{marker} [来源: {source}]\n{doc}")
+            doc_blocks.append(f"片段{idx} [来源: {source}]\n{doc}")
 
         context = "\n\n---\n\n".join(doc_blocks)
 
         if lang == "zh":
-            prompt = f"""你是一个知识库问答助手。以下是从知识库中检索出的 Top-3 相关片段（已按相关性重排序）。
-其中标注 ★【最佳】的片段是大模型判定最适合回答用户问题的来源。
+            prompt = f"""你是一个知识库问答助手。以下是从知识库中向量检索出的相关片段，请基于这些片段综合回答用户问题。
 
 知识片段:
 {context}
@@ -358,15 +252,13 @@ Best snippet number: N"""
 用户问题: {question}
 
 回答要求：
-1. 优先基于 ★【最佳】片段进行回答
-2. 如果最佳片段不足以完整回答，可以综合其他片段补充
-3. 如果所有片段都不足以回答，请明确说明
-4. 引用来源时请标注 [来源: 文件名]
-5. 请用中文给出准确、简洁的回答
+1. 优先基于上述片段内容回答，可综合多个片段
+2. 如果片段信息不足以完整回答，请明确说明
+3. 引用来源时请标注 [来源: 文件名]
+4. 请用中文给出准确、简洁的回答
 """
         else:
-            prompt = f"""You are a knowledge base Q&A assistant. Below are the Top-3 relevant snippets retrieved from the knowledge base (re-ranked by relevance).
-The snippet marked with ★【BEST】has been judged by the model as the most suitable source for answering the user's question.
+            prompt = f"""You are a knowledge base Q&A assistant. Below are relevant snippets retrieved from the knowledge base. Please synthesize an answer based on these snippets.
 
 Knowledge Snippets:
 {context}
@@ -374,11 +266,10 @@ Knowledge Snippets:
 User Question: {question}
 
 Instructions:
-1. Prioritize the ★【BEST】snippet for your answer
-2. If the best snippet is insufficient, you may supplement with other snippets
-3. If none of the snippets can answer the question, state so clearly
-4. Cite sources as [Source: filename]
-5. Give an accurate and concise answer
+1. Base your answer on the snippets above; you may synthesize multiple snippets
+2. If the snippets are insufficient, state so clearly
+3. Cite sources as [Source: filename]
+4. Give an accurate and concise answer
 """
 
         from fr_cli.core.stream import stream_cnt

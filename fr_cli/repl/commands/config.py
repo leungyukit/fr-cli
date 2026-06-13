@@ -2,30 +2,11 @@
 REPL 命令路由处理器
 从 main.py 提取的所有 / 命令实现，减轻主模块负担。
 """
-import sys
 
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
-    CYAN, RED, YELLOW, GREEN, DIM, RESET,
-    print_bye
+    CYAN, RED, YELLOW, GREEN, DIM, RESET
 )
-from fr_cli.agent.shell_mode import ShellMode
-from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
-from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
-from fr_cli.memory.session import (
-    list_sessions as list_auto_sessions,
-    load_session as load_auto_session,
-    delete_session as delete_auto_session,
-)
-from fr_cli.addon.plugin import extract_code
-from fr_cli.core.stream import stream_cnt
-from fr_cli.core.sysmon import get_sys_stats
-from fr_cli.agent.manager import (
-    create_agent_dir, save_agent_code, save_persona, save_skills,
-    save_memory, agent_exists, list_agents, delete_agent,
-    load_persona, load_memory, load_skills,
-)
-from fr_cli.agent.executor import run_agent
 from fr_cli.repl.commands._common import _provider_has_key
 
 
@@ -109,15 +90,15 @@ def _cmd_model(state, parts):
             print(f"  {CYAN}[{i}]{RESET} {p['id']}{DIM}/{p['default_model']}{RESET} — {p['name']} {key_status}{marker}")
 
         print(f"\n{DIM}子命令:{RESET}")
-        print(f"  /model config       — 交互式模型配置向导")
-        print(f"  /model list         — 列出所有模型")
-        print(f"  /model current      — 显示当前模型")
-        print(f"  /model default      — 恢复默认模型")
-        print(f"  /model set <arg>    — 设置模型")
+        print("  /model config       — 交互式模型配置向导")
+        print("  /model list         — 列出所有模型")
+        print("  /model current      — 显示当前模型")
+        print("  /model default      — 恢复默认模型")
+        print("  /model set <arg>    — 设置模型")
         print(f"\n{DIM}快速切换:{RESET}")
-        print(f"  /model <编号>       — 按编号切换")
-        print(f"  /model <模型名>     — 切换模型")
-        print(f"  /model <提供商>:<模型> — 同时切换提供商")
+        print("  /model <编号>       — 按编号切换")
+        print("  /model <模型名>     — 切换模型")
+        print("  /model <提供商>:<模型> — 同时切换提供商")
 
         try:
             choice = input(f"\n{YELLOW}输入编号或模型名（回车取消）: {RESET}").strip()
@@ -311,7 +292,7 @@ def _cmd_key(state, parts):
     else:
         print(f"{YELLOW}⚠️ 用法:{RESET}")
         print(f"  /key <API密钥>              — 为当前提供商 [{state.provider}] 设置密钥")
-        print(f"  /key <提供商> <API密钥>       — 为指定提供商设置密钥")
+        print("  /key <提供商> <API密钥>       — 为指定提供商设置密钥")
     return False
 
 
@@ -354,10 +335,10 @@ def _cmd_providers(state, parts):
                 key_display = raw_key[:8] + "****" if len(raw_key) > 8 else raw_key
                 print(f"      Key:  {DIM}{key_display}{RESET}")
         print(f"\n{DIM}用法:{RESET}")
-        print(f"  /providers setup                   — 交互式配置向导（推荐新手）")
-        print(f"  /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>] — 添加/更新提供商配置")
-        print(f"  /providers del <提供商>              — 删除提供商配置")
-        print(f"  /providers use <提供商>              — 切换到指定提供商")
+        print("  /providers setup                   — 交互式配置向导（推荐新手）")
+        print("  /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>] — 添加/更新提供商配置")
+        print("  /providers del <提供商>              — 删除提供商配置")
+        print("  /providers use <提供商>              — 切换到指定提供商")
         return False
 
     if sub == "setup":
@@ -510,3 +491,35 @@ def _cmd_lang(state, parts):
     return False
 
 
+
+
+def _cmd_usage(state, parts):
+    """查看 LLM 用量统计：/usage [days]"""
+    arg1 = parts[1] if len(parts) > 1 else ""
+    try:
+        days = int(arg1) if arg1 else 30
+        if days <= 0:
+            days = 30
+    except ValueError:
+        days = 30
+
+    if not hasattr(state, "usage"):
+        print(f"{RED}用量统计模块未初始化{RESET}")
+        return False
+
+    stats = state.usage.summary(days=days)
+    is_zh = state.lang == "zh"
+    print()
+    title = f"最近 {days} 天用量统计" if is_zh else f"Usage last {days} days"
+    print(f"{CYAN}{title}{RESET}")
+    print(f"  {DIM}{'调用次数:' if is_zh else 'Calls:'}{RESET} {stats['calls']}")
+    print(f"  {DIM}{'输入 tokens:' if is_zh else 'Input tokens:'}{RESET} {stats['prompt_tokens']}")
+    print(f"  {DIM}{'输出 tokens:' if is_zh else 'Output tokens:'}{RESET} {stats['completion_tokens']}")
+    print(f"  {DIM}{'总 tokens:' if is_zh else 'Total tokens:'}{RESET} {stats['total_tokens']}")
+    cost_label = "预估费用:" if is_zh else "Estimated cost:"
+    print(f"  {DIM}{cost_label}{RESET} ¥{stats['estimated_cost']:.4f}")
+    if is_zh:
+        print(f"  {DIM}提示: 可在 config.json 中配置 usage_prices 以启用精确费用估算{RESET}")
+    else:
+        print(f"  {DIM}Tip: configure usage_prices in config.json for accurate cost estimation{RESET}")
+    return False

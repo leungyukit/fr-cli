@@ -15,7 +15,7 @@ fr-cli TUI 输入面板 —— 基于 prompt_toolkit
 import os
 import sys
 import threading
-from typing import Optional, List, Dict, Callable, Any
+from typing import Optional, List, Callable
 
 try:
     from prompt_toolkit import PromptSession
@@ -24,10 +24,9 @@ try:
     from prompt_toolkit.key_binding import KeyBindings
     # prompt_toolkit 3.x 中 basic 模块不再导出 ctrl_d/ctrl_c/ctrl_l/escape 符号
     # 这些默认行为已内建在 load_basic_bindings() 中，无需手动导入
-    from prompt_toolkit.formatted_text import FormattedText, ANSI
-    from prompt_toolkit.shortcuts import print_formatted_text
+    from prompt_toolkit.formatted_text import FormattedText
     from prompt_toolkit.styles import Style
-    
+
     HAS_PT = True
 except ImportError:
     HAS_PT = False
@@ -131,9 +130,11 @@ class FanRenCompleter(Completer):
         # 文件/工作区
         "cat": "文件", "write": "文件",
         "append": "文件", "delete": "文件",
+        "rename": "文件", "replace": "文件", "grep": "文件",
         "ls": "文件", "cd": "文件",
         "dir": "文件", "dirs": "文件", "rmdir": "文件",
         "read_excel": "文件", "read_csv": "文件", "open": "文件",
+        "generate_chart": "图表", "chart": "图表",
         # 模型/配置
         "model": "模型",
         "key": "配置",
@@ -141,17 +142,23 @@ class FanRenCompleter(Completer):
         "lang": "配置",
         "alias": "配置",
         "providers": "模型", "mode": "思维", "debug": "配置",
-        # 网络
+        # 网络/远程
         "web": "网络", "fetch": "网络",
+        "ping": "网络", "port_scan": "网络", "ip_scan": "网络", "network_devices": "网络",
+        "ssh": "远程", "scp": "远程",
         "see": "多模态", "generate_image": "多模态",
+        "ocr_recognize": "多模态", "ocr_config": "多模态",
+        "stock_config": "量化",
+        "build_cmd": "构建", "dynamic_build": "构建",
         # 邮件/网盘
-        "mail_": "邮件", "disk_": "网盘",
+        "mail_": "邮件", "m365_": "邮件", "disk_": "网盘",
         # 定时/守护
         "cron_": "定时", "agent_cron_": "定时", "agent_server": "守护",
         "gatekeeper": "守护", "hermes": "守护",
-        # Agent
+        # Agent/蜂群
         "agent_": "Agent", "remote_agent_": "Agent", "remote_setup": "Agent",
         "db_setup": "Agent",
+        "swarm": "Agent", "swarm_run": "Agent",
         # RAG/MCP
         "rag_": "RAG", "mcp_": "MCP", "mcp_call": "MCP", "mcp_list": "MCP",
         # 启动/退出
@@ -175,7 +182,7 @@ class FanRenCompleter(Completer):
         "lang": "/lang en",
         "alias": "/alias mycmd /cat README.md",
         "providers": "/providers",
-        "mode": "/mode cot",
+        "mode": "/mode plan",
         "debug": "/debug",
         "local_llm": "/local_llm",
         # 文件
@@ -188,9 +195,13 @@ class FanRenCompleter(Completer):
         "open": "/open README.md",
         "read_excel": "/read_excel data.xlsx",
         "read_csv": "/read_csv data.csv",
+        "generate_chart": '/chart bar --labels A,B,C --values 10,20,30 --title 销售',
         "dir": "/dir /path/to/dir",
         "dirs": "/dirs",
         "rmdir": "/rmdir old_dir",
+        "rename_file": "/rename old.txt new.txt",
+        "replace_text": '/replace file.txt "old" "new"',
+        "grep_text": '/grep file.txt "pattern"',
         # 会话
         "save": "/save proj_v1",
         "load": "/load proj_v1",
@@ -207,13 +218,29 @@ class FanRenCompleter(Completer):
         # 网络/多模态
         "web": "/web Python 异步",
         "fetch": "/fetch https://example.com",
+        "ping_host": "/ping example.com",
+        "port_scan": "/port_scan 192.168.1.1 22,80,443",
+        "ip_scan": "/ip_scan 192.168.1.0/24",
+        "network_devices": "/network_devices 192.168.1.0/24",
+        "ssh_command": '/ssh myhost user "uname -a"',
+        "scp_transfer": "/scp up local.txt /remote.txt myhost user",
         "see": "/see photo.jpg",
         "generate_image": '/generate_image "一只猫"',
+        "ocr_recognize": "/ocr screenshot.png",
+        "ocr_config": "/ocr_config setup",
+        "stock_config": "/stock_config setup",
+        "build_cmd": "/build 生成二维码识别工具",
         # 邮件
         "mail_setup": "/mail setup",
         "mail_inbox": "/mail inbox",
         "mail_read": "/mail read 1",
         "mail_send": '/mail send a@b.com "主题" "正文"',
+        "m365_config": "/m365_config setup",
+        "m365_inbox": "/m365_inbox",
+        "m365_read": "/m365_read <message_id>",
+        "m365_send": '/m365_send a@b.com "主题" "正文"',
+        "m365_status": "/m365_status",
+        "m365_logout": "/m365_logout",
         # 网盘
         "disk_setup": "/disk setup",
         "disk_ls": "/disk ls",
@@ -226,6 +253,7 @@ class FanRenCompleter(Completer):
         "cron_del": "/cron del 1",
         # Agent
         "agent_create": "/agent create coder",
+        "swarm_run": "/swarm parallel agent1,agent2 任务描述",
         "agent_list": "/agent list",
         "agent_delete": "/agent delete coder",
         "agent_show": "/agent show coder",
@@ -297,6 +325,8 @@ class FanRenCompleter(Completer):
         "db": ["setup"],
         "data": ["excel", "csv"],
         "remote": ["setup"],
+        "ocr": ["config"],
+        "stock": ["config"],
     }
 
     TWO_LEVEL_NAMESPACES = {
@@ -442,7 +472,7 @@ class FanRenPrompt:
             self._init_tty()
         else:
             print(f"{YELLOW}⚠️ prompt_toolkit 未安装，使用基础 input(){RESET}", file=sys.stderr)
-            print(f"  安装: pip install prompt_toolkit>=3.0.0", file=sys.stderr)
+            print("  安装: pip install prompt_toolkit>=3.0.0", file=sys.stderr)
 
     def _init_tty(self):
         """初始化 prompt_toolkit session"""
@@ -618,6 +648,7 @@ class FanRenPrompt:
             ("spider", "网页爬虫"),
             ("db", "数据库智能助手"),
             ("RAG", "本地知识库问答"),
+            ("stock", "股票/量化交易助手"),
         ]
         agents.extend(builtin)
         # 用户 Agent
@@ -824,7 +855,6 @@ class FallbackPrompt:
 
     def confirm(self, prompt_text: str, default: bool = True) -> bool:
         # 非交互环境默认拒绝
-        import os
         if os.environ.get("FR_CLI_NON_INTERACTIVE"):
             return False
         try:

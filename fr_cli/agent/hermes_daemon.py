@@ -6,12 +6,10 @@ Hermes 守护进程 - 后台服务接收终端命令
 """
 
 import os
-import sys
 import json
 import time
 import secrets
 import subprocess
-import threading
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
 # 需要鉴权的写操作端点（POST/PUT）
@@ -58,7 +56,7 @@ class HermesDaemon:
         server.daemon = self
         print(f"🧚 Hermes 守护进程已启动: http://{self.host}:{self.port}")
         print(f"🔑 Bearer Token: {self.token}")
-        print(f"   (已保存到 ~/.fr_cli_hermes.token，权限 600)")
+        print("   (已保存到 ~/.fr_cli_hermes.token，权限 600)")
         print("📡 监听命令中...")
 
         while self.running:

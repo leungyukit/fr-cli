@@ -4,36 +4,24 @@ REPL 命令路由处理器
 """
 import sys
 
-from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
-    CYAN, RED, YELLOW, GREEN, DIM, RESET,
-    print_bye
-)
-from fr_cli.agent.shell_mode import ShellMode
-from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
-from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
-from fr_cli.memory.session import (
-    list_sessions as list_auto_sessions,
-    load_session as load_auto_session,
-    delete_session as delete_auto_session,
+    CYAN, RED, YELLOW, GREEN, DIM, RESET
 )
 from fr_cli.addon.plugin import extract_code
-from fr_cli.core.stream import stream_cnt
-from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.agent.manager import (
     create_agent_dir, save_agent_code, save_persona, save_skills,
     save_memory, agent_exists, list_agents, delete_agent,
     load_persona, load_memory, load_skills,
 )
 from fr_cli.agent.executor import run_agent
+from fr_cli.agent.workflow import save_workflow
 
 
 
 def _cmd_agent_create(state, parts):
     from fr_cli.agent.generator import generate_agent
-    from fr_cli.agent.manager import save_persona, save_skills, save_agent_code, create_agent_dir
     arg1 = parts[1] if len(parts) > 1 else ""
-    desc = parts[2] if len(parts) > 2 else ""
+    desc = " ".join(parts[2:]) if len(parts) > 2 else ""
     if not arg1 or not desc:
         print(f"{YELLOW}用法: /agent_create <名称> <需求描述>{RESET}")
         return False
@@ -45,17 +33,23 @@ def _cmd_agent_create(state, parts):
         save_skills(arg1, result["skills"])
     if result["code"]:
         save_agent_code(arg1, result["code"])
+    if result["workflow"]:
+        save_workflow(arg1, result["workflow"])
     print(f"{GREEN}✅ Agent [{arg1}] 创建完成！{RESET}")
     print(f"{DIM}  人设: {'已生成' if result['persona'] else '未生成'}{RESET}")
     print(f"{DIM}  技能: {'已生成' if result['skills'] else '未生成'}{RESET}")
     print(f"{DIM}  代码: {'已生成' if result['code'] else '未生成'}{RESET}")
+    print(f"{DIM}  工作流: {'已生成' if result['workflow'] else '未生成'}{RESET}")
     print(f"{DIM}  路径: {d}{RESET}")
+    print(f"{CYAN}调用方式:{RESET}")
+    print(f"  {DIM}· /agent_run {arg1} [任务]{RESET}")
+    print(f"  {DIM}· @{arg1} 任务{RESET}")
+    print(f"  {DIM}· 大模型可通过 agent_call({{\"name\": \"{arg1}\", \"user_input\": \"任务\"}}) 调用{RESET}")
     return False
 
 
 
 def _cmd_agent_list(state, parts):
-    from fr_cli.agent.manager import list_agents
     agents = list_agents()
     if not agents:
         print(f"{YELLOW}暂无 Agent 分身。使用 /agent_create <名称> <描述> 创建。{RESET}")
@@ -73,7 +67,6 @@ def _cmd_agent_list(state, parts):
 
 
 def _cmd_agent_delete(state, parts):
-    from fr_cli.agent.manager import delete_agent
     arg1 = parts[1] if len(parts) > 1 else ""
     if arg1:
         if delete_agent(arg1):
@@ -85,7 +78,7 @@ def _cmd_agent_delete(state, parts):
 
 
 def _cmd_agent_show(state, parts):
-    from fr_cli.agent.manager import agent_exists, load_persona, load_memory, load_skills, load_agent_code
+    from fr_cli.agent.manager import load_agent_code
     from fr_cli.agent.workflow import load_workflow
     arg1 = parts[1] if len(parts) > 1 else ""
     if not arg1:
@@ -109,23 +102,21 @@ def _cmd_agent_show(state, parts):
 
 
 def _cmd_agent_run(state, parts):
-    from fr_cli.agent.executor import run_agent
     arg1 = parts[1] if len(parts) > 1 else ""
     if not arg1:
         return False
     run_args = parts[2] if len(parts) > 2 else ""
     kwargs = {"user_input": run_args} if run_args else {}
-    result, err = run_agent(arg1, state, **kwargs)
-    if err:
-        print(f"{RED}{err}{RESET}")
+    result = run_agent(arg1, state, **kwargs)
+    if result.is_fail():
+        print(f"{RED}{result.error}{RESET}")
     else:
-        print(f"{GREEN}{result}{RESET}")
+        print(f"{GREEN}{result.unwrap()}{RESET}")
     return False
 
 
 
 def _cmd_agent_edit(state, parts):
-    from fr_cli.agent.manager import agent_exists, save_persona, save_memory, save_skills, save_agent_code
     from fr_cli.agent.workflow import save_workflow
     arg1 = parts[1] if len(parts) > 1 else ""
     if not arg1:
@@ -163,8 +154,6 @@ def _cmd_agent_edit(state, parts):
 
 def _cmd_agent_forge(state, parts):
     """从最近一次 AI 回复中提取 Python 代码块，创建为 Agent 分身。"""
-    from fr_cli.agent.manager import create_agent_dir, save_agent_code, save_persona, save_skills, agent_exists
-    from fr_cli.addon.plugin import extract_code
     arg1 = parts[1] if len(parts) > 1 else ""
     if not arg1:
         print(f"{YELLOW}用法: /agent_forge <名称>{RESET}")
@@ -215,7 +204,7 @@ def _cmd_agent_model(state, parts):
       /agent_model <agent> clear            — 清除专属配置
       /agent_model <agent> --key <key>      — 设置独立 API Key
     """
-    from fr_cli.agent.manager import agent_exists, load_agent_config, save_agent_config
+    from fr_cli.agent.manager import load_agent_config, save_agent_config
     from fr_cli.core.llm import get_provider_info, list_providers
 
     arg1 = parts[1] if len(parts) > 1 else ""  # agent_name
@@ -223,10 +212,10 @@ def _cmd_agent_model(state, parts):
 
     if not arg1:
         print(f"{YELLOW}用法:{RESET}")
-        print(f"  /agent_model <agent>                    — 查看配置")
-        print(f"  /agent_model <agent> <provider>:<model> — 设置专属模型")
-        print(f"  /agent_model <agent> clear              — 清除专属配置")
-        print(f"  /agent_model <agent> --key <key>        — 设置独立 API Key")
+        print("  /agent_model <agent>                    — 查看配置")
+        print("  /agent_model <agent> <provider>:<model> — 设置专属模型")
+        print("  /agent_model <agent> clear              — 清除专属配置")
+        print("  /agent_model <agent> --key <key>        — 设置独立 API Key")
         return False
 
     if not agent_exists(arg1):

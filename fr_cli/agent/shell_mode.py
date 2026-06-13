@@ -3,9 +3,6 @@ Shell 模式 - 支持 Ctrl-X 切换
 参考 kimi-cli 实现的 shell 命令执行功能
 """
 
-import os
-import sys
-import shlex
 import subprocess
 import signal
 from typing import Optional, Callable, Tuple

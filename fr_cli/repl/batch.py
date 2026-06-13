@@ -6,8 +6,6 @@
 """
 import os
 import sys
-import threading
-from typing import Optional
 
 from fr_cli.ui.ui import RED, RESET, YELLOW
 

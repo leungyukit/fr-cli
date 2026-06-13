@@ -22,6 +22,7 @@ from fr_cli.repl.commands import (
     _cmd_key,
     _cmd_limit,
     _cmd_lang,
+    _cmd_usage,
     _cmd_dir,
     _cmd_dirs,
     _cmd_rmdir,
@@ -76,6 +77,9 @@ from fr_cli.repl.commands import (
     _cmd_mcp_disable,
     _cmd_mcp_refresh,
     _cmd_tutorial,
+    _cmd_ocr_config,
+    _cmd_stock_config,
+    _cmd_build,
 )
 from fr_cli.repl.queue import handle_queue_command
 
@@ -90,6 +94,7 @@ COMMAND_ROUTES = {
     "/key": _cmd_key,
     "/limit": _cmd_limit,
     "/lang": _cmd_lang,
+    "/usage": _cmd_usage,
     "/mode": _cmd_mode,
     "/dir": _cmd_dir,
     "/dirs": _cmd_dirs,
@@ -144,6 +149,9 @@ COMMAND_ROUTES = {
     "/pr": _cmd_pr,
     "/review": _cmd_review,
     "/tutorial": _cmd_tutorial,
+    "/ocr_config": _cmd_ocr_config,
+    "/stock_config": _cmd_stock_config,
+    "/build": _cmd_build,
     "/queue": handle_queue_command,
 }
 
@@ -200,6 +208,8 @@ NAMESPACED_COMMANDS = {
     ("db", "setup"): "/db_setup",
     ("data", "excel"): "/read_excel",
     ("data", "csv"): "/read_csv",
+    ("ocr", "config"): "/ocr_config",
+    ("stock", "config"): "/stock_config",
     ("config", "server"): "/config_server",
     ("banner", "on"): "/banner_on",
     ("banner", "off"): "/banner_off",
@@ -316,11 +326,12 @@ def handle_smart_cmd(state, cmd, u, parts):
         return False
 
     # 3. 其他未知命令 → 先尝试执行引擎
-    result, error = state.executor.execute(u, state.messages)
-    if error:
+    exec_result = state.executor.execute(u, state.messages)
+    if exec_result.is_fail():
         print(f"{RED}未知命令: {cmd}{RESET}")
         _print_similar_cmds(cmd, all_cmds)
-    elif result is not None:
+    elif exec_result.unwrap() is not None:
+        result = exec_result.unwrap()
         arg1 = parts[1] if len(parts) > 1 else ""
         if cmd == "/cat" and arg1:
             print(f"\n{DIM}--- {arg1} ---{RESET}\n{result}\n{DIM}--- EOF ---{RESET}")

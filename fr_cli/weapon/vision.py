@@ -7,12 +7,13 @@
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import CYAN, RESET
 from fr_cli.core.model_factory import get_model_factory
+from fr_cli.core.result import Result
 import base64, os
+from pathlib import Path
 
 def gen_img(client, prompt, out_dir, lang):
     """
-    调用 CogView 生成图片并保存到本地
-    :return: tuple (是否成功 bool, 本地路径或错误信息 str)
+    调用 CogView 生成图片并保存到本地，返回 Result[str]。
     """
     print(f"{CYAN}{T('gen_ing', lang)}{RESET}")
     # 从配置读取智谱图片生成模型，不再硬编码
@@ -35,12 +36,12 @@ def gen_img(client, prompt, out_dir, lang):
             os.makedirs(out_dir, exist_ok=True)
             safe_name = "".join(c if c.isalnum() or c in ('_', '-') else '_' for c in prompt[:30])
             local_path = os.path.join(out_dir, f"img_{safe_name}.png")
-            
+
             with open(local_path, "wb") as f:
                 f.write(res.content)
-            return True, local_path
-        return False, T("gen_fail", lang) + "No URL"
-    except Exception as e: return False, f"{T('gen_fail', lang)} {e}"
+            return Result.ok(local_path)
+        return Result.fail(T("gen_fail", lang) + "No URL")
+    except Exception as e: return Result.fail(f"{T('gen_fail', lang)} {e}")
 
 def prep_see_msg(messages, img_path, user_text, vfs=None):
     """
@@ -71,11 +72,11 @@ def prep_see_msg(messages, img_path, user_text, vfs=None):
             "type": "image_url",
             "image_url": {"url": img_path}
         })
-    
+
     if user_text:
         msg_content.append({"type": "text", "text": user_text})
     else:
         msg_content.append({"type": "text", "text": "请描述这张图片的内容。"})
-        
+
     messages.append({"role": "user", "content": msg_content})
     return messages

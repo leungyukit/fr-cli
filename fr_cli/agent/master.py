@@ -11,7 +11,8 @@
   status.json    — 状态文件（启用状态、统计、时间戳）
 """
 import json
-from fr_cli.conf.paths import MASTER_DIR, PLUGIN_DIR
+import threading
+from fr_cli.conf.paths import MASTER_DIR
 import re
 from datetime import datetime
 from pathlib import Path
@@ -19,9 +20,7 @@ from pathlib import Path
 # 上下文记忆与会话存档
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
-from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
-from fr_cli.ui.ui import RED, YELLOW, GREEN, DIM, RESET
-from fr_cli.lang.i18n import T
+from fr_cli.ui.ui import DIM, RESET
 
 # MASTER_DIR 已从 fr_cli.conf.paths 导入，直接使用即可
 PERSONA_FILE = MASTER_DIR / "persona.md"
@@ -113,27 +112,32 @@ _DEFAULT_EVOLUTION = {
 
 # ---------- 文件工具 ----------
 
+_master_io_lock = threading.Lock()
+
+
 def _ensure_master_dir():
     MASTER_DIR.mkdir(parents=True, exist_ok=True)
 
 
 def _load_json(path, default=None):
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return default if default is not None else {}
+    with _master_io_lock:
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                raise RuntimeError(f"读取 {path} 失败: {e}") from e
+        return default if default is not None else {}
 
 
 def _save_json(path, data):
-    _ensure_master_dir()
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
-    except Exception:
-        pass
+    with _master_io_lock:
+        _ensure_master_dir()
+        try:
+            with open(path, "w", encoding="utf-8") as f:
+                json.dump(data, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            raise RuntimeError(f"写入 {path} 失败: {e}") from e
 
 
 def _load_text(path, default=""):
@@ -270,7 +274,7 @@ class MasterAgent:
         """
         # 模型未配置时阻止调用
         if not self.state.model_name:
-            from fr_cli.ui.ui import YELLOW, CYAN, RESET
+            from fr_cli.ui.ui import YELLOW, CYAN
             print(f"{YELLOW}⚠️ 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
             return None, False
 
@@ -400,30 +404,6 @@ class MasterAgent:
         # 3. 智能插件/Agent 检测
         self._detect_artifacts(final_answer, lang)
 
-        # 4. Hermes 自动学习更新
-        try:
-            from fr_cli.agent.hermes import get_analytics, get_task_manager
-            from fr_cli.agent.skills import get_skill_manager
-            from fr_cli.agent.personality import get_personality_manager
-
-            analytics = get_analytics()
-            task_mgr = get_task_manager()
-            skill_mgr = get_skill_manager()
-            personality_mgr = get_personality_manager()
-
-            analytics.record_request(self.state.model_name, 100, 0.001)
-
-            if any(kw in user_input for kw in ["学习", "记住", "技能", "skill"]):
-                skill_mgr.learn_from_task(user_input, final_answer)
-
-            if any(kw in user_input for kw in ["切换", "模式", "角色", "个性"]):
-                for p in ["coder", "teacher", "creative", "expert"]:
-                    if p in user_input.lower():
-                        personality_mgr.set_personality(p)
-                        break
-
-        except Exception:
-            pass
 
         return final_answer, True
 

@@ -3,7 +3,9 @@
 统一管理配置、子系统实例、运行时状态，实现依赖注入。
 """
 from fr_cli.weapon.fs import VFS
+import threading
 from fr_cli.weapon.mail import MailClient
+from fr_cli.weapon.m365 import _load_m365_cfg
 from fr_cli.weapon.web import WebRaider
 from fr_cli.weapon.disk import CloudDisk
 from fr_cli.addon.plugin import init_plugins
@@ -11,7 +13,8 @@ from fr_cli.command.security import SecurityManager
 from fr_cli.command.executor import CommandExecutor
 from fr_cli.weapon.loader import load_weapon_md
 from fr_cli.weapon.mcp import MCPManager
-from fr_cli.core.llm import create_llm_client, create_llm_client_for, list_providers, get_provider_info, resolve_provider_model
+from fr_cli.core.llm import create_llm_client, create_llm_client_for, get_provider_info, resolve_provider_model
+from fr_cli.core.usage import UsageTracker
 
 
 class AppState:
@@ -25,6 +28,11 @@ class AppState:
         self.aliases = cfg.get("aliases", {})
         self.thinking_mode = cfg.get("thinking_mode", "direct")
         self.ui_mode = cfg.get("ui_mode", "dev")
+
+        # 计划模式运行时状态
+        self.active_plan = None          # 当前激活的结构化计划
+        self.plan_step_idx = 0           # 当前执行到第几步
+        self.active_plan_total_steps = 0 # 计划总步数（用于状态展示）
 
         # 唯一会话标识（UUID），贯穿本次运行周期
         import uuid
@@ -42,6 +50,7 @@ class AppState:
         self.vfs = VFS(cfg.get("allowed_dirs", []))
         self.plugins = init_plugins()
         self.mail_c = MailClient(cfg.get("mail", {}))
+        self.m365_cfg = _load_m365_cfg()
         self.web_c = WebRaider()
         self.disk_c = CloudDisk(cfg.get("disk", {}))
         self.security = SecurityManager(self.lang, cfg)
@@ -64,6 +73,9 @@ class AppState:
         # 命令执行引擎
         self.executor = CommandExecutor(self)
 
+        # LLM 调用用量统计
+        self.usage = UsageTracker(cfg=cfg)
+
         # 主控 Agent（自我进化型）
         from fr_cli.agent.master import MasterAgent
         self.master_agent = MasterAgent(self)
@@ -75,8 +87,37 @@ class AppState:
         from fr_cli.gatekeeper.manager import GatekeeperManager
         self.gatekeeper = GatekeeperManager()
 
+        # 状态锁：保护配置变更等关键操作（注意：messages/context_summary 仍被多处直接访问）
+        self._lock = threading.RLock()
+
         # 后台预热 LLM 连接（首次调用省 1-2s 冷启动）
         self._warmup_client_async()
+
+        # 启动时加载持久化的动态构建工具
+        self._bootstrap_dynamic_tools()
+
+        # 启动时恢复持久化的定时任务
+        self._restore_cron_jobs()
+
+    def _restore_cron_jobs(self):
+        """从 ~/.fr_cli/cron.json 恢复定时任务（agent 类型使用 state_provider 动态获取 state）"""
+        try:
+            from fr_cli.weapon.cron import CronManager
+            state_provider = lambda: self
+            CronManager().load_persistent_jobs(lang=self.lang, state_provider=state_provider)
+        except Exception:
+            pass
+
+    def _bootstrap_dynamic_tools(self):
+        """加载 ~/.fr_cli/dynamic_tools/ 下已构建的工具"""
+        try:
+            from fr_cli.dynamic_builder import bootstrap_dynamic_tools
+            count, errors = bootstrap_dynamic_tools()
+            if errors:
+                # 启动时静默忽略单个工具加载错误，避免阻塞启动
+                pass
+        except Exception:
+            pass
 
     @property
     def display_provider(self):
@@ -128,12 +169,13 @@ class AppState:
         t.start()
 
     def save_cfg(self):
-        """持久化当前配置"""
+        """持久化当前配置（线程安全）"""
         from fr_cli.conf.config import save_config
-        save_config(self.cfg)
+        with self._lock:
+            save_config(self.cfg)
 
     def update_provider(self, provider_id):
-        """切换 LLM 提供商（召唤新的提供商）
+        """切换 LLM 提供商（召唤新的提供商）（线程安全）
 
         切换时自动同步 model：优先使用 provider 专属配置中保存的 model，
         否则使用 factory 默认模型，并确保 providers_cfg 和顶层 cfg 保持一致。
@@ -141,25 +183,26 @@ class AppState:
         info = get_provider_info(provider_id)
         if not info:
             return False
-        self.cfg["provider"] = provider_id
-        self.provider = provider_id
-        providers_cfg = self.cfg.setdefault("providers", {})
-        pcfg = providers_cfg.setdefault(provider_id, {})
+        with self._lock:
+            self.cfg["provider"] = provider_id
+            self.provider = provider_id
+            providers_cfg = self.cfg.setdefault("providers", {})
+            pcfg = providers_cfg.setdefault(provider_id, {})
 
-        default_model = info["default_model"]
-        # 优先使用 provider 配置中已保存的 model，否则使用默认
-        model = pcfg.get("model", default_model)
+            default_model = info["default_model"]
+            # 优先使用 provider 配置中已保存的 model，否则使用默认
+            model = pcfg.get("model", default_model)
 
-        self.cfg["model"] = model
-        self.model_name = model
-        pcfg["model"] = model  # 确保 providers_cfg 中始终同步
-        self.save_cfg()
-        self.reinit_client()
+            self.cfg["model"] = model
+            self.model_name = model
+            pcfg["model"] = model  # 确保 providers_cfg 中始终同步
+            self.save_cfg()
+            self.reinit_client()
         return True
 
     def update_model(self, arg):
         """
-        切换法器模型
+        切换法器模型（线程安全）
         支持格式：
           - "<model-name>"               自动推断 provider 并切换（若模型属于其他 provider）
           - "<provider>:<model-name>"    显式同时切换提供商和模型
@@ -167,47 +210,52 @@ class AppState:
         核心原则：provider 与 model 始终强绑定，避免跨 provider 使用错误模型。
         """
         new_provider, new_model = resolve_provider_model(arg)
-        if new_provider and new_provider != self.provider:
-            # 模型名推断出了其他 provider，先切换 provider
-            if not self.update_provider(new_provider):
-                return False
-        # 同步更新当前 provider 的 model（保持 provider-model 一致性）
-        self.cfg["model"] = new_model
-        self.model_name = new_model
-        providers_cfg = self.cfg.setdefault("providers", {})
-        pcfg = providers_cfg.setdefault(self.provider, {})
-        pcfg["model"] = new_model
-        self.save_cfg()
-        self.reinit_client()
+        with self._lock:
+            if new_provider and new_provider != self.provider:
+                # 模型名推断出了其他 provider，先切换 provider
+                if not self.update_provider(new_provider):
+                    return False
+            # 同步更新当前 provider 的 model（保持 provider-model 一致性）
+            self.cfg["model"] = new_model
+            self.model_name = new_model
+            providers_cfg = self.cfg.setdefault("providers", {})
+            pcfg = providers_cfg.setdefault(self.provider, {})
+            pcfg["model"] = new_model
+            self.save_cfg()
+            self.reinit_client()
         return True
 
     def update_key(self, key):
-        """更新 API 密钥（针对当前提供商）"""
-        self.cfg["key"] = key
-        providers_cfg = self.cfg.setdefault("providers", {})
-        pcfg = providers_cfg.setdefault(self.provider, {})
-        pcfg["key"] = key
-        self.save_cfg()
-        self.reinit_client()
+        """更新 API 密钥（针对当前提供商）（线程安全）"""
+        with self._lock:
+            self.cfg["key"] = key
+            providers_cfg = self.cfg.setdefault("providers", {})
+            pcfg = providers_cfg.setdefault(self.provider, {})
+            pcfg["key"] = key
+            self.save_cfg()
+            self.reinit_client()
 
     def update_limit(self, limit):
-        """设置 Token 上限"""
-        self.cfg["limit"] = limit
-        self.limit = limit
-        self.save_cfg()
+        """设置 Token 上限（线程安全）"""
+        with self._lock:
+            self.cfg["limit"] = limit
+            self.limit = limit
+            self.save_cfg()
 
     def update_lang(self, lang):
-        """切换界面语言"""
-        self.cfg["lang"] = lang
-        self.lang = lang
-        self.save_cfg()
-        self.security = SecurityManager(self.lang, self.cfg)
+        """切换界面语言（线程安全）"""
+        with self._lock:
+            self.cfg["lang"] = lang
+            self.lang = lang
+            self.save_cfg()
+            self.security = SecurityManager(self.lang, self.cfg)
 
     def update_session_name(self, name):
-        """更新会话名"""
-        self.sn = name
-        self.cfg["session_name"] = name
-        self.save_cfg()
+        """更新会话名（线程安全）"""
+        with self._lock:
+            self.sn = name
+            self.cfg["session_name"] = name
+            self.save_cfg()
 
     def reset_session(self):
         """重置会话状态 —— 开辟新的轮回"""
@@ -224,6 +272,7 @@ class AppState:
         """切换思维模式"""
         self.cfg["thinking_mode"] = mode
         self.thinking_mode = mode
+        self.save_cfg()
 
     def update_ui_mode(self, mode):
         if mode not in ("chat", "dev", "agent"):

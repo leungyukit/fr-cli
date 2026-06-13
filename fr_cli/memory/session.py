@@ -2,11 +2,10 @@
 自动会话存档引擎 —— 按日期会话
 每次启动自动创建日期编号会话文件，实时追加对话记录。
 """
-import json
 from fr_cli.conf.paths import SESSIONS_AUTO_DIR
-import os
 from datetime import datetime
 from pathlib import Path
+from fr_cli.core.store import JsonStore
 
 SESSION_DIR = SESSIONS_AUTO_DIR  # from fr_cli.conf.paths
 
@@ -55,8 +54,7 @@ def create_session(messages, session_id=None):
         "messages": messages,
     }
     try:
-        with open(fpath, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        JsonStore(fpath, default=dict).write(data)
         return str(fpath)
     except Exception:
         return None
@@ -68,14 +66,11 @@ def update_session(fpath, messages):
         return False
     try:
         path = Path(fpath)
-        data = {}
-        if path.exists():
-            with open(path, "r", encoding="utf-8") as f:
-                data = json.load(f)
+        store = JsonStore(path, default=dict)
+        data = store.read() if path.exists() else {}
         data["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         data["messages"] = messages
-        with open(path, "w", encoding="utf-8") as f:
-            json.dump(data, f, ensure_ascii=False, indent=2)
+        store.write(data)
         return True
     except Exception:
         return False
@@ -87,8 +82,7 @@ def list_sessions():
     result = []
     for idx, fpath in enumerate(files, start=1):
         try:
-            with open(fpath, "r", encoding="utf-8") as f:
-                data = json.load(f)
+            data = JsonStore(fpath, default=dict).read()
             created = data.get("created_at", "未知")
             updated = data.get("updated_at", "未知")
             msg_count = len(data.get("messages", []))
@@ -116,8 +110,7 @@ def load_session(index, current_system_prompt=None):
         return False, None, None
     target = sessions[index - 1]
     try:
-        with open(target["path"], "r", encoding="utf-8") as f:
-            data = json.load(f)
+        data = JsonStore(target["path"], default=dict).read()
         msgs = data.get("messages", [])
         if current_system_prompt and msgs and msgs[0]["role"] == "system":
             msgs[0]["content"] = current_system_prompt
@@ -135,7 +128,7 @@ def delete_session(index):
         return False
     target = sessions[index - 1]
     try:
-        os.remove(target["path"])
+        JsonStore(target["path"]).delete()
         return True
     except Exception:
         return False

@@ -2,12 +2,12 @@
 会话会话管理引擎
 负责对话历史的本地保存、加载、删除与 Markdown 导出
 """
-import json, os
+import os
 from fr_cli.conf.paths import SESSIONS_MANUAL_DIR
-from pathlib import Path
 from datetime import datetime
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import RED, RESET
+from fr_cli.core.store import JsonStore
 
 HIST_DIR = SESSIONS_MANUAL_DIR  # from fr_cli.conf.paths
 
@@ -24,8 +24,7 @@ def get_sessions():
     sess = []
     for f in sorted(HIST_DIR.glob("sess_*.json"), key=os.path.getmtime, reverse=True):
         try:
-            with open(f, 'r', encoding='utf-8') as fp:
-                data = json.load(fp)
+            data = JsonStore(f, default=dict).read()
             sess.append({"file": f.name, "name": data.get("name", f.stem)})
         except Exception:
             pass
@@ -39,10 +38,9 @@ def save_sess(name, msgs):
     fname = f"sess_{ts}_{safe_name}"
     fp = _fpath(fname)
     try:
-        with open(fp, 'w', encoding='utf-8') as f:
-            json.dump({"name": name, "ts": ts, "msgs": msgs}, f, ensure_ascii=False, indent=2)
+        JsonStore(fp, default=dict).write({"name": name, "ts": ts, "msgs": msgs})
         return True
-    except Exception as e: 
+    except Exception as e:
         print(f"{RED}{e}{RESET}")
         return False
 
@@ -52,8 +50,7 @@ def load_sess(index, sp):
     if not ss or index >= len(ss): return False, None, None
     fp = HIST_DIR / ss[index]["file"]
     try:
-        with open(fp, 'r', encoding='utf-8') as f:
-            data = json.load(f)
+        data = JsonStore(fp, default=dict).read()
         msgs = data.get("msgs", [])
         # 强制覆盖第一条为最新的系统提示词
         if msgs and msgs[0]["role"] == "system":
@@ -61,7 +58,7 @@ def load_sess(index, sp):
         else:
             msgs.insert(0, {"role": "system", "content": sp})
         return True, msgs, data.get("name")
-    except Exception as e: 
+    except Exception as e:
         print(f"{RED}{e}{RESET}")
         return False, None, None
 
@@ -71,7 +68,7 @@ def del_sess(index):
     if not ss or index >= len(ss): return
     fp = HIST_DIR / ss[index]["file"]
     try:
-        os.remove(fp)
+        JsonStore(fp).delete()
         return True
     except Exception:
         return False

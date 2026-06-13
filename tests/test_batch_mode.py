@@ -4,11 +4,8 @@
 验证 fr-cli 可以在不进入 REPL 的情况下执行单条命令或单次对话。
 """
 import os
-import sys
-from io import StringIO
 from unittest.mock import MagicMock, patch
 
-import pytest
 
 
 class TestBatchArgumentParser:

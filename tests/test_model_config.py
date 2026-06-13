@@ -2,10 +2,7 @@
 模型配置与 Agent 专属模型配置测试
 """
 import json
-import os
-import tempfile
 from pathlib import Path
-import pytest
 
 
 # ---------- core/llm.py ----------
@@ -351,7 +348,7 @@ class TestEdgeCases:
         assert _PROVIDERS["mimo"]["base_url"] == "https://api.xiaomimimo.com/v1"
 
     def test_command_executor_agent_context_override(self):
-        """CommandExecutor 的 push_agent_context 应正确覆盖 deps 中的 client/model"""
+        """v2.4.4：_get_deps(client=..., model_name=...) 显式覆盖（取代 push/pop 栈）"""
         from fr_cli.core.core import AppState
         from fr_cli.command.executor import CommandExecutor
 
@@ -374,21 +371,26 @@ class TestEdgeCases:
         assert deps.client is state.client
         assert deps.model_name == "glm-4-flash"
 
-        # push 覆盖
+        # v2.4.4：显式传参覆盖
         from fr_cli.core.llm import create_llm_client_for
         override_client, _, _ = create_llm_client_for("deepseek", "deepseek-chat", {
             "providers": {"deepseek": {"key": "override-key"}}
         })
-        executor.push_agent_context(override_client, "deepseek-chat")
-        deps = executor._get_deps()
+        deps = executor._get_deps(client=override_client, model_name="deepseek-chat")
         assert deps.client is override_client
         assert deps.model_name == "deepseek-chat"
 
-        # pop 恢复
-        executor.pop_agent_context()
+        # 不传则恢复全局（无栈残留）
         deps = executor._get_deps()
         assert deps.client is state.client
         assert deps.model_name == "glm-4-flash"
+
+        # v2.4.4：push/pop 现在是 no-op（旧代码兼容）
+        executor.push_agent_context(override_client, "deepseek-chat")
+        deps = executor._get_deps()
+        # 因为是 no-op，deps 仍应是全局
+        assert deps.model_name == "glm-4-flash"
+        executor.pop_agent_context()
 
 
 # ---------- Provider-Model 一致性修复测试 ----------
@@ -564,8 +566,7 @@ class TestProviderModelConsistency:
 
     def test_load_config_migrates_top_level_model(self):
         """向后兼容：加载旧配置时，应将顶层 model 迁移到当前 provider 的专属配置"""
-        from fr_cli.conf.config import load_config, save_config, _default_config
-        import json
+        from fr_cli.conf.config import load_config
 
         # 构造一个模拟的旧配置（顶层 model 存在，但 providers 中当前 provider 没有 model）
         old_cfg = {
@@ -615,7 +616,6 @@ class TestProviderModelConsistency:
     def test_load_config_does_not_override_existing_provider_model(self):
         """向后兼容：若 provider 配置中已有 model，不应被顶层 model 覆盖"""
         from fr_cli.conf.config import load_config
-        import json
         from fr_cli.conf.paths import CONFIG_FILE
 
         old_cfg = {
@@ -744,7 +744,7 @@ class TestBoundaryAndEdgeCases:
 
     def test_reload_providers_clears_and_rebuilds_mapping(self):
         """reload_providers 应清空并重建 _MODEL_TO_PROVIDER"""
-        from fr_cli.core.llm import reload_providers, get_provider_by_model, _MODEL_TO_PROVIDER
+        from fr_cli.core.llm import reload_providers, get_provider_by_model
         # 先确保有数据
         p = get_provider_by_model("deepseek-chat")
         assert p == "deepseek"
@@ -770,7 +770,7 @@ class TestBoundaryAndEdgeCases:
 
     def test_resolve_llm_kwargs_unknown_provider_fallback(self):
         """未知 provider 时应回退到 zhipu 的客户端类"""
-        from fr_cli.core.llm import _resolve_llm_kwargs, ZhipuLLMClient
+        from fr_cli.core.llm import _resolve_llm_kwargs
         cfg = {"providers": {}}
         client_cls, kwargs = _resolve_llm_kwargs("unknown", cfg)
         # 应回退到 zhipu 默认（OpenAICompatibleClient 或 ZhipuLLMClient）
@@ -930,9 +930,8 @@ class TestBoundaryAndEdgeCases:
 
     def test_load_config_corrupted_with_valid_backup(self):
         """主配置损坏但备份有效时，应从备份恢复"""
-        from fr_cli.conf.config import load_config, save_config
+        from fr_cli.conf.config import load_config
         from fr_cli.conf.paths import CONFIG_FILE, CONFIG_BACKUP
-        import json
 
         original_file = None
         original_backup = None
@@ -1025,7 +1024,6 @@ class TestBoundaryAndEdgeCases:
         """配置缺少字段时应使用默认值补齐"""
         from fr_cli.conf.config import load_config
         from fr_cli.conf.paths import CONFIG_FILE
-        import json
 
         original = None
         if CONFIG_FILE.exists():
@@ -1077,7 +1075,6 @@ class TestBoundaryAndEdgeCases:
         """无 key 时应进入 Mock 模式（不抛异常）"""
         from fr_cli.conf.config import init_config
         from fr_cli.conf.paths import CONFIG_FILE
-        import json
 
         original = None
         if CONFIG_FILE.exists():

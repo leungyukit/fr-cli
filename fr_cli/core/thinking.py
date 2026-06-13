@@ -150,9 +150,9 @@ Important:
 
 
 class ThinkingEngine:
-    """思维引擎 —— 支持 CoT / ToT / ReAct / direct 四种模式"""
+    """思维引擎 —— 支持 CoT / ToT / ReAct / plan / direct 五种模式"""
 
-    MODES = ["direct", "cot", "tot", "react"]
+    MODES = ["direct", "cot", "tot", "react", "plan"]
 
     def __init__(self):
         pass
@@ -179,6 +179,9 @@ class ThinkingEngine:
             return self._run_tot(state, user_input, lang)
         elif mode == "react":
             return self._get_react_enhancement(lang)
+        elif mode == "plan":
+            # plan 模式由 chat.py 中的 _handle_plan_mode 统一接管
+            return None
 
     def _run_cot(self, state, user_input, lang):
         """执行思维链推演（额外一次 LLM 调用，流式输出）"""

@@ -3,6 +3,7 @@
 - search_web / fetch_web
 """
 from fr_cli.command.registry import register, _TRIGGERS_WEB
+from fr_cli.core.result import Result
 
 
 @register(
@@ -14,10 +15,10 @@ from fr_cli.command.registry import register, _TRIGGERS_WEB
     aliases=["/web"],
 )
 def _search_web(deps, **kwargs):
-    res, err = deps.web_c.search(kwargs["query"], deps.lang)
-    if err:
-        return None, err
-    return "\n".join([f"- {r['title']}\n  {r['url']}\n  {r['snippet'][:50]}..." for r in res]), None
+    result = deps.web_c.search(kwargs["query"], deps.lang)
+    if result.is_fail():
+        return Result.fail(result.error)
+    return Result.ok("\n".join([f"- {r['title']}\n  {r['url']}\n  {r['snippet'][:50]}..." for r in result.unwrap()]))
 
 
 @register(
@@ -29,5 +30,5 @@ def _search_web(deps, **kwargs):
     aliases=["/fetch"],
 )
 def _fetch_web(deps, **kwargs):
-    txt, err = deps.web_c.fetch(kwargs["url"], deps.lang)
-    return (txt, None) if not err else (None, err)
+    result = deps.web_c.fetch(kwargs["url"], deps.lang)
+    return result

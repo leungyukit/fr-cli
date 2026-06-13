@@ -8,7 +8,9 @@ from fr_cli.command.registry import get_registry
 
 # 旧类别到注册表工具名的映射（用于兼容旧接口）
 _LEGACY_CATEGORIES = {
-    "file_operations": (["write_file", "read_file", "list_files", "change_dir", "append_file", "delete_file"], "fr_cli/weapon/fs.py"),
+    "file_operations": (["write_file", "read_file", "list_files", "change_dir", "append_file", "delete_file", "rename_file", "replace_text", "grep_text"], "fr_cli/weapon/fs.py"),
+    "network_tools": (["ping_host", "port_scan", "ip_scan", "network_devices"], "fr_cli/weapon/network.py"),
+    "remote_access": (["ssh_command", "scp_transfer"], "fr_cli/weapon/remote.py"),
     "image_analysis": (["analyze_image", "generate_image"], "fr_cli/weapon/vision.py"),
     "email_management": (["mail_inbox", "mail_read", "mail_send"], "fr_cli/weapon/mail.py"),
     "web_search": (["search_web", "fetch_web"], "fr_cli/weapon/web.py"),
@@ -18,7 +20,9 @@ _LEGACY_CATEGORIES = {
     "configuration": (["set_model", "set_key", "set_limit", "set_lang"], "fr_cli/conf/config.py"),
     "launcher_system": (["open_file", "launch_app", "list_apps"], "fr_cli/weapon/launcher.py"),
     "agent_system": (["agent_create", "agent_run"], "fr_cli/agent/"),
+    "swarm": (["swarm_run"], "fr_cli/agent/swarm.py"),
     "data_scroll": (["read_excel", "read_csv"], "fr_cli/weapon/dataframe.py"),
+    "charts": (["generate_chart"], "fr_cli/weapon/charts.py"),
 }
 
 

@@ -6,8 +6,6 @@
 - 同步 MANUAL.md 到工作空间
 - 打印启动画面
 """
-import os
-import sys
 import shutil
 import threading
 from pathlib import Path
@@ -162,13 +160,12 @@ def print_startup_banner(state, cfg, show_logo: bool = False):
         show_logo: True 时显示佛像 ASCII art（-logo 参数），
                    False 时显示简洁线条框（默认）
     """
-    from fr_cli import __version__
 
     if show_logo:
         # -logo 参数：显示佛像 ASCII art
         try:
             from fr_cli.ui.buddha import print_buddha
-            n_lines = print_buddha(version=__version__)
+            _ = print_buddha(version=__version__)
             print()
             return
         except Exception as e:
@@ -177,7 +174,6 @@ def print_startup_banner(state, cfg, show_logo: bool = False):
                 from fr_cli.conf.paths import FR_CLI_DIR
                 log_path = FR_CLI_DIR / "splash.log"
                 with open(log_path, "a", encoding="utf-8") as f:
-                    import traceback
                     f.write(f"[buddha skipped] {type(e).__name__}: {e}\n")
             except Exception:
                 pass

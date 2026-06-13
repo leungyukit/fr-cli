@@ -2,7 +2,6 @@
 REPL 命令路由处理器
 从 main.py 提取的所有 / 命令实现，减轻主模块负担。
 """
-import sys
 
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
@@ -10,23 +9,9 @@ from fr_cli.ui.ui import (
     print_bye
 )
 from fr_cli.agent.shell_mode import ShellMode
-from fr_cli.memory.history import save_sess, load_sess, del_sess, get_sessions
-from fr_cli.memory.context import load_context, extract_recent_turns, build_context_summary, save_context
-from fr_cli.memory.session import (
-    list_sessions as list_auto_sessions,
-    load_session as load_auto_session,
-    delete_session as delete_auto_session,
-)
-from fr_cli.addon.plugin import extract_code
 from fr_cli.core.stream import stream_cnt
 from fr_cli.core.sysmon import get_sys_stats
-from fr_cli.agent.manager import (
-    create_agent_dir, save_agent_code, save_persona, save_skills,
-    save_memory, agent_exists, list_agents, delete_agent,
-    load_persona, load_memory, load_skills,
-)
-from fr_cli.agent.executor import run_agent
-from fr_cli.repl.commands._common import _provider_has_key, _print_help
+from fr_cli.repl.commands._common import _print_help
 
 
 
@@ -131,7 +116,7 @@ def _cmd_update(state, parts):
 def _cmd_mode(state, parts):
     """切换思维模式或 UI 模式"""
     arg1 = parts[1] if len(parts) > 1 else ""
-    
+
     # UI 模式切换: /mode ui <chat|dev|agent>
     if arg1.lower() == "ui":
         arg2 = parts[2] if len(parts) > 2 else ""
@@ -153,7 +138,7 @@ def _cmd_mode(state, parts):
             }
             print(f"{GREEN}✅ UI 模式已切换: {ui_desc.get(ui_mode, ui_mode)}{RESET}")
         return False
-    
+
     # 思维模式切换: /mode <direct|cot|tot|react>
     # MasterAgent 模式下思维模式由其内部 ReAct 循环控制，/mode 无效
     if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
@@ -165,13 +150,13 @@ def _cmd_mode(state, parts):
     if not arg1:
         print(f"{CYAN}当前思维模式: {state.thinking_mode}{RESET}")
         print(f"{CYAN}当前 UI 模式: {getattr(state, 'ui_mode', 'dev')}{RESET}")
-        print(f"{DIM}思维模式: direct（直接回答）| cot（思维链）| tot（思维树）| react（推理+行动）{RESET}")
+        print(f"{DIM}思维模式: direct（直接回答）| cot（思维链）| tot（思维树）| react（推理+行动）| plan（计划模式）{RESET}")
         print(f"{DIM}UI 模式: /mode ui chat | /mode ui dev | /mode ui agent{RESET}")
         return False
     mode = arg1.lower()
     if not ThinkingEngine.is_valid_mode(mode):
         print(f"{RED}无效模式: {mode}{RESET}")
-        print(f"{DIM}思维模式: direct | cot | tot | react{RESET}")
+        print(f"{DIM}思维模式: direct | cot | tot | react | plan{RESET}")
         print(f"{DIM}UI 模式: /mode ui <chat|dev|agent>{RESET}")
         return False
     state.update_thinking_mode(mode)
@@ -180,6 +165,7 @@ def _cmd_mode(state, parts):
         "cot": "思维链 — 先进行问题拆解和自我验证，再回答",
         "tot": "思维树 — 生成多分支策略树，评估后选择最优路径",
         "react": "ReAct — 每一步先思考再行动，循环直到问题解决",
+        "plan": "计划模式 — 先制定结构化计划，确认后按步骤执行并汇总",
     }
     print(f"{GREEN}✅ 思维模式已切换: {mode_desc.get(mode, mode)}{RESET}")
     return False
@@ -283,7 +269,7 @@ def _cmd_tutorial(state, parts):
 
         ("🚀 第十步：更多探索",
          "  /tutorial            重新查看本教程\n"
-         "  /help <topic>        查看主题帮助（config/fs/session/agent/tools/mcp/all）\n"
+         "  /help <topic>        查看主题帮助（config/fs/session/agent/mail/m365/tools/mcp/all）\n"
          "  /queue               查看对话队列状态\n"
          "  /exit                退出"),
     ]

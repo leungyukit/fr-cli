@@ -41,7 +41,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，204 个测试全部通过 |
+| 测试 | `pytest`，357 个测试全部通过 |
 
 ---
 
@@ -63,36 +63,54 @@ fr-cli/
 │   │   ├── __init__.py         # Agent 目录常量
 │   │   ├── manager.py          # Agent 生命周期管理（创建/删除/列出/读写 MD 设定）
 │   │   ├── executor.py         # Agent 执行器（加载 persona/memory/skills 并调用 run）
+│   │   ├── client.py           # 本地/远程/内置 Agent 统一调用入口
+│   │   ├── remote.py           # 远程 Agent 注册表
+│   │   ├── dispatch.py         # @name 前缀调度器
 │   │   ├── workflow.py         # 工作流引擎（解析 workflow.md，步骤调度，模板变量）
 │   │   ├── server.py           # HTTP 服务（将 Agent 发布为 REST API）
 │   │   ├── master.py           # MasterAgent 自我进化主控（ReAct 循环）
+│   │   ├── generator.py        # AI 自动生成 Agent
+│   │   ├── shell_mode.py       # Shell 模式
+│   │   ├── hermes.py / hermes_daemon.py  # Hermes 守护
+│   │   ├── personality.py / skills.py    # 人设/技能
 │   │   ├── artifact_detector.py # AI 回复产物检测器（插件/Agent 自动检测）
-│   │   ├── workflow_system/    # 工作流系统（已模块化拆分）
-│   │   │   ├── models.py       # 数据结构（Node/Edge/Execution）
-│   │   │   ├── engine.py       # 工作流引擎核心
-│   │   │   ├── manager.py      # 工作流管理器
-│   │   │   ├── executor.py     # 工作流执行器
-│   │   │   ├── monitor.py      # 监控与可视化
-│   │   │   └── tools.py        # 模板与工具函数
-│   │   ├── image_and_parallel.py # 图片生成与并行执行
-│   │   ├── coding_helper.py    # 代码辅助助手（理解/编辑/计划/Git/审查/辅导）
-│   │   └── a2a.py              # A2A（Agent-to-Agent）协议实现
+│   │   ├── swarm.py            # 蜂群统一调度引擎
+│   │   ├── swarm_resolver.py   # 蜂群任务解析器
+│   │   └── builtins/           # 内置 Agent（local/remote/db/spider/rag/stock）
 │   ├── repl/
-│   │   └── commands.py         # 40 个命令处理器（从 main.py 提取，架构解耦）
+│   │   ├── router.py           # 输入路由与分发
+│   │   ├── queue.py            # 对话队列与连续输入
+│   │   ├── bootstrap.py        # 启动引导
+│   │   ├── actions.py          # e/r/u 快捷键处理
+│   │   └── commands/           # 40 个命令处理器（从 main.py 拆分，架构解耦）
 │   ├── addon/
 │   │   └── plugin.py           # 插件进化引擎：扫描、落盘、子进程隔离执行（runpy+json.dumps）
 │   ├── breakthrough/
 │   │   └── update.py           # 自动更新：查询远程版本、下载 ZIP、备份替换、重启
+│   ├── dynamic_builder/        # 动态构建系统（按需安装依赖并生成工具）
+│   └── gatekeeper/             # Gatekeeper 守护
 │   ├── command/
 │   │   ├── executor.py         # 命令执行引擎：解析 AI 调用标记并调度到注册表
 │   │   ├── registry.py         # 统一工具注册表：装饰器注册、参数校验、安全中间件
 │   │   ├── security.py         # 四阶安全确认管理器（封装 sconfirm/fconfirm）
+│   │   ├── registered/         # 按类目拆分的工具注册文件
 │   │   └── __init__.py
 │   ├── conf/
-│   │   └── config.py           # 配置读写与首次运行引导
+│   │   ├── paths.py            # 路径常量 + 旧路径迁移
+│   │   ├── config.py           # 配置读写与首次运行引导
+│   │   └── wizard.py           # 邮件/云盘/M365 配置向导
 │   ├── core/
 │   │   ├── core.py             # AppState 全局状态容器（DI 容器）
+│   │   ├── chat.py             # 传统流式对话编排
+│   │   ├── intent.py           # 用户意图判定
+│   │   ├── thinking.py         # 思维模式引擎（CoT/ToT/ReAct/Plan）
+│   │   ├── plan.py             # 计划模式
 │   │   ├── stream.py           # 流式输出与代码块高亮
+│   │   ├── llm.py              # 多模型客户端抽象
+│   │   ├── model_factory.py    # 模型工厂
+│   │   ├── result.py           # 统一返回风格容器
+│   │   ├── store.py            # JsonStore 持久化抽象
+│   │   ├── usage.py            # LLM 用量统计
 │   │   ├── recommender.py      # 功能推荐引擎
 │   │   └── sysmon.py           # 系统状态监控
 │   ├── lang/
@@ -102,21 +120,29 @@ fr-cli/
 │   │       └── en.py           # 英文翻译字典
 │   ├── memory/
 │   │   ├── history.py          # 会话历史保存、加载、删除、导出 Markdown
+│   │   ├── session.py          # 按日期自动存档会话
 │   │   └── context.py          # 上下文记忆：最近 5 轮摘要注入 system prompt
 │   ├── security/
 │   │   └── security.py         # 四阶安全确认引擎（Y/A/F/N）
 │   ├── ui/
-│   │   └── ui.py               # 终端颜色常量、清屏、显示宽度计算、启动动画
+│   │   ├── ui.py               # 终端颜色常量、清屏、显示宽度计算、启动动画
+│   │   ├── prompt.py           # prompt_toolkit TUI 输入
+│   │   ├── banner.py           # 启动 banner
+│   │   └── splash.py           # 终端图片协议探测
 │   └── weapon/                 # 武器库/扩展子系统
 │       ├── cron.py             # 定时任务（CronManager 类，threading.Timer）
 │       ├── disk.py             # 云盘适配器
 │       ├── fs.py               # 虚拟文件系统 VFS（路径沙盒、防 ../ 逃逸）
 │       ├── loader.py           # 工具加载器（从注册表动态生成，兼容旧 WEAPON.MD 格式）
-│       ├── mail.py             # IMAP/SMTP 邮件客户端
+│       ├── mail.py / m365.py   # IMAP/SMTP 邮件 / Microsoft 365
 │       ├── vision.py           # 图片生成（CogView）与多模态消息构造（GLM-4V）
 │       ├── web.py              # 百度搜索抓取与网页正文抽取
+│       ├── network.py          # 网络探测
+│       ├── remote.py           # 远程 SSH 客户端
 │       ├── launcher.py         # 本地应用启动器（跨平台调用浏览器/办公/通讯等）
 │       ├── dataframe.py        # 数据卷轴读取器（Excel / CSV 读取与分析）
+│       ├── ocr.py              # OCR 文字识别
+│       ├── charts.py           # 图表生成
 │       └── mcp.py              # MCP 外部神通客户端（stdio/SSE 连接、工具发现与调用）
 ├── release/                    # 可分发包目录
 │   ├── fr-cli-installer        # macOS 可执行安装程序
@@ -126,7 +152,7 @@ fr-cli/
 │   ├── fr_cli-2.0.0-py3-none-any.whl
 │   └── fr-cli-README.md
 ├── tests/
-│   ├── test_a2a_and_providers.py   # A2A 协议与多提供商测试
+│   ├── test_a2a_and_providers.py   # StepFun 提供商测试（A2A 协议已移除）
 │   ├── test_integration_real.py    # 集成测试（配置/LLM/Agent/工作流）
 │   ├── test_master_prompt_fix.py   # MasterAgent Prompt 格式修复测试
 │   ├── test_model_config.py        # 模型配置与 LLM 客户端测试
@@ -216,9 +242,9 @@ docker compose up fr-cli
 ├─────────────────────────────────────────────┤
 │  解析与执行层    (command/executor.py)       │  AI 回复解析、调用标记提取、调度注册表
 ├─────────────────────────────────────────────┤
-│  能力实现层      (weapon/ + addon/)          │  纯净业务逻辑，返回 (result, error)
+│  能力实现层      (weapon/ + addon/)          │  纯净业务逻辑，返回 Result（兼容 (result, error) 解包）
 ├─────────────────────────────────────────────┤
-│  基础设施层      (conf/ + memory/ + security/)│ 配置、持久化、安全、国际化
+│  基础设施层      (conf/ + memory/ + security/ + core/store.py)│ 配置、持久化、安全、国际化
 └─────────────────────────────────────────────┘
 ```
 
@@ -238,9 +264,22 @@ docker compose up fr-cli
 
 - **`core/core.py`**：`AppState` —— 本命元神 / DI 容器
   - 统一管理配置、子系统实例（ZhipuAI、VFS、MailClient、WebRaider、CloudDisk、SecurityManager）
-  - 持有命令执行引擎 `executor`
+  - 持有命令执行引擎 `executor` 与用量统计 `usage`
   - 提供状态变更方法（`update_model()`、`update_key()`、`save_cfg()` 等）
   - `main.py` 通过 `AppState` 访问所有运行时状态，不再使用局部变量
+
+- **`core/store.py`**：`JsonStore` —— 统一 JSON 持久化抽象
+  - 原子写、默认回退、文件权限控制、线程安全
+  - 已用于 `usage.json`、`cron.json`、`m365.json`、Agent `config.json`/`progress.json`、Gatekeeper `daemon/config.json`、`memory/history`、`memory/session`、`dynamic_builder/registry.json`
+
+- **`core/usage.py`**：`UsageTracker` —— LLM 调用用量统计
+
+- **`core/result.py`**：`Result` —— 统一错误返回风格容器
+  - 替代 `(result, error)` / `(success, message)` / 抛异常 / 静默返回 等多种风格
+  - 新增代码优先使用 `Result.ok(data)` / `Result.fail(error)`，旧接口可用 `to_tuple()` / `from_tuple()` 兼容
+  - `command/registry.py`、`command/executor.py`、VFS、网络/邮件/云盘/远程、Agent 执行链路（client/executor/workflow/dispatch）、更新模块（breakthrough/update.py）、Agent HTTP 服务（agent/server.py）等已迁移为 `Result` 风格
+  - 自动记录 provider/model/tokens/cost
+  - 持久化到 `~/.fr_cli/usage.json`，支持 `/usage [days]` 汇总查询
 
 - **`weapon/loader.py`**：工具信息加载器
   - 从注册表动态生成 AI 可用的工具列表
@@ -252,6 +291,9 @@ docker compose up fr-cli
 ```
 main.py
 ├── core.core           → AppState（DI 容器，聚合所有子系统）
+├── core.usage          → ~/.fr_cli/usage.json（LLM 用量统计）
+├── core.store          → JsonStore 统一 JSON 持久化
+├── core.result         → Result 统一错误返回风格
 ├── core.stream         → 流式调用 ZhipuAI，代码高亮输出
 ├── core.recommender    → 功能推荐
 ├── core.thinking       → 思维模式引擎（CoT/ToT/ReAct）
@@ -281,7 +323,7 @@ main.py
    - `【命令：/command args】` → `registry.dispatch_cmd()` → 执行同一 handler
 7. 自动执行提取的命令，打印结果，并将结果回写到 `messages`。
 8. 再次调用 AI 生成最终回复（命令标记从显示文本中清除）。
-9. 显示 token 统计、功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
+9. 显示 token 统计，并将用量（provider/model/tokens/cost）持久化到 `~/.fr_cli/usage.json`；显示功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
 10. 提取最近 5 轮对话，生成摘要，持久化到 `~/.fr_cli/context.json`。
 11. 自动存档：若首次输入则创建 `~/.fr_cli/sessions/auto/YYYY-MM-DD_NN.json`，否则增量更新。
 
@@ -303,7 +345,7 @@ Agent 存储在 `~/.fr_cli/agents/<name>/` 目录下。
 
 ### 创建 Agent 的四种方式
 
-1. **AI 自动生成**：`/agent_create <name> <description>` —— 调用大模型生成完整 Agent（persona + skills + code）
+1. **AI 自动生成**：`/agent_create <name> <description>` —— 调用大模型生成完整 Agent（persona + skills + code + workflow），创建完成后可通过 `/agent_run`、`@name` 或让大模型调用 `agent_call` 使用
 2. **从已有代码铸造**：`/agent_forge <name>` —— 从历史消息中提取最近一段包含 `def run(context, **kwargs)` 的 Python 代码，直接保存为 Agent
 3. **自动检测提示**：当 AI 回复中包含 `def run(context, **kwargs)` 和 `\`\`\`python` 代码块时，程序自动弹出提示，输入名称即可保存
 4. **手动创建**：直接在 `~/.fr_cli/agents/<name>/` 目录下创建 `agent.py`（必须包含 `run(context, **kwargs)` 入口），可选补充 `persona.md`、`skills.md`、`workflow.md`
@@ -325,6 +367,10 @@ Agent 存储在 `~/.fr_cli/agents/<name>/` 目录下。
   - `run_agent(name, state, **kwargs)`：执行单个 Agent
   - `delegate_to_agent(name, state, pipeline_input, **kwargs)`：管道化委托（前一 Agent 输出作为后一输入）
   - `run_multi_agent(names, state, initial_input, **kwargs)`：多 Agent 流水线协作
+
+- **`agent/dispatch.py`** —— `@agent_name` 调度器
+  - `dispatch_agent_call(state, text)`：解析 `@name 任务` 并调用 `run_agent()` 执行
+  - 在 REPL 主循环中拦截以 `@` 开头的输入，实现“@name 任务”一键召唤
 
 - **`agent/workflow.py`** —— 工作流引擎
   - `load_workflow(name)` / `save_workflow(name, content)`：读写 workflow.md
@@ -361,6 +407,128 @@ Agent 存储在 `~/.fr_cli/agents/<name>/` 目录下。
 - `provider` + `model`：指定道统和模型（两者均非空时生效）
 - `key`：可选的独立 API Key；若为空，回退到全局 `providers` 中对应道统的 Key
 - Agent 代码中通过 `context["provider"]` 和 `context["model"]` 可感知当前绑定的道统
+
+### 调用 Agent 分身的方式
+
+创建 Agent 后，有三种调用方式：
+
+1. **命令行调用**
+   ```
+   >>> /agent_run my_agent 请帮我总结 README.md
+   ```
+
+2. **@ 前缀快捷调用（REPL）**
+   ```
+   >>> @my_agent 请帮我总结 README.md
+   🧙 正在召唤 Agent [my_agent]...
+   ...
+   ```
+   主循环会拦截以 `@` 开头的输入，解析 Agent 名称和任务后直接进入 Agent 执行器，不会当作普通对话发送给大模型。
+
+3. **让大模型作为工具调用**
+   当用户请求适合交由某个 Agent 处理时，大模型会在 system prompt 的工具列表中看到可用的 Agent 列表，并输出：
+   ```
+   【调用：agent_call({"name": "my_agent", "user_input": "请帮我总结 README.md"})】
+   ```
+   系统自动执行该调用，并将结果回写给大模型生成最终回答。
+
+### 蜂群协作（Swarm）
+
+蜂群功能允许同时调用多个**任务单元**协作处理任务，支持三种模式。每个任务单元可以是：
+- 自定义 Agent 分身
+- 内置 Agent（`@local` / `@remote` / `@db` / `@spider` / `@RAG` / `@stock`）
+- 注册表工具（`search_web` / `read_file` / `ocr_recognize` 等）
+- 任意 `/` 命令
+- MCP 外部工具
+- 自定义插件
+
+**任务名称格式：**
+```
+agent:myagent              # 自定义/远程 Agent
+@local 或 builtin:local    # 内置 Agent
+tool:search_web            # 注册表工具
+cmd:/web 搜索词            # 命令字符串（/ 开头也可自动识别）
+mcp:fs/read_file {"path": "/tmp/a.txt"}  # MCP 工具
+plugin:myplugin            # 自定义插件
+```
+
+无显式前缀时自动推断优先级：Agent > 内置 Agent > 插件 > 工具 > 命令。
+
+1. **并行模式（parallel）**
+   多个任务同时独立处理同一任务，互不干扰。
+   ```
+   >>> /swarm parallel coder,reviewer 帮我检查这段代码
+   >>> /swarm parallel @local,tool:search_web 分析项目并搜索相关资料
+   ```
+
+2. **议会模式（council）**
+   多个任务分别给出结果，再由大模型综合汇总成最终结论。
+   ```
+   >>> /swarm council planner,coder,reviewer 设计一个用户登录模块
+   >>> /swarm council @stock,@db 综合分析某只股票和相关财务数据
+   ```
+
+3. **流水线模式（pipeline）**
+   多个任务串联执行，前一个任务的输出作为后一个任务的输入。
+   ```
+   >>> /swarm pipeline planner,coder 设计并实现一个快速排序
+   >>> /swarm pipeline tool:search_web,cmd:/write report.md 搜索并保存报告
+   ```
+
+大模型调用方式：
+```
+【调用：swarm_run({"mode": "council", "names": ["planner", "coder"], "user_input": "设计登录模块"})】
+```
+
+### 动态构建（Dynamic Builder）
+
+fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生成后的工具立即注册到命令注册表，可供用户和 AI 调用。
+
+**触发方式：**
+
+```bash
+# 手动触发
+>>> /build 生成一个二维码识别工具
+>>> /build 把图片转换成 ASCII 艺术
+>>> /build 查询 Hacker News 热榜
+
+# AI 自动触发
+>>> 帮我生成一个二维码
+【调用：dynamic_build({"requirement": "生成一个二维码识别工具"})】
+```
+
+**管理已构建工具：**
+
+```bash
+>>> /build list
+>>> /build del qr_tool
+```
+
+**工作流程：**
+
+1. **需求规划**：LLM 判断需求是否已被现有能力覆盖；若未覆盖，输出构建计划（工具名、依赖、参数、别名、触发词）。
+2. **依赖安装**：自动检查并提示安装所需的 `pip` 包，默认需要用户确认。
+3. **代码生成**：LLM 生成包含 `run(deps, **kwargs)` 入口的 Python 代码。
+4. **持久化与注册**：代码保存到 `~/.fr_cli/dynamic_tools/<name>.py`，元数据写入 `registry.json`，并立即注册到 `ToolRegistry`。
+5. **自动加载**：fr-cli 启动时自动加载所有已构建的工具。
+
+**代码约定：**
+
+- 动态工具必须包含 `def run(deps, **kwargs)` 函数
+- `deps` 包含：`vfs`, `mail_c`, `web_c`, `disk_c`, `plugins`, `lang`, `security`, `cfg`, `client`, `model_name`, `mcp`
+- 返回 `Result`，其中 `Result.error` 为 `None` 或错误字符串（仍兼容 `(result, error)` 解包）
+- `breakthrough/update.py` 与 `agent/server.py` 已加入 Result 化，HTTP 接口统一返回 `{"result": ..., "error": ...}`
+- 第三方依赖缺失时，应在函数内部捕获 `ImportError` 并返回安装提示
+
+**相关文件：**
+
+- `fr_cli/dynamic_builder/planner.py` — 需求规划
+- `fr_cli/dynamic_builder/dependency_manager.py` — 依赖检查/安装
+- `fr_cli/dynamic_builder/code_generator.py` — 代码生成
+- `fr_cli/dynamic_builder/registry_manager.py` — 持久化与注册
+- `fr_cli/dynamic_builder/runner.py` — 主流程编排
+- `fr_cli/repl/commands/build.py` — `/build` 命令
+- `fr_cli/command/registered/dynamic_build.py` — `dynamic_build` AI 工具
 
 ### 内置 Agent 使用指南
 
@@ -407,10 +575,26 @@ Agent 存储在 `~/.fr_cli/agents/<name>/` 目录下。
 🔍 正在检索知识库并生成回答...
 ```
 - 向量库：ChromaDB（嵌入式 `PersistentClient`，自动启动，无需单独服务）
-- 嵌入模型：all-MiniLM-L6-v2（向量检索）
-- Rerank 模型：cross-encoder/ms-marco-MiniLM-L-6-v2（重排序，取 top-3）
-- 大模型判定：LLM 从 top-3 中按相关性/完整性/准确性评估，选出 ★【最佳】片段
-- 最终生成：优先基于最佳片段回答，可综合其他片段补充
+
+**@stock — 股票/量化交易助手**
+```
+>>> @stock 查询茅台股价
+🧙 正在分析股票数据...
+贵州茅台 当前价格 ...
+
+>>> @stock 买入 600519 1500.00 100
+模拟交易确认: 动作=BUY 代码=600519.SH 数量=100 价格=1500.00
+是否执行? [y/N]: y
+✅ 模拟交易已记录
+```
+- 数据源：akshare（免 key）、麦蕊 API（需 token）、tushare（需 token）
+- 交易能力：当前仅提供模拟交易记录，真实交易 API 需自行扩展
+- 配置命令：
+  - `/stock_config setup` — 交互式配置向导
+  - `/stock_config source akshare|mairui|tushare|trade`
+  - `/stock_config key mairui <key>` / `/stock_config token tushare <token>`
+- 嵌入模型：all-MiniLM-L6-v2（向量检索，取 top-8 片段）
+- 综合生成：将检索到的片段一次性交给大模型，由其综合回答并标注来源
 - 配置命令：`/rag_dir <目录路径>` — 设置目录并首次同步
 - 手动同步：`/rag_sync [路径]` — 立即向量化新文件/更新文件
 - 独立守护进程：`/rag_watch start [目录] [--interval N]` — 启动持久化后台监控进程
@@ -509,6 +693,11 @@ for step in range(8):
   - content: "{{step2.result}}"
 ```
 
+- 支持的步骤 action：`ai_generate`、`invoke_tool` / `tool`、`execute_cmd` / `cmd`、`agent_call`、`save_memory`
+- `params` 中可指定 `timeout`（秒）为单步设置执行超时，如 `timeout: 30`
+- `params` 中可指定 `retry_count` 为重试次数
+- 执行前会自动检测 `{{stepN.result}}` / `{{stepN.error}}` 之间的循环依赖，发现环则直接返回错误
+
 ### HTTP API 示例
 
 ```bash
@@ -521,11 +710,59 @@ curl http://localhost:8080/agents
 curl http://localhost:8080/agents/my_agent
 curl -X POST http://localhost:8080/agents/my_agent/run \
   -H "Content-Type: application/json" \
-  -d '{"input": "请分析这个需求"}'
+  -d '{"input": "请分析这个需求", "timeout": 120}'
 curl -X POST http://localhost:8080/agents/my_agent/workflow \
   -H "Content-Type: application/json" \
-  -d '{"input": "Python 最新特性"}'
+  -d '{"input": "Python 最新特性", "timeout": 180}'
 ```
+
+- `/run` 默认超时 120 秒，`/workflow` 默认 180 秒，可通过请求体 `timeout` 字段覆盖（最大 600 秒）
+- 超时返回 HTTP 504，响应体包含 `{"result": null, "error": "...超时..."}`
+
+### 蜂群协作（Swarm）
+
+多个**任务单元**可组成**蜂群**，以并行、议会或流水线模式协同完成复杂任务。蜂群由 `fr_cli/agent/swarm.py` 中的 `SwarmEngine` 驱动，任务解析与执行统一收敛到 `fr_cli/agent/swarm_resolver.py` 的 `SwarmTaskResolver`。
+
+任务单元支持：自定义 Agent、内置 Agent（`@local` / `@remote` / `@db` / `@spider` / `@RAG` / `@stock`）、注册表工具、`/` 命令、MCP 工具、自定义插件。
+
+**协作模式**
+
+| 模式 | 说明 | 适用场景 |
+|---|---|---|
+| `parallel` | 并发独立调用每个任务，返回各自结果 | 多角度并行分析、批量处理 |
+| `council` | 先并行执行，再由大模型汇总为一致结论 | 评审、投票、共识生成 |
+| `pipeline` | 串联执行，前一任务输出作为后一任务输入 | 分阶段加工（搜索→整理→保存） |
+
+**任务名称格式**
+
+```
+agent:myagent              # 自定义/远程 Agent
+@local 或 builtin:local    # 内置 Agent
+tool:search_web            # 注册表工具
+cmd:/web 搜索词            # 命令字符串（/ 开头也可自动识别）
+mcp:fs/read_file {"path": "/tmp/a.txt"}  # MCP 工具
+plugin:myplugin            # 自定义插件
+```
+
+**命令示例**
+
+```
+>>> /swarm parallel coder,reviewer 帮我review这段代码
+>>> /swarm council researcher,writer 调研并总结 Python 3.13 新特性
+>>> /swarm pipeline extractor,summarizer 从报告中提取关键点并生成摘要
+>>> /swarm parallel @local,tool:search_web 分析项目并搜索资料
+>>> /swarm pipeline tool:search_web,cmd:/write report.md 搜索并保存报告
+```
+
+**AI 调用示例**
+
+```
+【调用：swarm_run({"mode": "council", "names": ["coder", "reviewer"], "user_input": "帮我review这段代码"})】
+```
+
+- `names`：任务名称列表，逗号分隔
+- `max_workers`：最大并发数，默认 5，上限 10
+- 某个任务失败时仅记录 `error` 字段，不影响蜂群整体执行
 
 ---
 
@@ -543,8 +780,17 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 | `change_dir` | `{"path": "dir"}` | 切换目录 |
 | `append_file` | `{"path": "a.md", "content": "..."}` | 追加内容 |
 | `delete_file` | `{"path": "a.md"}` | 删除文件 |
+| `rename_file` | `{"old_path": "a.md", "new_path": "b.md"}` | 重命名文件 |
+| `replace_text` | `{"path": "a.md", "old_text": "foo", "new_text": "bar", "use_regex": false}` | 文本替换（支持正则） |
+| `grep_text` | `{"path": "a.md", "pattern": "regex", "use_regex": true}` | 正则/文本匹配 |
 | `search_web` | `{"query": "搜索词"}` | 联网搜索 |
 | `fetch_web` | `{"url": "https://..."}` | 抓取网页 |
+| `ping_host` | `{"host": "example.com"}` | ping 探测 |
+| `port_scan` | `{"host": "192.168.1.1", "ports": "22,80,443"}` | 端口扫描 |
+| `ip_scan` | `{"network": "192.168.1.0/24"}` | IP 存活扫描 |
+| `network_devices` | `{"network": "192.168.1.0/24"}` | 网络设备发现 |
+| `ssh_command` | `{"host": "srv", "user": "root", "command": "uptime"}` | SSH 执行远程命令 |
+| `scp_transfer` | `{"host": "srv", "user": "root", "local_path": "a.txt", "remote_path": "/tmp/a.txt", "direction": "up"}` | SCP/SFTP 文件传输 |
 | `generate_image` | `{"prompt": "描述"}` | 生成图片 |
 | `analyze_image` | `{"path": "img.jpg", "text": "问题"}` | 图片分析 |
 | `mail_inbox` | `{}` | 查看收件箱 |
@@ -563,6 +809,9 @@ AI 使用 `【调用：tool_name({"参数": "值"})】` 格式，参数为标准
 | `set_key` | `{"key": "xxx"}` | 设置 API Key |
 | `set_limit` | `{"limit": 4096}` | 设置 token 上限 |
 | `set_lang` | `{"code": "zh"}` | 切换语言 |
+| `generate_chart` | `{"type": "bar", "labels": ["A", "B", "C"], "values": [10, 20, 30], "title": "销售"}` | 生成控制台图表（bar/pie/line） |
+| `swarm_run` | `{"mode": "council", "names": ["coder", "reviewer"], "user_input": "帮我review这段代码"}` | 蜂群协作：并行/议会/流水线多 Agent 协作 |
+| `ocr_recognize` | `{"path": "invoice.pdf"}` | OCR 识别图片或 PDF 中的文字 |
 | `mcp_call` | `{"server": "fs", "tool": "read_file", "arguments": {"path": "/tmp/a.txt"}}` | 调用 MCP 外部神通 |
 | `mcp_list` | `{}` | 列出 MCP 服务器及工具 |
 
@@ -638,7 +887,27 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
     "auto_confirm_forever": False,  # 安全：永久放行
     "mail": {},                 # 邮件配置
     "disk": {},                 # 网盘配置
-    "mcp": {"servers": []}      # MCP 外部神通服务器列表
+    "mcp": {"servers": []},     # MCP 外部神通服务器列表
+    "ocr": {                    # OCR 文字识别配置
+        "provider": "",         # 复用全局 providers 中的厂商（如 zhipu / deepseek / kimi）
+        "model": "",            # OCR Vision 模型名（如 glm-4v）
+        "key": "",              # 专属 API Key（可选，为空则使用全局厂商 key）
+        "base_url": "",         # 自定义接口地址（provider 为空时使用）
+        "prompt": ""            # 默认 OCR 提示词
+    },
+    "stock": {                  # 股票/量化交易配置
+        "default_source": "akshare",
+        "akshare": {"enabled": true},
+        "mairui": {"enabled": false, "key": "", "base_url": "https://api.mairui.club"},
+        "tushare": {"enabled": false, "token": ""},
+        "trade": {"enabled": false, "api": "", "key": "", "secret": "", "base_url": ""},
+        "portfolio": {}         # 模拟持仓
+    },
+    "usage_prices": {           # Token 费用估算表（单位：元/千 tokens）
+        "deepseek": {
+            "deepseek-chat": {"prompt": 1.5, "completion": 6.0}
+        }
+    }
 }
 ```
 
@@ -646,6 +915,73 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 - `~/.fr_cli/sessions/manual/` — 会话历史 JSON 文件
 - `~/.fr_cli/plugins/` — 用户插件 `.py` 文件
 - `~/.fr_cli/context.json` — 上下文记忆摘要
+- `~/.fr_cli/usage.json` — LLM 调用用量统计（文件权限 0o600）
+- `~/.fr_cli/cron.json` — 定时任务持久化
+- `~/.fr_cli/m365.json` — Microsoft 365 OAuth token 缓存（文件权限 0o600）
+- `~/.fr_cli/agents/<name>/config.json` — Agent 专属模型配置
+- `~/.fr_cli/agents/<name>/progress.json` — Agent 定时任务执行进度
+- `~/.fr_cli/daemon/config.json` — Gatekeeper 守护进程配置
+
+> **统一持久化抽象**：新增 `fr_cli/core/store.py:JsonStore`，为所有 JSON 文件提供原子写、默认回退、权限控制与线程安全。目前已用于 `usage.json`、`cron.json`、`m365.json`、Agent `config.json`/`progress.json`、Gatekeeper `daemon/config.json`，其他 JSON 存储可逐步迁移。
+
+---
+
+### OCR 文字识别配置
+
+OCR 功能支持两种识别引擎：
+- **vision**（默认）：通过 OpenAI 兼容的多模态 Vision API 识别，需配置模型与 Key。
+- **paddle**：本地 PaddleOCR 引擎，离线识别，无需 API Key。
+
+**配置方式：**
+
+```bash
+# 交互式配置向导
+>>> /ocr_config setup
+
+# 切换识别引擎
+>>> /ocr_config engine paddle
+>>> /ocr_config engine vision
+
+# 直接设置字段（vision 引擎）
+>>> /ocr_config provider zhipu
+>>> /ocr_config model glm-4v
+>>> /ocr_config key sk-xxx          # 可选，覆盖全局 key
+>>> /ocr_config base_url https://... # 自定义接口时使用
+>>> /ocr_config prompt "请提取所有发票字段"
+```
+
+**字段说明：**
+
+| 字段 | 说明 |
+|---|---|
+| `engine` | 识别引擎：`vision`（默认）或 `paddle` |
+| `provider` | 复用全局 `providers` 中的厂商；留空则使用 `base_url` + `key` 自定义接口 |
+| `model` | Vision 模型名，如 `glm-4v`、`moonshot-v1-8k`、`deepseek-vl` 等 |
+| `key` | 专属 API Key；为空且 `provider` 非空时，自动回退到该厂商全局 key |
+| `base_url` | 自定义 OpenAI 兼容接口地址，仅在 `provider` 为空或未知时生效 |
+| `prompt` | 默认 OCR 提示词，可引导模型输出表格、字段、翻译等 |
+
+**使用示例：**
+
+```bash
+>>> /ocr screenshot.png
+>>> /ocr invoice.pdf
+>>> /ocr /path/to/scan.jpg
+```
+
+**依赖安装：**
+
+PDF 识别依赖 `pymupdf`：
+
+```bash
+pip install pymupdf
+```
+
+PaddleOCR 引擎依赖 `paddleocr` 与 `paddlepaddle`：
+
+```bash
+pip install paddleocr paddlepaddle
+```
 
 ---
 
@@ -676,21 +1012,36 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
   from fr_cli.lang.i18n import T
   ```
 
+### 静态检查
+
+- 项目已配置 `ruff`，启用 `F` + `E` + `W`。
+- 因历史风格保留部分忽略项：`E401`（多导入一行）、`E701/E702`（单行 if/return）、`E402`（可选依赖延迟导入）、`E501`（行长度）、`E741`（单字母变量）、`E731`（lambda 赋值）、`F403/F405`（star import）。
+- 提交前运行：
+  ```bash
+  ruff check fr_cli tests
+  .venv/bin/python -m pytest tests/ -q
+  ```
+
 ---
 
 ## 测试说明
 
 项目已有完整测试套件：
 
-- `tests/test_a2a_and_providers.py` — A2A 协议与多提供商测试
+- `tests/test_a2a_and_providers.py` — 多提供商测试
 - `tests/test_integration_real.py` — 集成测试（配置/LLM/Agent/工作流）
 - `tests/test_master_prompt_fix.py` — MasterAgent Prompt 格式修复测试
 - `tests/test_model_config.py` — 模型配置与 LLM 客户端测试
-- `tests/test_new_features.py` — 新特性测试（图片/并行/工作流）
+- `tests/test_workflow.py` — Agent 工作流引擎测试
 - `tests/test_new_providers.py` — 新提供商测试（MiniMax/Kimi）
-- 总计 **204 个测试全部通过**
+- `tests/test_ocr.py` — OCR 文字识别测试
+- `tests/test_stock.py` — StockShareAgent 股票/量化助手测试
+- `tests/test_swarm.py` — 蜂群多 Agent 协作测试
+- `tests/test_plan.py` — 计划模式测试
+- `tests/test_dynamic_builder.py` — 动态构建系统测试
+- 总计 **357 个测试全部通过**
 
-测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、Gatekeeper
+测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、PlanMode、Gatekeeper
 
 ---
 
@@ -763,7 +1114,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 ### 11. 架构解耦带来的安全收益
 
 - `CommandExecutor` 从快照同步改为**动态构建依赖**（`_build_deps(state)`），消除状态不同步导致的安全边界漂移
-- `main.py` 从 1334 行瘦身至 ~600 行，命令处理器提取至 `repl/commands.py`，降低单文件复杂度带来的安全风险
+- `main.py` 已瘦身，命令处理器拆分为 `repl/commands/` 包并由 `repl/router.py` 统一路由，降低单文件复杂度带来的安全风险
 
 ---
 
@@ -776,7 +1127,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 | 添加本机应用启动 | 修改 `weapon/launcher.py` 的 `_APP_ALIASES` 映射表，按平台添加别名 |
 | 添加数据库支持 | 修改 `agent/builtins/db.py` 的 `_connect()` 添加新数据库驱动 |
 | 添加 RAG 文件类型 | 修改 `agent/builtins/rag.py` 的 `_read_file()` 添加新文件格式解析 |
-| 修改 RAG 检索流程 | 修改 `agent/builtins/rag.py` 的 `query()` — 调整 rerank 模型、候选池大小、大模型判定 prompt |
+| 修改 RAG 检索流程 | 修改 `agent/builtins/rag.py` 的 `query()` — 调整嵌入模型、候选池大小、生成 prompt |
 | 添加 Excel/CSV 支持 | 修改 `weapon/dataframe.py` 添加新的数据读取/分析方法 |
 | 添加 MCP 传输方式 | 修改 `weapon/mcp.py` 添加新传输协议（如 SSE） |
 | 添加 Agent 工作流 | 在 Agent 目录下创建 `workflow.md`，使用 `## 步骤N` 格式定义步骤 |
@@ -785,10 +1136,13 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 | 启动 Gatekeeper 守护进程 | 在 CLI 中输入 `/gatekeeper start`，持久化 Agent HTTP 服务 + 定时任务 + Agent 定时任务 |
 | 添加 Agent 定时任务 | 在 CLI 中输入 `/agent_cron_add <agent名称> <秒> [输入]`，Gatekeeper 后台自动执行 |
 | 修改定时任务执行逻辑 | 修改 `weapon/cron.py` 的 `CronManager._job_runner()`，支持 shell/agent 两种类型 |
+| 使用蜂群调度任意任务 | `/swarm parallel agent:a,@local,tool:search_web,cmd:/ls,mcp:fs/read_file,plugin:myplugin 任务描述` |
+| 动态构建新工具 | `/build <需求描述>` 或 AI 调用 `dynamic_build({"requirement": "..."})` |
+| 使用 Microsoft 365 邮件 | 配置 Azure AD 应用后执行 `/m365_config setup`，支持 OAuth2 设备码/授权码流 + MFA |
 | 添加新配置项 | 修改 `conf/config.py` 的默认字典 `d`，在 `AppState` 中读取并使用 |
 | 修改安全策略 | 修改 `security/security.py` 的 `ask()`，确保返回值在 `command/security.py` 的 `SecurityManager.check()` 中正确处理 |
-| 切换思维模式 | 在 CLI 中输入 `/mode cot|tot|react`，启用 CoT/ToT/ReAct 深度推理 |
-| 修改思维引擎 | 修改 `core/thinking.py` 的 prompt 模板或 `ThinkingEngine.analyze()` 逻辑 |
+| 切换思维模式 | 在 CLI 中输入 `/mode cot|tot|react|plan`，启用 CoT/ToT/ReAct/Plan 深度推理 |
+| 修改思维引擎 | 修改 `core/thinking.py` 的 prompt 模板或 `ThinkingEngine.analyze()` 逻辑；计划模式逻辑在 `core/plan.py` |
 | 修改插件机制 | 修改 `addon/plugin.py`，保持 `def run(args='')` 的约定和子进程超时 15 秒的限制 |
 | 修改流式输出 | 修改 `core/stream.py` 的 `stream_cnt()`，注意代码块高亮状态机 |
 | 修改国际化文本 | 修改 `lang/i18n.py` 的 `I18N` 字典，确保 `zh` 与 `en` 键同时存在 |
@@ -798,4 +1152,4 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 
 ---
 
-*文档更新时间：2026-04-20（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct 思维推演模式 + MasterAgent 自我进化主控 + 按日期自动存档会话 + 全模块安全加固与架构解耦）。*
+*文档更新时间：2026-06-13（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG/stock）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct/Plan 思维推演模式 + MasterAgent 自我进化主控 + 按日期自动存档会话 + 蜂群统一调度（Agent/工具/命令/MCP/插件）+ OCR 文字识别（Vision API + PaddleOCR 本地引擎）+ StockShareAgent 股票量化助手 + 计划模式 + 动态构建系统（按需安装依赖并生成工具）+ Microsoft 365 邮件现代认证（OAuth2 设备码/授权码流 + MFA）+ 架构评审 dead code 清理（command/handlers、agent coding_helper/gateway/acp/plugin_system/context_files/powerful_agent_template、workflow_system、image_and_parallel 并行执行器与图片模型配置/生成/终端展示、main.py 重复入口）+ 高危漏洞修复（disk_up 参数顺序、注册表 sec_* 覆盖、MasterAgent 自动污染、@local Windows shell=True 回退、dataframe VFS 强制）+ Result 返回风格统一（command/executor、weapon/fs、dynamic_builder/registry_manager/runner、gatekeeper/manager、weapon/ocr、weapon/charts、weapon/launcher、weapon/network、weapon/remote、weapon/web、weapon/disk、weapon/mail、weapon/m365、agent/builtins/remote、agent/builtins/db））。*

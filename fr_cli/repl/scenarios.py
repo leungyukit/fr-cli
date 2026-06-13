@@ -8,8 +8,9 @@
 - /daily：写日报模板（可选）
 """
 import subprocess
-import shlex
 from typing import Optional, Tuple, List
+
+from prompt_toolkit.formatted_text import FormattedText
 
 
 # ==================== Git 工具函数 ====================
@@ -237,7 +238,7 @@ def scenario_pr(state, args: List[str], prompt) -> str:
         pr_desc = pr_desc[:-3].rstrip()
 
     # 拼上标题
-    title_prompt = f"用 30 字内中文给这个 PR 起个标题（只输出标题文字，不要 #）"
+    title_prompt = "用 30 字内中文给这个 PR 起个标题（只输出标题文字，不要 #）"
     print(f"{CYAN}🤖 正在生成 PR 标题...{RESET}")
     prompt.set_busy(True)
     try:

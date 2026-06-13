@@ -4,9 +4,6 @@
 引号、反斜杠的路径以及空参数、含特殊字符的参数。
 """
 
-import pytest
-import tempfile
-from pathlib import Path
 
 
 class TestPluginExecution:

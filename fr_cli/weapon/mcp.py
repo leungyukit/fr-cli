@@ -1,21 +1,32 @@
 """
 MCP 工具管理器
-参考 kimi-cli 实现的 MCP 支持
+
+基于官方 `mcp` SDK 实现 JSON-RPC over stdio，支持：
+- 启动/停止 MCP 子进程服务器
+- tools/list 获取真实工具列表
+- tools/call 同步调用工具
 
 配置统一收敛到 ~/.fr_cli/config.json 的 mcp.servers 字段，
-不再单独维护 ~/.fr_cli/mcp/servers.json。旧文件会在加载时一次性迁移到主配置。
+旧独立配置文件 ~/.fr_cli/mcp/servers.json 会在加载时一次性迁移。
 """
 
 import os
 import json
-import subprocess
-import sys
 import threading
-import asyncio
 from typing import Dict, List, Optional, Any
 from dataclasses import dataclass, asdict
+
 from fr_cli.conf.paths import MCP_SERVERS_FILE
 from fr_cli.conf.config import save_config
+
+
+try:
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+    from mcp.types import TextContent
+    _MCP_AVAILABLE = True
+except ImportError:
+    _MCP_AVAILABLE = False
 
 
 @dataclass
@@ -35,7 +46,7 @@ class MCPServer:
 
 
 class MCPServerManager:
-    """MCP 服务器管理器"""
+    """MCP 服务器管理器（基于 mcp SDK）"""
 
     def __init__(self, cfg: dict = None):
         """初始化管理器，cfg 为 ~/.fr_cli/config.json 的内容。
@@ -44,7 +55,6 @@ class MCPServerManager:
         """
         self.cfg = cfg or {}
         self.servers: Dict[str, MCPServer] = {}
-        self._processes: Dict[str, subprocess.Popen] = {}
         self._load()
 
     def _load(self):
@@ -119,159 +129,109 @@ class MCPServerManager:
             name=name,
             transport=transport,
             command=command,
-            args=args,
+            args=args or [],
             url=url,
             headers=headers,
-            auth_type=auth_type
+            auth_type=auth_type,
         )
         self.servers[name] = server
         self._save()
-        return server
+        return True
 
-    def toggle_server(self, name: str, enabled: bool):
-        """启用/禁用服务器，返回 (ok, err) 元组"""
-        if name not in self.servers:
-            return False, f"Unknown server: {name}"
-        self.servers[name].enabled = bool(enabled)
-        self._save()
-        return True, None
-
-    def quick_add(self, name: str, command: str, args: List[str]):
-        """便捷添加：直接用 stdio + command + args，避免命令路径写错。
-
-        对应 CLI 调用 `/mcp_add <name> <cmd> [args...]`。
-        """
-        return self.add_server(name=name, transport="stdio", command=command, args=args)
-
-    def remove_server(self, name: str) -> bool:
-        """移除 MCP 服务器"""
-        if name in self.servers:
-            self.stop_server(name)
-            del self.servers[name]
-            self._save()
-            return True
-        return False
-
-    def list_servers(self) -> List[MCPServer]:
-        """列出所有服务器"""
-        return list(self.servers.values())
-
-    def start_server(self, name: str) -> bool:
-        """启动 MCP 服务器"""
+    def del_server(self, name: str):
+        """删除 MCP 服务器"""
         if name not in self.servers:
             return False
+        self.servers.pop(name)
+        self._save()
+        return True
 
-        if name in self._processes:
-            # 已启动则先确认进程还活着
-            proc = self._processes[name]
-            if proc.poll() is None:
-                return True
-            # 进程已死，清理后重启
-            del self._processes[name]
+    def enable_server(self, name: str):
+        """启用 MCP 服务器"""
+        if name not in self.servers:
+            return False
+        self.servers[name].enabled = True
+        self._save()
+        return True
 
-        server = self.servers[name]
+    def disable_server(self, name: str):
+        """禁用 MCP 服务器"""
+        if name not in self.servers:
+            return False
+        self.servers[name].enabled = False
+        self._save()
+        return True
 
-        try:
-            if server.transport == "stdio" and server.command:
-                # start_new_session=True 隔离进程组，避免父进程 SIGINT 影响子进程
-                # 不使用 PIPE stdin/stdout（避免缓冲区满阻塞）；stderr 仍捕获以便排错
-                popen_kwargs = {
-                    "stdin": subprocess.DEVNULL,
-                    "stdout": subprocess.DEVNULL,
-                    "stderr": subprocess.PIPE,
-                }
-                if os.name == "posix":
-                    popen_kwargs["start_new_session"] = True
-                else:
-                    # Windows 下用 CREATE_NEW_PROCESS_GROUP
-                    popen_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-                proc = subprocess.Popen(
-                    [server.command] + (server.args or []),
-                    **popen_kwargs,
-                )
-                self._processes[name] = proc
-                return True
+    def list_servers(self) -> List[Dict]:
+        """列出所有 MCP 服务器"""
+        return [srv.to_dict() for srv in self.servers.values()]
 
-        except Exception as e:
-            print(f"启动 MCP 服务器 {name} 失败: {e}")
+    def get_server(self, name: str) -> Optional[MCPServer]:
+        """获取指定服务器配置"""
+        return self.servers.get(name)
 
-        return False
+    def _server_to_params(self, srv: MCPServer) -> Optional[StdioServerParameters]:
+        """将内部 MCPServer 转换为 mcp SDK 的 StdioServerParameters"""
+        if not srv.command:
+            return None
+        env = os.environ.copy()
+        return StdioServerParameters(
+            command=srv.command,
+            args=srv.args or [],
+            env=env,
+        )
 
-    def stop_server(self, name: str):
-        """停止 MCP 服务器"""
-        if name not in self._processes:
-            return
-        proc = self._processes[name]
-        try:
-            if proc.poll() is None:
-                proc.terminate()
-                try:
-                    proc.wait(timeout=5)
-                except subprocess.TimeoutExpired:
-                    proc.kill()
-                    try:
-                        proc.wait(timeout=2)
-                    except Exception:
-                        pass
-        except Exception as e:
-            print(f"停止 MCP 服务器 {name} 时出错: {e}")
-        finally:
-            # 无论 terminate/kill 成功与否都从字典里移除，避免泄漏
-            self._processes.pop(name, None)
-
-    def stop_all(self):
-        """停止所有服务器"""
-        for name in list(self._processes.keys()):
-            self.stop_server(name)
-
-    def __del__(self):
-        """析构时尽量清理子进程"""
-        try:
-            self.stop_all()
-        except Exception:
-            pass
+    async def _get_tools_async(self, srv: MCPServer) -> List[Dict]:
+        """异步获取某服务器的工具列表"""
+        params = self._server_to_params(srv)
+        if params is None:
+            return []
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.list_tools()
+                tools = []
+                for tool in result.tools:
+                    tools.append({
+                        "name": tool.name,
+                        "description": tool.description or "",
+                        "inputSchema": tool.inputSchema,
+                        "server": srv.name,
+                    })
+                return tools
 
     def get_tools(self, name: str) -> List[Dict]:
-        """获取 MCP 工具列表（基于本地配置 —— 完整协议未实现）
-
-        返回值是从配置派生的占位描述。完整 MCP 协议（stdin/stdout JSON-RPC
-        握手 + tools/list 响应）尚未实现，因此这里不能返回 server 真正声明的
-        工具集合。如需启用真实协议，需在 start_server 后用 json-rpc 与
-        子进程 stdin/stdout 通信。
-        """
+        """获取 MCP 工具列表（真实调用 tools/list）"""
+        if not _MCP_AVAILABLE:
+            return []
         if name not in self.servers:
             return []
-        # 占位实现：返回一个示例工具，提示用户这是配置派生
-        return [
-            {
-                "name": f"{name}_placeholder",
-                "description": f"MCP server '{name}' is registered but the JSON-RPC handshake "
-                               f"is not yet implemented. Tools will appear here after the "
-                               f"server handshake is added.",
+        srv = self.servers[name]
+        if not srv.enabled:
+            return []
+        if srv.transport != "stdio":
+            return []
+        try:
+            import asyncio
+            return asyncio.run(self._get_tools_async(srv))
+        except Exception as e:
+            return [{
+                "name": f"{name}_error",
+                "description": f"获取工具列表失败: {e}",
                 "inputSchema": {"type": "object", "properties": {}},
                 "server": name,
-                "_stub": True,
-            }
-        ]
+                "_error": True,
+            }]
 
     def list_all_tools(self) -> List[Dict]:
-        """列出所有已注册服务器的工具（占位实现）"""
+        """列出所有已启用服务器的工具"""
         all_tools = []
         for name in self.servers:
             all_tools.extend(self.get_tools(name))
         return all_tools
 
     def get_server_tools_desc(self) -> str:
-        """生成所有 MCP 服务器的描述文本（注入到 system prompt）
-
-        格式：
-            [MCP server: filesystem]
-              transport: stdio
-              command: npx
-              args: ['-y', '@modelcontextprotocol/server-filesystem', '/tmp']
-            [MCP server: github]
-              ...
-        """
+        """生成所有 MCP 服务器的描述文本（注入到 system prompt）"""
         if not self.servers:
             return ""
         lines = ["[MCP servers]"]
@@ -285,58 +245,51 @@ class MCPServerManager:
                 lines.append(f"  url: {srv.url}")
         return "\n".join(lines)
 
-    def call_tool_sync(self, server_name: str, tool_name: str, arguments: Dict) -> Any:
-        """同步调用 MCP 工具（当前为简化占位实现）
+    async def _call_tool_async(self, srv: MCPServer, tool_name: str, arguments: Dict) -> Any:
+        """异步调用 MCP 工具"""
+        params = self._server_to_params(srv)
+        if params is None:
+            return None, f"MCP server [{srv.name}] 缺少启动命令"
+        async with stdio_client(params) as (read, write):
+            async with ClientSession(read, write) as session:
+                await session.initialize()
+                result = await session.call_tool(tool_name, arguments=arguments or {})
+                texts = []
+                for content in result.content:
+                    if isinstance(content, TextContent):
+                        texts.append(content.text)
+                    else:
+                        texts.append(str(content))
+                return "\n".join(texts), None
 
-        调用方应当先 list_all_tools() 检查是否有 stub 工具，
-        或者根据 get_server_tools_desc() 决定是否要调起真实 MCP server。
-        """
+    def call_tool_sync(self, server_name: str, tool_name: str, arguments: Dict) -> Any:
+        """同步调用 MCP 工具"""
+        if not _MCP_AVAILABLE:
+            return None, "MCP SDK 未安装，请执行: pip install mcp"
         if server_name not in self.servers:
             return None, f"Unknown MCP server: {server_name}"
         srv = self.servers[server_name]
         if not srv.enabled:
             return None, f"MCP server [{server_name}] 已禁用"
-        # 当前仅支持 stdio 传输方式的简化调用
-        if srv.transport == "stdio" and srv.command:
-            try:
-                payload = json.dumps({
-                    "jsonrpc": "2.0",
-                    "id": 1,
-                    "method": "tools/call",
-                    "params": {"name": tool_name, "arguments": arguments or {}}
-                })
-                proc = subprocess.Popen(
-                    [srv.command] + (srv.args or []),
-                    stdin=subprocess.PIPE,
-                    stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE,
-                    text=True,
-                )
-                stdout, stderr = proc.communicate(input=payload + "\n", timeout=30)
-                if stderr:
-                    return None, f"MCP server error: {stderr[:500]}"
-                try:
-                    resp = json.loads(stdout.strip().splitlines()[-1])
-                    if "error" in resp:
-                        return None, f"MCP tool error: {resp['error']}"
-                    return resp.get("result", stdout), None
-                except Exception:
-                    return stdout, None
-            except subprocess.TimeoutExpired:
-                return None, "MCP 调用超时（30秒）"
-            except Exception as e:
-                return None, f"MCP 调用失败: {e}"
-        return None, (
-            f"MCP server [{server_name}] 传输类型 '{srv.transport}' 暂不支持同步调用。"
-            "当前仅支持 stdio 传输。"
-        )
+        if srv.transport != "stdio":
+            return None, (
+                f"MCP server [{server_name}] 传输类型 '{srv.transport}' 暂不支持同步调用。"
+                "当前仅支持 stdio 传输。"
+            )
+        try:
+            import asyncio
+            return asyncio.run(self._call_tool_async(srv, tool_name, arguments))
+        except Exception as e:
+            return None, f"MCP 调用失败: {e}"
 
     async def call_tool(self, server_name: str, tool_name: str, arguments: Dict) -> Any:
-        """异步调用 MCP 工具（当前为未实现）"""
-        raise NotImplementedError(
-            "MCP JSON-RPC 协议握手尚未实现。请使用 mcp_call 注册的占位工具，"
-            "或自行实现 JSON-RPC 与已启动子进程的 stdin/stdout 通信。"
-        )
+        """异步调用 MCP 工具"""
+        if not _MCP_AVAILABLE:
+            raise NotImplementedError("MCP SDK 未安装")
+        if server_name not in self.servers:
+            raise ValueError(f"Unknown MCP server: {server_name}")
+        srv = self.servers[server_name]
+        return await self._call_tool_async(srv, tool_name, arguments)
 
     @staticmethod
     def from_config_file(config_file: str) -> 'MCPServerManager':
@@ -390,16 +343,12 @@ def reset_mcp_manager():
     """重置全局单例（仅用于测试或热加载新配置）"""
     global _mcp_manager
     with _mcp_manager_lock:
-        if _mcp_manager is not None:
-            try:
-                _mcp_manager.stop_all()
-            except Exception:
-                pass
         _mcp_manager = None
 
 
 def load_from_config_file(config_file: str) -> MCPServerManager:
     """从配置文件加载 MCP 服务器"""
     return MCPServerManager.from_config_file(config_file)
+
 
 MCPManager = MCPServerManager

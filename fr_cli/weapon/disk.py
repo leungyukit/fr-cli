@@ -6,6 +6,7 @@ import os
 import logging
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import RED, GREEN, RESET
+from fr_cli.core.result import Result
 
 class CloudDisk:
     def __init__(self, cfg):
@@ -34,22 +35,23 @@ class CloudDisk:
                 self.client = f"ERR:{e}"
 
     def _check_client(self, lang):
-        """检查客户端状态并返回错误信息"""
+        """检查客户端状态，返回 Result[client]。"""
         if not self.client:
-            return None, T("disk_no_cfg", lang)
+            return Result.fail(T("disk_no_cfg", lang))
         if isinstance(self.client, str):
             if self.client.startswith("MISSING:"):
                 lib = self.client.split(":")[1]
-                return None, T("disk_miss_dep", lang, lib, lib)
+                return Result.fail(T("disk_miss_dep", lang, lib, lib))
             if self.client.startswith("ERR:"):
-                return None, f"{T('disk_err', lang)} {self.client[4:]}"
-        return self.client, None
+                return Result.fail(f"{T('disk_err', lang)} {self.client[4:]}")
+        return Result.ok(self.client)
 
     def ls(self, lang):
-        """列出当前云盘目录的文件和文件夹（带类型标识）"""
-        client, err = self._check_client(lang)
-        if err:
-            return None, err
+        """列出当前云盘目录的文件和文件夹（带类型标识），返回 Result[list]。"""
+        client_result = self._check_client(lang)
+        if client_result.is_fail():
+            return Result.fail(client_result.error)
+        client = client_result.unwrap()
         try:
             files = client.get_file_list(parent_file_id=self._cwd)
             self._path_map = {}
@@ -63,42 +65,43 @@ class CloudDisk:
                 }
                 prefix = "📁" if is_folder else "📄"
                 items.append(f"{prefix} {f.name}")
-            return items, None
+            return Result.ok(items)
         except Exception as e:
-            return None, f"{T('disk_err', lang)} {e}"
+            return Result.fail(f"{T('disk_err', lang)} {e}")
 
     def cd(self, path, lang):
-        """切换云盘目录，支持 .. 返回上级"""
-        client, err = self._check_client(lang)
-        if err:
-            return False, err
+        """切换云盘目录，支持 .. 返回上级，返回 Result。"""
+        client_result = self._check_client(lang)
+        if client_result.is_fail():
+            return Result.fail(client_result.error)
 
         if path == "..":
             if len(self._cwd_stack) <= 1:
-                return False, f"{RED}已在根目录{RESET}"
+                return Result.fail(f"{RED}已在根目录{RESET}")
             self._cwd_stack.pop()
             self._cwd = self._cwd_stack[-1][0]
-            return True, f"{GREEN}✅ 已切换至: {self._cwd_stack[-1][1]}{RESET}"
+            return Result.ok(f"{GREEN}✅ 已切换至: {self._cwd_stack[-1][1]}{RESET}")
 
         # 进入子目录：先刷新当前目录列表
         self.ls(lang)
         file_info = self._path_map.get(path)
         if not file_info:
-            return False, f"{RED}⚠️ 目录不存在: {path}{RESET}"
+            return Result.fail(f"{RED}⚠️ 目录不存在: {path}{RESET}")
         if file_info["type"] != "folder":
-            return False, f"{RED}⚠️ {path} 不是目录{RESET}"
+            return Result.fail(f"{RED}⚠️ {path} 不是目录{RESET}")
 
         self._cwd = file_info["file_id"]
         self._cwd_stack.append((file_info["file_id"], path))
-        return True, f"{GREEN}✅ 已切换至: {path}{RESET}"
+        return Result.ok(f"{GREEN}✅ 已切换至: {path}{RESET}")
 
     def up(self, local_path, cloud_name, lang):
-        """本地文件上传至当前云盘目录"""
-        client, err = self._check_client(lang)
-        if err:
-            return False, err
+        """本地文件上传至当前云盘目录，返回 Result。"""
+        client_result = self._check_client(lang)
+        if client_result.is_fail():
+            return Result.fail(client_result.error)
+        client = client_result.unwrap()
         if not os.path.exists(local_path):
-            return False, T("err_no_file", lang)
+            return Result.fail(T("err_no_file", lang))
         try:
             result = client.upload_file(
                 file_path=local_path,
@@ -110,15 +113,16 @@ class CloudDisk:
                 "type": "file",
                 "parent_id": self._cwd,
             }
-            return True, T("disk_ok_up", lang, result.name)
+            return Result.ok(T("disk_ok_up", lang, result.name))
         except Exception as e:
-            return False, f"{T('disk_err', lang)} {e}"
+            return Result.fail(f"{T('disk_err', lang)} {e}")
 
     def down(self, cloud_name, local_path, lang):
-        """从当前云盘目录下载文件"""
-        client, err = self._check_client(lang)
-        if err:
-            return False, err
+        """从当前云盘目录下载文件，返回 Result。"""
+        client_result = self._check_client(lang)
+        if client_result.is_fail():
+            return Result.fail(client_result.error)
+        client = client_result.unwrap()
 
         file_info = self._path_map.get(cloud_name)
         if not file_info:
@@ -126,9 +130,9 @@ class CloudDisk:
             file_info = self._path_map.get(cloud_name)
 
         if not file_info:
-            return False, T("err_no_file", lang)
+            return Result.fail(T("err_no_file", lang))
         if file_info["type"] == "folder":
-            return False, f"{RED}⚠️ {cloud_name} 是文件夹，暂不支持单文件下载方式下载文件夹{RED}"
+            return Result.fail(f"{RED}⚠️ {cloud_name} 是文件夹，暂不支持单文件下载方式下载文件夹{RED}")
 
         try:
             local_folder = os.path.dirname(local_path) or "."
@@ -136,6 +140,6 @@ class CloudDisk:
                 file_id=file_info["file_id"],
                 local_folder=local_folder
             )
-            return True, T("disk_ok_down", lang, local_path)
+            return Result.ok(T("disk_ok_down", lang, local_path))
         except Exception as e:
-            return False, f"{T('disk_err', lang)} {e}"
+            return Result.fail(f"{T('disk_err', lang)} {e}")
