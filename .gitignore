@@ -115,3 +115,7 @@ Thumbs.db
 *.tmp
 *.temp
 *.bak
+
+# Other AI agent artifacts
+.mavis/
+.opencode/
