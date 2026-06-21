@@ -24,6 +24,7 @@ PLANNER_PROMPT_ZH = """你是一位 fr-cli 动态构建规划专家。请根据�
   "description": "一句话描述工具用途",
   "dependencies": ["需要的 pip 包名，如 pillow"],
   "params": {{"参数名": "str/int/float/bool/list/dict"}},
+  "test_params": {{"参数名": "用于自测的示例值，类型需与 params 一致"}},
   "aliases": ["/简写命令"],
   "triggers": ["触发关键词"],
   "reasoning": "为什么需要构建这个工具或如何使用现有工具"
@@ -52,6 +53,7 @@ Output must strictly follow this JSON format (no other text):
   "description": "One-sentence description of the tool",
   "dependencies": ["Required pip package names, e.g., pillow"],
   "params": {{"param_name": "str/int/float/bool/list/dict"}},
+  "test_params": {{"param_name": "sample value for self-test, matching param type"}},
   "aliases": ["/short_command"],
   "triggers": ["Trigger keywords"],
   "reasoning": "Why build this tool or how to use existing tools"

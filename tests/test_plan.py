@@ -99,7 +99,7 @@ class TestPlanGeneration:
     def test_generate_plan_parses_json(self, mock_state, sample_plan):
         from fr_cli.core.plan import generate_plan
 
-        with patch("fr_cli.core.plan.stream_cnt") as mock_stream:
+        with patch("fr_cli.core.plan.generator.stream_cnt") as mock_stream:
             mock_stream.return_value = (json.dumps(sample_plan), {}, 0.1, False)
             plan = generate_plan(mock_state, "帮我了解一下这个项目", "zh")
 
@@ -112,7 +112,7 @@ class TestPlanGeneration:
         from fr_cli.core.plan import generate_plan
 
         wrapped = f"```json\n{json.dumps(sample_plan)}\n```"
-        with patch("fr_cli.core.plan.stream_cnt") as mock_stream:
+        with patch("fr_cli.core.plan.generator.stream_cnt") as mock_stream:
             mock_stream.return_value = (wrapped, {}, 0.1, False)
             plan = generate_plan(mock_state, "帮我了解一下这个项目", "zh")
 
@@ -241,7 +241,7 @@ class TestPlanSummarization:
     def test_summarize_execution(self, mock_state, sample_plan):
         from fr_cli.core.plan import summarize_execution
 
-        with patch("fr_cli.core.plan.stream_cnt") as mock_stream:
+        with patch("fr_cli.core.plan.executor.stream_cnt") as mock_stream:
             mock_stream.return_value = ("这是最终总结", {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}, 0.1, False)
             summary, usage = summarize_execution(
                 mock_state, "test", sample_plan,

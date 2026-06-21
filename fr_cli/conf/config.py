@@ -31,6 +31,7 @@ def _default_config():
         "lang": "zh",
         "aliases": {},
         "auto_confirm_forever": False,
+        "autonomous_mode": "manual",
         "mail": {},
         "disk": {},
         "thinking_mode": "direct",
@@ -55,6 +56,8 @@ def _default_config():
         "splash_enabled": True,
         "splash_cols": 50,
         "splash_bg_threshold": 30,
+        "context_compress_threshold": 4000,
+        "context_compress_keep_recent": 5,
     }
 
 

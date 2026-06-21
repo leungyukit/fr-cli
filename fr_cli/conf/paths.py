@@ -155,6 +155,19 @@ DAEMON_STOP_FILE = DAEMON_DIR / "daemon.stop"
 DAEMON_TOKEN_FILE = DAEMON_DIR / "token"
 DAEMON_HERMES_CONFIG_FILE = DAEMON_DIR / "hermes_config.json"
 
+# Hermes
+HERMES_DIR = ROOT / "hermes"
+HERMES_TASKS_FILE = HERMES_DIR / "tasks.json"
+HERMES_GOALS_FILE = HERMES_DIR / "goals.json"
+HERMES_ANALYTICS_FILE = HERMES_DIR / "analytics.json"
+HERMES_LOG_FILE = HERMES_DIR / "hermes.log"
+HERMES_REVIEW_QUEUE_FILE = HERMES_DIR / "review_queue.json"
+HERMES_MEMORY_FILE = HERMES_DIR / "memory.json"
+ERROR_LEDGER_FILE = ROOT / "error_ledger.json"
+HERMES_DAEMON_CONFIG_FILE = HERMES_DIR / "daemon.json"
+HERMES_DAEMON_PID_FILE = HERMES_DIR / "daemon.pid"
+HERMES_DAEMON_STOP_FILE = HERMES_DIR / "daemon.stop"
+
 # RAG
 RAG_DIR = ROOT / "rag"
 RAG_DB_DIR = RAG_DIR / "db"

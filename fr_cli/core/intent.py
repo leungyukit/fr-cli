@@ -33,6 +33,8 @@ _FORCE_TOOL_KEYWORDS = [
     "schedule", "scheduled task", "cron job", "timer",
     "upload", "upload to", "download", "download to",
     "save session", "export session", "switch model", "set key", "set api key",
+    # 安装依赖关键词
+    "安装", "install", "pip install", "装一下", "缺少",
     # MCP 外部工具关键词
     "mcp", "外部工具", "外部工具", "调用工具", "use tool", "invoke tool",
 ]
@@ -79,7 +81,9 @@ def classify_intent(state, user_input, tools, lang):
     根据 lang 自动切换中英文 prompt。
     """
     tools_desc = "\n".join([
-        f"- {t['name']}: {t['description']} (commands: {', '.join(t['commands'])}"
+        f"- {t['name']}: {t['description']} (commands: {', '.join(t['commands'])})"
+        f"[triggers: {', '.join(t.get('triggers', []))}]" if t.get('triggers') else
+        f"- {t['name']}: {t['description']} (commands: {', '.join(t['commands'])})"
         for t in tools
     ])
 
@@ -91,7 +95,7 @@ Available tools:
 
 Rules (strict):
 - DIRECT: The user is only asking for information, concepts, advice, or chatting. No action is required.
-- TOOL: The user requests any specific action, including but not limited to saving files, searching the web, sending emails, listing directories, running code, generating images, etc. If the user mentions any action word like "save", "write", "search", "send", "look up", "list", etc., even if the first half is a question, it MUST be classified as TOOL.
+- TOOL: The user requests any specific action, including but not limited to saving files, searching the web, sending emails, listing directories, running code, generating images, installing packages, etc. If the user mentions any action word like "save", "write", "search", "send", "look up", "list", "install", etc., or any word in a tool's [triggers] list, even if the first half is a question, it MUST be classified as TOOL.
 
 User question: {user_input}
 
@@ -104,7 +108,7 @@ Output only one word: DIRECT or TOOL. No explanation."""
 
 判定规则（请严格遵守）：
 - DIRECT：用户只是单纯询问信息、概念、建议、闲聊，没有任何操作要求。
-- TOOL：用户要求执行任何具体操作，包括但不限于保存文件、搜索网页、发送邮件、查看目录、运行代码、画图等。只要用户提到了"保存"、"写入"、"搜索"、"发送"、"查看"等操作性词汇，即使前半句是询问信息，也必须判定为 TOOL。
+- TOOL：用户要求执行任何具体操作，包括但不限于保存文件、搜索网页、发送邮件、查看目录、运行代码、画图、安装依赖包等。只要用户提到了"保存"、"写入"、"搜索"、"发送"、"查看"、"安装"等操作性词汇，或任何工具 [triggers] 列表中的关键词，即使前半句是询问信息，也必须判定为 TOOL。
 
 用户提问：{user_input}
 

@@ -330,7 +330,6 @@ def _unconfirm(deps, **kwargs):
     查看当前生效的永久放行：`/unconfirm --show` 或 `fr_cli.conf.config.load_config()`。
     """
     from fr_cli.lang.i18n import T
-    import json
     existing = deps.cfg.get("auto_confirm", {})
     if not existing and not deps.cfg.get("auto_confirm_forever", False):
         return Result.ok(T("unconfirm_none", deps.lang) if T("unconfirm_none", deps.lang) else "无永久放行需要撤销。")

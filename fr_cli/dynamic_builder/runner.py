@@ -16,7 +16,11 @@ from fr_cli.dynamic_builder.registry_manager import (
     list_dynamic_tools,
     delete_dynamic_tool,
     load_and_register_all_dynamic_tools,
+    default_kwargs_for_params,
 )
+from fr_cli.command.executor import _build_deps
+from fr_cli.command.registry import get_registry
+from fr_cli.core.error_ledger import get_error_ledger
 
 
 def _type_from_str(type_name: str) -> type:
@@ -130,16 +134,27 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     if reg_result.is_fail():
         return Result.fail(f"注册工具失败: {reg_result.error}")
 
-    # 6. 更新 state.plugins 或 weapon_tools（注册表已更新，这里可选刷新）
-    # 重新加载 weapon_tools 可能不必要，因为注册表已是单一真相源
+    # 6. 自测：用示例参数或默认值调用一次
+    test_kwargs = plan.get("test_params") or default_kwargs_for_params(params)
+    print(f"{CYAN}🧪 正在自测工具 [{tool_name}]...{RESET}")
+    self_test = get_registry().dispatch(
+        _build_deps(state), tool_name, skip_security=True, **test_kwargs
+    )
+    if self_test.is_fail():
+        delete_dynamic_tool(tool_name)
+        get_error_ledger().record(
+            "dynamic_builder_selftest", tool_name, requirement,
+            self_test.error, metadata={"params": plan.get("params", {})}
+        )
+        return Result.fail(f"自测失败，已自动回滚: {self_test.error}")
 
-    print(f"{GREEN}✅ 工具 [{tool_name}] 构建完成！{RESET}")
+    print(f"{GREEN}✅ 工具 [{tool_name}] 构建并自测通过！{RESET}")
     usage = f"【调用：{tool_name}({plan.get('params', {})})】"
     if aliases:
         usage += f" 或 {aliases[0]}"
     print(f"{DIM}用法: {usage}{RESET}")
 
-    return Result.ok(f"工具 [{tool_name}] 构建完成")
+    return Result.ok(f"工具 [{tool_name}] 构建并自测通过")
 
 
 def list_built_tools() -> list:

@@ -23,6 +23,7 @@ from fr_cli.repl.commands import (
     _cmd_limit,
     _cmd_lang,
     _cmd_usage,
+    _cmd_autonomous,
     _cmd_dir,
     _cmd_dirs,
     _cmd_rmdir,
@@ -80,6 +81,9 @@ from fr_cli.repl.commands import (
     _cmd_ocr_config,
     _cmd_stock_config,
     _cmd_build,
+    _cmd_autostart,
+    _cmd_status,
+    _cmd_context,
 )
 from fr_cli.repl.queue import handle_queue_command
 
@@ -95,6 +99,7 @@ COMMAND_ROUTES = {
     "/limit": _cmd_limit,
     "/lang": _cmd_lang,
     "/usage": _cmd_usage,
+    "/autonomous": _cmd_autonomous,
     "/mode": _cmd_mode,
     "/dir": _cmd_dir,
     "/dirs": _cmd_dirs,
@@ -152,6 +157,9 @@ COMMAND_ROUTES = {
     "/ocr_config": _cmd_ocr_config,
     "/stock_config": _cmd_stock_config,
     "/build": _cmd_build,
+    "/autostart": _cmd_autostart,
+    "/status": _cmd_status,
+    "/context": _cmd_context,
     "/queue": handle_queue_command,
 }
 
@@ -210,6 +218,9 @@ NAMESPACED_COMMANDS = {
     ("data", "csv"): "/read_csv",
     ("ocr", "config"): "/ocr_config",
     ("stock", "config"): "/stock_config",
+    ("context", "compress"): "/context compress",
+    ("context", "threshold"): "/context threshold",
+    ("context", "keep"): "/context keep",
     ("config", "server"): "/config_server",
     ("banner", "on"): "/banner_on",
     ("banner", "off"): "/banner_off",

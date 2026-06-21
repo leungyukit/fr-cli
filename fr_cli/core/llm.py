@@ -15,7 +15,6 @@ _MODEL_TO_PROVIDER: Dict[str, str] = {}
 
 def _load_providers_from_factory():
     """从工厂加载 Provider 配置，同时建立模型名 → Provider 反向映射"""
-    global _PROVIDERS, _MODEL_TO_PROVIDER
     try:
         from fr_cli.core.model_factory import get_model_factory
         factory = get_model_factory()

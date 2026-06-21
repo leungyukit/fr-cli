@@ -2,6 +2,8 @@
 全局状态管理容器 (AppState)
 统一管理配置、子系统实例、运行时状态，实现依赖注入。
 """
+from typing import List, Dict
+
 from fr_cli.weapon.fs import VFS
 import threading
 from fr_cli.weapon.mail import MailClient
@@ -15,6 +17,7 @@ from fr_cli.weapon.loader import load_weapon_md
 from fr_cli.weapon.mcp import MCPManager
 from fr_cli.core.llm import create_llm_client, create_llm_client_for, get_provider_info, resolve_provider_model
 from fr_cli.core.usage import UsageTracker
+from fr_cli.core.result import Result
 
 
 class AppState:
@@ -28,6 +31,8 @@ class AppState:
         self.aliases = cfg.get("aliases", {})
         self.thinking_mode = cfg.get("thinking_mode", "direct")
         self.ui_mode = cfg.get("ui_mode", "dev")
+        self.context_compress_threshold = cfg.get("context_compress_threshold", 4000)
+        self.context_compress_keep_recent = cfg.get("context_compress_keep_recent", 5)
 
         # 计划模式运行时状态
         self.active_plan = None          # 当前激活的结构化计划
@@ -86,6 +91,10 @@ class AppState:
         # Gatekeeper 守护进程管理器
         from fr_cli.gatekeeper.manager import GatekeeperManager
         self.gatekeeper = GatekeeperManager()
+
+        # Hermes 后台自治任务引擎（延迟获取 state，避免循环引用）
+        from fr_cli.agent.hermes import HermesEngine
+        self.hermes = HermesEngine(state_provider=lambda: self)
 
         # 状态锁：保护配置变更等关键操作（注意：messages/context_summary 仍被多处直接访问）
         self._lock = threading.RLock()
@@ -242,6 +251,20 @@ class AppState:
             self.limit = limit
             self.save_cfg()
 
+    def update_context_compress_threshold(self, threshold: int):
+        """设置上下文压缩阈值（线程安全）；0 表示关闭自动压缩。"""
+        with self._lock:
+            self.cfg["context_compress_threshold"] = threshold
+            self.context_compress_threshold = threshold
+            self.save_cfg()
+
+    def update_context_compress_keep_recent(self, keep_recent: int):
+        """设置上下文压缩保留最近轮数（线程安全）。"""
+        with self._lock:
+            self.cfg["context_compress_keep_recent"] = keep_recent
+            self.context_compress_keep_recent = keep_recent
+            self.save_cfg()
+
     def update_lang(self, lang):
         """切换界面语言（线程安全）"""
         with self._lock:
@@ -327,3 +350,223 @@ class AppState:
 
         # 回退到全局默认
         return self.client, self.provider, self.model_name
+
+    # ---------- 一键启动 / 全局状态 ----------
+
+    def _sync_gatekeeper_config(self):
+        """把当前 Agent HTTP、Cron 等配置同步到 Gatekeeper 配置文件"""
+        try:
+            from fr_cli.gatekeeper.manager import read_daemon_config
+            from fr_cli.weapon.cron import CronManager
+            existing_cfg = read_daemon_config()
+            agent_port = None
+            if self.agent_server and self.agent_server.is_running():
+                agent_port = self.agent_server.port
+            daemon_cfg = {
+                "agent_server_port": agent_port,
+                "cron_jobs": CronManager().export_jobs(),
+                "agent_crons": existing_cfg.get("agent_crons", []),
+                "lang": self.lang,
+            }
+            if hasattr(self.gatekeeper, 'save_daemon_config'):
+                self.gatekeeper.save_daemon_config(daemon_cfg)
+        except Exception:
+            pass
+
+    def start_all_services(self, ports: dict = None) -> dict:
+        """一键启动所有可选后台服务，返回各服务启动结果（Result 对象）。"""
+        ports = ports or {}
+        results = {}
+
+        # 1. MasterAgent 自动启用
+        try:
+            if not self.master_agent.is_enabled():
+                self.master_agent.toggle(True)
+            results["master_agent"] = Result.ok("已启用")
+        except Exception as e:
+            results["master_agent"] = Result.fail(f"启用失败: {e}")
+
+        # 2. Agent HTTP 服务
+        try:
+            from fr_cli.agent.server import AgentHTTPServer
+            if self.agent_server is None:
+                self.agent_server = AgentHTTPServer(self, port=ports.get("agent_server", 17890))
+            if not self.agent_server.is_running():
+                results["agent_server"] = self.agent_server.start()
+            else:
+                results["agent_server"] = Result.ok(self.agent_server.status())
+        except Exception as e:
+            results["agent_server"] = Result.fail(f"启动失败: {e}")
+
+        # 3. Hermes 独立守护进程
+        try:
+            from fr_cli.agent.hermes_manager import HermesManager
+            hermes_mgr = HermesManager()
+            if not hermes_mgr.is_running():
+                results["hermes_daemon"] = hermes_mgr.start(
+                    port=ports.get("hermes", 8765),
+                    host="127.0.0.1",
+                    lang=self.lang,
+                )
+            else:
+                results["hermes_daemon"] = Result.ok(hermes_mgr.status())
+        except Exception as e:
+            results["hermes_daemon"] = Result.fail(f"启动失败: {e}")
+
+        # 4. Gatekeeper 独立守护进程
+        try:
+            self._sync_gatekeeper_config()
+            if not self.gatekeeper.is_running():
+                results["gatekeeper"] = self.gatekeeper.start()
+            else:
+                results["gatekeeper"] = Result.ok(self.gatekeeper.status())
+        except Exception as e:
+            results["gatekeeper"] = Result.fail(f"启动失败: {e}")
+
+        # 5. Cron 任务数量
+        try:
+            from fr_cli.weapon.cron import CronManager
+            results["cron"] = Result.ok(f"定时任务: {len(CronManager().jobs)} 个")
+        except Exception as e:
+            results["cron"] = Result.fail(f"统计失败: {e}")
+
+        return results
+
+    def _master_failure_patterns(self) -> List[Dict]:
+        """读取 MasterAgent 进化记录中的失败模式摘要。"""
+        try:
+            from fr_cli.agent.master import EVOLUTION_FILE
+            import json
+            if not EVOLUTION_FILE.exists():
+                return []
+            with open(EVOLUTION_FILE, "r", encoding="utf-8") as f:
+                evolution = json.load(f)
+            hints = evolution.get("failure_hints", [])
+            patterns = evolution.get("failure", [])
+            return {
+                "top_failures": patterns[:5],
+                "failure_hints": hints[-5:],
+            }
+        except Exception:
+            return {}
+
+    def status_summary(self) -> dict:
+        """聚合所有可查询状态，供 /status 命令渲染。"""
+        # 模型与自主
+        summary = {
+            "provider": self.display_provider,
+            "model": self.display_model,
+            "api_key_configured": bool(self.api_key and self.api_key != "" and not getattr(self.client, "is_mock", False)),
+            "autonomous_mode": getattr(self.security, "autonomous_mode", "manual"),
+            "lang": self.lang,
+        }
+
+        # MasterAgent
+        try:
+            ma_status = self.master_agent.status()
+            summary["master_agent"] = {
+                "enabled": bool(ma_status.get("enabled")),
+                "total_interactions": ma_status.get("total_interactions", 0),
+            }
+        except Exception:
+            summary["master_agent"] = {"enabled": False, "total_interactions": 0}
+
+        # Agent HTTP 服务
+        try:
+            if self.agent_server and self.agent_server.is_running():
+                summary["agent_server"] = {
+                    "running": True,
+                    "status": self.agent_server.status(),
+                    "info": self.agent_server.get_publish_info(),
+                }
+            else:
+                summary["agent_server"] = {"running": False, "status": "未运行"}
+        except Exception:
+            summary["agent_server"] = {"running": False, "status": "未运行"}
+
+        # Hermes 独立守护
+        try:
+            from fr_cli.agent.hermes_manager import HermesManager
+            hermes_mgr = HermesManager()
+            summary["hermes_daemon"] = {
+                "running": hermes_mgr.is_running(),
+                "status": hermes_mgr.status(),
+            }
+        except Exception:
+            summary["hermes_daemon"] = {"running": False, "status": "未知"}
+
+        # Hermes 引擎统计
+        try:
+            summary["hermes_engine"] = self.hermes.status_report()
+            counts = self.hermes.task_manager.counts()
+            summary["hermes_tasks"] = counts
+        except Exception:
+            summary["hermes_engine"] = "统计失败"
+            summary["hermes_tasks"] = {}
+
+        # Gatekeeper
+        try:
+            summary["gatekeeper"] = {
+                "running": self.gatekeeper.is_running(),
+                "status": self.gatekeeper.status(),
+            }
+        except Exception:
+            summary["gatekeeper"] = {"running": False, "status": "未知"}
+
+        # 审核队列
+        try:
+            from fr_cli.agent.review_queue import PersistentReviewQueue
+            rq = PersistentReviewQueue()
+            counts = rq.counts()
+            summary["review_queue"] = counts
+        except Exception:
+            summary["review_queue"] = {"total": 0, "pending": 0}
+
+        # RAG watcher
+        try:
+            from fr_cli.agent.builtins.rag import get_rag_manager
+            kb_dir = self.cfg.get("rag", {}).get("kb_dir") if isinstance(self.cfg.get("rag"), dict) else None
+            if kb_dir:
+                rag_mgr = get_rag_manager(kb_dir)
+                thread_alive = (
+                    rag_mgr._watcher_thread is not None
+                    and rag_mgr._watcher_thread.is_alive()
+                )
+                summary["rag_watcher"] = {"running": thread_alive, "kb_dir": kb_dir}
+            else:
+                summary["rag_watcher"] = {"running": False, "kb_dir": None}
+        except Exception:
+            summary["rag_watcher"] = {"running": False, "kb_dir": None}
+
+        # Cron
+        try:
+            from fr_cli.weapon.cron import CronManager
+            summary["cron_jobs"] = len(CronManager().jobs)
+        except Exception:
+            summary["cron_jobs"] = 0
+
+        # 插件与 Agent
+        try:
+            summary["plugins"] = len(self.plugins)
+        except Exception:
+            summary["plugins"] = 0
+        try:
+            from fr_cli.agent.manager import list_agents
+            summary["agents"] = len(list_agents())
+        except Exception:
+            summary["agents"] = 0
+
+        # 集中式错误报告
+        try:
+            from fr_cli.core.error_ledger import get_error_ledger
+            ledger = get_error_ledger()
+            summary["errors"] = {
+                "hermes_failed_tasks": ledger.list_errors("hermes_task", limit=10),
+                "dynamic_builder_selftest_failures": ledger.list_errors("dynamic_builder_selftest", limit=5),
+                "review_queue_rejected": ledger.list_errors("review_rejected", limit=5),
+                "master_failure_patterns": self._master_failure_patterns(),
+            }
+        except Exception:
+            summary["errors"] = {}
+
+        return summary

@@ -41,7 +41,7 @@
 | 插件执行 | `subprocess.run`（子进程隔离，15 秒超时） |
 | UI | ANSI 转义码、终端动画、颜色常量 |
 | 打包 | `pyproject.toml` + `setuptools`（现代 Python 标准） |
-| 测试 | `pytest`，357 个测试全部通过 |
+| 测试 | `pytest`，473 个测试全部通过 |
 
 ---
 
@@ -68,21 +68,38 @@ fr-cli/
 │   │   ├── dispatch.py         # @name 前缀调度器
 │   │   ├── workflow.py         # 工作流引擎（解析 workflow.md，步骤调度，模板变量）
 │   │   ├── server.py           # HTTP 服务（将 Agent 发布为 REST API）
-│   │   ├── master.py           # MasterAgent 自我进化主控（ReAct 循环）
+│   │   ├── master.py           # MasterAgent 主类骨架（mixin 组装 + 状态管理 toggle/is_enabled/status）
+│   │   ├── master_storage.py   # MasterAgent 存储层（配置路径、默认值、文件 I/O、错误分类）
+│   │   ├── master_prompt.py    # MasterAgent 默认 system prompt 模板（中文/英文/规划/反思）
+│   │   ├── master_loop.py      # MasterAgent ReAct 主循环 mixin（handle/_extract_tool_calls/_execute_tool）
+│   │   ├── master_prompt_builder.py  # MasterAgent Prompt 组装 mixin（_build_tools_desc/_build_system_prompt/_detect_artifacts）
+│   │   ├── master_reflect.py   # MasterAgent 反思进化 mixin（_record_interaction/_reflect_and_evolve 等）
 │   │   ├── generator.py        # AI 自动生成 Agent
 │   │   ├── shell_mode.py       # Shell 模式
-│   │   ├── hermes.py / hermes_daemon.py  # Hermes 守护
-│   │   ├── personality.py / skills.py    # 人设/技能
-│   │   ├── artifact_detector.py # AI 回复产物检测器（插件/Agent 自动检测）
+│   │   ├── hermes/             # Hermes 后台自治任务引擎（拆包）
+│   │   │   ├── engine.py       #   HermesEngine 统一入口
+│   │   │   ├── managers.py     #   PersistentTaskManager / PersistentGoalTracker / PersistentReviewQueue
+│   │   │   ├── models.py       #   数据模型
+│   │   │   └── scheduler.py    #   后台轮询调度器
+│   │   ├── hermes_daemon.py         # Hermes 调度守护（449 行）
+│   │   ├── hermes_manager.py        # Hermes 独立子进程管理
+│   │   ├── hermes_daemon_process.py # Hermes 独立守护进程入口
+│   │   ├── review_queue.py     # 后台产物审核队列（独立模块，被 Hermes 调用）
+│   │   ├── artifact_detector.py # AI 回复产物检测器（插件/Agent 自动检测，支持交互/审核队列）
 │   │   ├── swarm.py            # 蜂群统一调度引擎
 │   │   ├── swarm_resolver.py   # 蜂群任务解析器
 │   │   └── builtins/           # 内置 Agent（local/remote/db/spider/rag/stock）
+│   │       └── spider/         #   @spider 智能爬虫（拆包：deps/analyzer/fetcher/crawler/evasion/memory）
 │   ├── repl/
 │   │   ├── router.py           # 输入路由与分发
 │   │   ├── queue.py            # 对话队列与连续输入
 │   │   ├── bootstrap.py        # 启动引导
 │   │   ├── actions.py          # e/r/u 快捷键处理
-│   │   └── commands/           # 40 个命令处理器（从 main.py 拆分，架构解耦）
+│   │   └── commands/           # REPL 命令处理器（从 main.py 拆分，架构解耦）
+│   │       ├── _common.py      #   公共工具与基类
+│   │       ├── base.py / agent.py / cron.py / fs.py ...  # 各分类命令处理器
+│   │       ├── config/         #   配置类（/model, /key, /lang, /autonomous 等，按职责拆为 key/model/misc 三个子模块）
+│   │       └── system/         #   系统级（/status, /hermes, /agent_server, /autostart 等 7 个子模块）
 │   ├── addon/
 │   │   └── plugin.py           # 插件进化引擎：扫描、落盘、子进程隔离执行（runpy+json.dumps）
 │   ├── breakthrough/
@@ -126,9 +143,10 @@ fr-cli/
 │   │   └── security.py         # 四阶安全确认引擎（Y/A/F/N）
 │   ├── ui/
 │   │   ├── ui.py               # 终端颜色常量、清屏、显示宽度计算、启动动画
-│   │   ├── prompt.py           # prompt_toolkit TUI 输入
+│   │   ├── prompt/             # prompt_toolkit TUI 输入（拆包：status/completer/tui/fallback）
 │   │   ├── banner.py           # 启动 banner
-│   │   └── splash.py           # 终端图片协议探测
+│   │   ├── buddha.py           # ASCII 佛像启动画面（禅定印，25 行纯字符构图）
+│   │   └── markdown.py         # 轻量级 Markdown → ANSI 终端渲染器
 │   └── weapon/                 # 武器库/扩展子系统
 │       ├── cron.py             # 定时任务（CronManager 类，threading.Timer）
 │       ├── disk.py             # 云盘适配器
@@ -624,20 +642,30 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 
 首次初始化时，`_ensure_all_master_files()` 会自动检查并补全缺失的默认配置文件。
 
-**核心类**：`agent/master.py` 中的 `MasterAgent`
+**核心类**：`agent/master.py` 中的 `MasterAgent`（通过 mixin 组装，行为方法分布在三个独立 mixin 模块中）
 
-| 方法 | 说明 |
+**文件分布**：
+
+| 文件 | 职责 |
 |------|------|
-| `_ensure_all_master_files()` | 初始化所有配置文件（有漏即补） |
-| `toggle(enabled=None)` | 启用/禁用 MasterAgent，持久化到 status.json |
-| `is_enabled()` | 读取启用状态（优先 status.json，兼容 cfg） |
-| `status()` | 返回完整状态摘要 |
-| `handle(user_input)` | ReAct 主循环：thought → action → observation → reflect |
-| `_build_system_prompt(lang)` | 组装 system prompt：默认 prompt + persona + skills + evolution + context |
-| `_extract_tool_calls(text)` | 从 AI 回复中提取 ```tool 代码块 |
-| `_execute_tool(tool_name, params)` | 通过注册表执行工具 |
-| `_record_interaction(...)` | 记录交互到 memory.json |
-| `_reflect_and_evolve(...)` | 每 10 次交互触发反思与 prompt 进化 |
+| `master.py` | 主类骨架：`__init__`、状态管理 `toggle` / `is_enabled` / `status`、mixin 组装 |
+| `master_storage.py` | 存储层：配置文件路径、默认值、文件 I/O、错误分类 `_classify_error`、`_ensure_all_master_files` |
+| `master_prompt.py` | 默认 system prompt 模板（中文/英文/规划/反思） |
+| `master_loop.py` | ReAct 主循环 mixin：`handle` / `_extract_tool_calls` / `_execute_tool` |
+| `master_prompt_builder.py` | Prompt 组装 mixin：`_build_tools_desc` / `_build_system_prompt` / `_detect_artifacts` |
+| `master_reflect.py` | 反思进化 mixin：`_record_interaction` / `_get_recent_memory` / `_get_failure_hint` / `_maybe_compress_messages` / `_reflect_and_evolve` |
+
+| 方法（按 mixin 分布） | 说明 |
+|------|------|
+| `__init__` / `toggle` / `is_enabled` / `status` | 主类骨架（master.py） |
+| `_ensure_all_master_files` / `_classify_error` | 存储层辅助（master_storage.py） |
+| `handle(user_input, context_messages=None, background=False)` | ReAct 主循环（master_loop.py） |
+| `_extract_tool_calls(text)` | 从 AI 回复中提取 ```tool 代码块 / 【调用：...】格式（master_loop.py） |
+| `_execute_tool(tool_name, params)` | 通过注册表执行工具（master_loop.py） |
+| `_build_tools_desc` / `_build_system_prompt(lang)` | Prompt 组装（master_prompt_builder.py） |
+| `_detect_artifacts(txt, lang, background)` | 插件/Agent 自动产物检测（master_prompt_builder.py） |
+| `_record_interaction` / `_get_recent_memory` / `_get_failure_hint` / `_maybe_compress_messages` | 记忆与压缩（master_reflect.py） |
+| `_reflect_and_evolve(...)` | 每 10 次交互触发反思与 prompt 进化（master_reflect.py） |
 
 **ReAct 循环伪代码**：
 ```python
@@ -651,6 +679,130 @@ for step in range(8):
         history.append({"role": "system", "content": f"Observation: {obs}"})
         record_interaction(action, obs)
 ```
+
+**后台隔离执行**：`MasterAgent.handle(user_input, context_messages=None, background=False)` 支持传入独立的 `context_messages` 并标记 `background=True`。Hermes 后台任务使用该参数，避免后台执行污染用户主会话的 `state.messages`、上下文摘要和自动存档；同时禁用交互式产物检测，改为进入 `PersistentReviewQueue`。
+
+---
+
+### Hermes 后台自治任务引擎
+
+**设计目标**：把 Hermes 从独立的 HTTP stub 升级为真正的后台自治任务引擎，拥有持久化任务队列、调度器、与 MasterAgent 联动的执行能力。
+
+**存储位置**：`~/.fr_cli/hermes/`
+
+| 文件 | 说明 |
+|------|------|
+| `tasks.json` | 持久化任务队列（状态、优先级、重试、结果） |
+| `goals.json` | 持久化目标与里程碑 |
+| `analytics.json` | 任务统计 |
+| `hermes.log` | 运行日志 |
+| `review_queue.json` | 后台产物审核队列（插件/Agent 代码） |
+| `daemon.json` / `daemon.pid` / `daemon.stop` | 独立守护进程配置与生命周期标记 |
+
+**核心类**：`agent/hermes.py`
+
+| 类/方法 | 说明 |
+|---|---|
+| `PersistentTaskManager` | 基于 `JsonStore` 的持久化任务队列，支持优先级、重试、状态过滤 |
+| `PersistentGoalTracker` | 持久化目标追踪 |
+| `HermesScheduler` | 后台轮询调度器（daemon thread），每 5 秒执行 pending 任务 |
+| `HermesEngine` | 统一入口，负责任务创建、调度、执行、HTTP daemon 管理 |
+| `HermesEngine.create_task(...)` | 创建后台任务，默认 `execution_mode="sandbox"`；`autonomous` 任务默认 PAUSED |
+| `HermesEngine.confirm_task(id)` | 显式确认 autonomous 任务，使其以 `full_auto` 执行 |
+| `HermesEngine._execute_task(task)` | 设置环境变量 → 隔离 state.messages → 调用 MasterAgent → 记录结果 |
+| `PersistentReviewQueue` | `agent/review_queue.py`，后台非交互产物审核队列 |
+| `HermesManager` | `agent/hermes_manager.py`，管理独立 Hermes 子进程 |
+| `hermes_daemon_process.py` | 独立守护进程入口，脱离 REPL 运行 HermesEngine + HTTP 服务 |
+
+**安全执行模式**：
+
+| 模式 | 说明 | 沙盒操作（读/写/搜索） | 系统操作（shell/exec/邮件/MCP） |
+|---|---|---|---|
+| `sandbox`（默认） | 后台任务默认模式 | 自动放行 | 非交互时默认拒绝 |
+| `autonomous` | 完全信任该任务 | 自动放行 | 自动放行 |
+| `interactive` | 不走后台，仅占位 | 按当前模式 | 按当前模式 |
+
+**REPL 命令**：
+
+```
+/hermes start [port]                  # 启动独立 HTTP 守护进程（子进程）
+/hermes stop                          # 停止守护进程
+/hermes status                        # 查看守护进程与任务统计
+/hermes task [--autonomous|-a] <描述>  # 创建后台任务（默认 sandbox 模式）
+/hermes confirm <id>                  # 确认 autonomous 任务
+/hermes list [status]                  # 列任务
+/hermes log <id>                      # 查看任务结果/日志
+/hermes cancel <id>                   # 暂停任务
+/hermes review                        # 查看后台产物审核队列
+/hermes review approve <id> [name]    # 批准并安装队列中的产物
+/hermes review reject <id>            # 拒绝队列中的产物
+```
+
+**HTTP API**（默认 `127.0.0.1:8765`，写端点需 Bearer Token）：
+
+| 方法 | 路径 | 说明 |
+|---|---|---|
+| GET | `/health` | 健康检查 |
+| GET | `/info` | 引擎状态 |
+| GET | `/tasks` | 任务列表 |
+| GET | `/tasks/<id>` | 单个任务 |
+| POST | `/tasks/<id>/confirm` | 确认 autonomous 任务 |
+| POST | `/task` | 创建任务；`execution_mode=autonomous` 返回 `needs_confirmation` |
+| POST | `/execute` | 提交命令任务（不再直接 subprocess） |
+| POST | `/chat` | 提交对话任务给 MasterAgent |
+| POST | `/goal` | 创建目标 |
+| GET | `/goals` | 目标列表 |
+| GET | `/analytics` | 统计 |
+| GET | `/review` | 审核队列列表 |
+| POST | `/review/<id>/approve?name=xxx` | 批准并安装产物 |
+| POST | `/review/<id>/reject` | 拒绝产物 |
+
+**任务执行超时**：
+- 单个 Hermes 任务默认最大执行时间为 300 秒。
+- 可通过环境变量覆盖：`export FR_CLI_HERMES_TASK_TIMEOUT=600`。
+- 超时后任务会按重试策略重试，达到最大重试次数后标记为 `FAILED`，错误信息包含“执行超时”。
+
+---
+
+### 全局控制命令
+
+为方便用户，fr-cli 提供一键启停与全局状态查看命令。
+
+#### `/autostart` — 一键启动所有后台服务
+
+```text
+/autostart                              # 使用默认端口启动所有服务
+/autostart --agent-server 17890         # 指定 Agent HTTP 端口
+/autostart --hermes 8765                # 指定 Hermes 端口
+/autostart --agent-server 17890 --hermes 8765
+```
+
+启动项包括：
+- 启用 MasterAgent（若未启用）
+- Agent HTTP 服务（默认端口 17890）
+- Hermes 独立 HTTP 守护进程（默认端口 8765）
+- Gatekeeper 独立守护进程
+- 同步 Cron 定时任务配置
+
+每项服务的启动结果会单独显示；已运行的服务会显示“已在运行”而不重复启动。
+
+#### `/status` — 查看 fr-cli 全局状态
+
+```text
+/status         # 人类可读面板
+/status json    # 输出 JSON
+```
+
+展示内容包括：
+- 当前 provider / model / API Key 是否已配置
+- 自主模式（`manual` / `sandbox_auto` / `full_auto`）
+- MasterAgent 是否启用及交互次数
+- Agent HTTP 服务、Hermes 守护进程、Gatekeeper 运行状态
+- Hermes 任务统计（pending / running / completed / failed / paused）
+- 审核队列 pending 数量
+- Cron 定时任务数量
+- 已加载插件数量、Agent 分身数量
+- RAG 监控状态（若配置了知识库）
 
 ---
 
@@ -1039,7 +1191,7 @@ pip install paddleocr paddlepaddle
 - `tests/test_swarm.py` — 蜂群多 Agent 协作测试
 - `tests/test_plan.py` — 计划模式测试
 - `tests/test_dynamic_builder.py` — 动态构建系统测试
-- 总计 **357 个测试全部通过**
+- 总计 **473 个测试全部通过**
 
 测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、PlanMode、Gatekeeper
 
@@ -1047,14 +1199,24 @@ pip install paddleocr paddlepaddle
 
 ## 安全考量
 
-### 1. 四阶安全确认（security/security.py）
+### 1. 四阶安全确认与自治模式（security/security.py、security/policy.py）
 
-对危险操作（文件读写、命令执行、插件安装等），系统会提示用户并等待输入：
+对危险操作（文件读写、命令执行、插件安装等），系统默认会提示用户并等待输入：
 
 - `Y` — 仅允许一次（Once）
 - `A` — 本次会话允许（Session）
-- `F` — 永久允许（Forever），会写入 `~/.fr_cli/config.json` 的 `auto_confirm_forever: true`
+- `F` — 永久允许（Forever），会写入 `~/.fr_cli/config.json` 的 `auto_confirm` 字典
 - `N` / 回车 — 拒绝（Deny）
+
+**自治模式（v2.5.1）**：
+
+通过 `/autonomous [manual|sandbox_auto|full_auto|off]` 或环境变量 `FR_CLI_AUTONOMOUS_MODE` 设置：
+
+- `manual`（默认）：每个 `sec_*` 都询问。
+- `sandbox_auto`：`sec_read`、`sec_write`、`sec_fetch_web`、`sec_gen_img` 自动放行；`sec_shell`、`sec_exec`、`sec_send_mail` 等系统级操作仍询问或在非交互时默认拒绝。
+- `full_auto`：所有 `sec_*` 自动放行（危险）。
+
+Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务执行期间设置 `FR_CLI_AUTONOMOUS_MODE=sandbox_auto`。
 
 ### 2. 虚拟文件系统沙盒（weapon/fs.py）
 
@@ -1138,6 +1300,7 @@ pip install paddleocr paddlepaddle
 | 修改定时任务执行逻辑 | 修改 `weapon/cron.py` 的 `CronManager._job_runner()`，支持 shell/agent 两种类型 |
 | 使用蜂群调度任意任务 | `/swarm parallel agent:a,@local,tool:search_web,cmd:/ls,mcp:fs/read_file,plugin:myplugin 任务描述` |
 | 动态构建新工具 | `/build <需求描述>` 或 AI 调用 `dynamic_build({"requirement": "..."})` |
+| 上下文 Token 压缩 | `/context compress` 手动压缩；自动阈值 `/context threshold 8000`；保留轮数 `/context keep 5` |
 | 使用 Microsoft 365 邮件 | 配置 Azure AD 应用后执行 `/m365_config setup`，支持 OAuth2 设备码/授权码流 + MFA |
 | 添加新配置项 | 修改 `conf/config.py` 的默认字典 `d`，在 `AppState` 中读取并使用 |
 | 修改安全策略 | 修改 `security/security.py` 的 `ask()`，确保返回值在 `command/security.py` 的 `SecurityManager.check()` 中正确处理 |
@@ -1152,4 +1315,18 @@ pip install paddleocr paddlepaddle
 
 ---
 
-*文档更新时间：2026-06-13（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG/stock）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct/Plan 思维推演模式 + MasterAgent 自我进化主控 + 按日期自动存档会话 + 蜂群统一调度（Agent/工具/命令/MCP/插件）+ OCR 文字识别（Vision API + PaddleOCR 本地引擎）+ StockShareAgent 股票量化助手 + 计划模式 + 动态构建系统（按需安装依赖并生成工具）+ Microsoft 365 邮件现代认证（OAuth2 设备码/授权码流 + MFA）+ 架构评审 dead code 清理（command/handlers、agent coding_helper/gateway/acp/plugin_system/context_files/powerful_agent_template、workflow_system、image_and_parallel 并行执行器与图片模型配置/生成/终端展示、main.py 重复入口）+ 高危漏洞修复（disk_up 参数顺序、注册表 sec_* 覆盖、MasterAgent 自动污染、@local Windows shell=True 回退、dataframe VFS 强制）+ Result 返回风格统一（command/executor、weapon/fs、dynamic_builder/registry_manager/runner、gatekeeper/manager、weapon/ocr、weapon/charts、weapon/launcher、weapon/network、weapon/remote、weapon/web、weapon/disk、weapon/mail、weapon/m365、agent/builtins/remote、agent/builtins/db））。*
+## 自主增强收尾（OpenClaw/HermesAgent 对齐）
+
+以下能力在 v2.5+ 中加入，用于提升 autonomous 任务的自我管理与进化能力：
+
+| 能力 | 用法 / 入口 | 关键文件 |
+|---|---|---|
+| 自动目标分解 | `/hermes goal [--autonomous] [--tags a,b] <目标描述>` 或 HTTP `POST /goal`（带 `decompose=true`） | `agent/hermes/engine.py`, `agent/hermes/managers.py` |
+| 子任务依赖 / 链式执行 | 任务 `dependencies` / `chain_next` 字段；调度器自动检测循环依赖 | `agent/hermes/engine.py`, `agent/hermes/scheduler.py` |
+| 自动生成物验证 | 动态构建的工具注册后会立即自测；失败自动回滚 | `dynamic_builder/runner.py`, `dynamic_builder/registry_manager.py` |
+| 失败驱动自我学习 | MasterAgent 按 `(tool, error_type)` 统计失败，生成 `failure_hints` 并注入 system prompt | `agent/master_reflect.py`, `agent/master_prompt_builder.py` |
+| 能力缺口发现 | `/build check <需求>`、AI 工具 `analyze_gap` / `build_missing_tool` | `dynamic_builder/gap_analyzer.py`, `command/registered/dynamic_build.py` |
+| 跨任务记忆 | Hermes 任务携带 `context_tags`，执行前注入相关历史任务摘要 | `agent/hermes/managers.py` 的 `HermesMemoryStore` |
+| 集中式错误报告 | `/status errors` 聚合 Hermes 失败、自测回滚、审核拒绝、MasterAgent 失败模式 | `core/error_ledger.py`, `core/core.py`, `repl/commands/system/status.py` |
+
+*文档更新时间：2026-06-21（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG/stock）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct/Plan 思维推演模式 + MasterAgent 自我进化主控 + 按日期自动存档会话 + 蜂群统一调度（Agent/工具/命令/MCP/插件）+ OCR 文字识别（Vision API + PaddleOCR 本地引擎）+ StockShareAgent 股票量化助手 + 计划模式 + 动态构建系统（按需安装依赖并生成工具）+ Microsoft 365 邮件现代认证（OAuth2 设备码/授权码流 + MFA）+ 架构评审 dead code 清理 + 高危漏洞修复 + Result 返回风格统一 + 自主增强收尾阶段：目标分解/自测回滚/失败学习/缺口发现/跨任务记忆/集中错误报告 + 第二轮架构优化：master.py 通过 mixin 拆为 6 个文件、ui/prompt.py 拆包、agent/builtins/spider.py 拆包、agent/hermes.py 拆包、repl/commands/config|system 拆包、删除 personality/skills/splash/web_config 等死代码）。*

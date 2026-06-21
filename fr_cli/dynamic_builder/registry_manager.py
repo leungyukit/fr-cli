@@ -135,6 +135,24 @@ def _type_from_name(type_name: str) -> type:
     return mapping.get(type_name, str)
 
 
+def _default_value_for_type(param_type: type) -> Any:
+    """返回某一参数类型的安全默认值，用于动态工具自测。"""
+    defaults = {
+        str: "",
+        int: 0,
+        float: 0.0,
+        bool: False,
+        list: [],
+        dict: {},
+    }
+    return defaults.get(param_type, "")
+
+
+def default_kwargs_for_params(params: Optional[Dict[str, type]]) -> Dict[str, Any]:
+    """根据参数类型生成默认测试参数。"""
+    return {k: _default_value_for_type(v) for k, v in (params or {}).items()}
+
+
 def register_dynamic_tool(name: str, code: str, meta: Optional[Dict[str, Any]] = None) -> Result:
     """
     将动态工具代码加载并注册到 ToolRegistry，返回 Result。

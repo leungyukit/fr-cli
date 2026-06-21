@@ -10,6 +10,7 @@ from fr_cli.repl.commands.base import (
 )
 from fr_cli.repl.commands.config import (
     _cmd_model, _cmd_key, _cmd_providers, _cmd_limit, _cmd_lang, _cmd_usage,
+    _cmd_autonomous,
 )
 from fr_cli.repl.commands.fs import _cmd_dir, _cmd_dirs, _cmd_rmdir
 from fr_cli.repl.commands.session import (
@@ -31,6 +32,7 @@ from fr_cli.repl.commands.system import (
     _cmd_agent_server, _cmd_gatekeeper, _cmd_open,
     _cmd_launch, _cmd_apps, _cmd_hermes_daemon,
     _cmd_remote_setup, _cmd_db_setup,
+    _cmd_autostart, _cmd_status, _cmd_context,
 )
 from fr_cli.repl.commands.rag import _cmd_rag_dir, _cmd_rag_watch, _cmd_rag_sync
 from fr_cli.repl.commands.dataframe import _cmd_read_excel, _cmd_read_csv

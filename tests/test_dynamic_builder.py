@@ -23,6 +23,9 @@ def mock_state():
     state.cfg = {}
     state.vfs = MagicMock()
     state.vfs.cwd = "/tmp"
+    state.mail_c = None
+    state.web_c = None
+    state.disk_c = None
     state.security = None
     state.plugins = {}
     return state
@@ -144,8 +147,10 @@ class TestRunner:
     @patch("fr_cli.dynamic_builder.runner.ensure_dependencies")
     @patch("fr_cli.dynamic_builder.runner.save_dynamic_tool")
     @patch("fr_cli.dynamic_builder.runner.register_dynamic_tool")
-    def test_build_tool_success(self, mock_register, mock_save, mock_deps, mock_gen, mock_plan, mock_state, tmp_dynamic_dir):
+    @patch("fr_cli.dynamic_builder.runner.get_registry")
+    def test_build_tool_success(self, mock_get_registry, mock_register, mock_save, mock_deps, mock_gen, mock_plan, mock_state, tmp_dynamic_dir):
         from fr_cli.dynamic_builder.runner import build_tool
+        from fr_cli.core.result import Result
 
         mock_plan.return_value = {
             "need_build": True,
@@ -157,17 +162,18 @@ class TestRunner:
             "triggers": ["二维码"],
             "reasoning": "需要生成二维码",
         }
-        from fr_cli.core.result import Result
         mock_deps.return_value = Result.ok([])
         mock_gen.return_value = "def run(deps, **kwargs):\n    return 'ok', None"
         mock_save.return_value = Result.ok("saved")
         mock_register.return_value = Result.ok("registered")
+        mock_get_registry.return_value.dispatch.return_value = Result.ok("self-test ok")
 
         result = build_tool("生成二维码工具", mock_state, lang="zh", confirm=False)
         assert result.is_ok()
         msg = result.unwrap()
         assert "qr_tool" in msg
         mock_register.assert_called_once()
+        mock_get_registry.return_value.dispatch.assert_called_once()
 
     def test_build_tool_no_model(self, mock_state):
         from fr_cli.dynamic_builder.runner import build_tool

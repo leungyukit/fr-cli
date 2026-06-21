@@ -305,14 +305,30 @@ class ToolRegistry:
         return {name: info["triggers"] for name, info in self._tools.items() if info.get("triggers")}
 
     def get_available_tools(self, plugins):
-        """获取 AI 可用的工具列表（含插件）"""
+        """获取 AI 可用的工具列表（含插件），附带参数模式，便于 AI 生成准确的调用标记。"""
+
+        def _type_name(t):
+            if t is str:
+                return "str"
+            if t is int:
+                return "int"
+            if t is bool:
+                return "bool"
+            if t is float:
+                return "float"
+            if hasattr(t, "__name__"):
+                return t.__name__
+            return str(t)
+
         tools = []
         for t in self._tools.values():
+            params = t.get("params") or {}
             tools.append({
                 "name": t["name"],
                 "description": t["description"],
                 "commands": [f"/{t['name']}"] + t["aliases"],
                 "triggers": t.get("triggers", []),
+                "params": {k: _type_name(v) for k, v in params.items()},
             })
         for plugin_name in (plugins or {}):
             tools.append({
@@ -320,6 +336,7 @@ class ToolRegistry:
                 "description": f"自定义插件: {plugin_name}",
                 "commands": [f"/{plugin_name}"],
                 "triggers": [],
+                "params": {"args": "str"},
             })
         return tools
 

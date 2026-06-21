@@ -91,5 +91,9 @@ ignore = ["F403", "F405", "E401", "E701", "E702", "E402", "E501", "E741", "E731"
 
 [tool.ruff.lint.per-file-ignores]
 # 重导出兼容层：显式导入但未直接使用，用于保持旧接口可用
-"fr_cli/repl/commands.py" = ["F401", "F811", "F841"]
 "fr_cli/repl/commands/__init__.py" = ["F401", "F811", "F841"]
+"fr_cli/agent/hermes/__init__.py" = ["F401", "F811", "F841"]
+"fr_cli/agent/builtins/spider/__init__.py" = ["F401", "F811", "F841"]
+"fr_cli/repl/commands/config/__init__.py" = ["F401", "F811", "F841"]
+"fr_cli/repl/commands/system/__init__.py" = ["F401", "F811", "F841"]
+"fr_cli/core/plan/__init__.py" = ["F401", "F811", "F841"]

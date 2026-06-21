@@ -17,8 +17,35 @@ from fr_cli.core.recommender import recommend_features
 from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
+from fr_cli.memory.compress import maybe_compress
 from fr_cli.ui.markdown import render_markdown
 from fr_cli.core.intent import should_force_tool, classify_intent, has_info_fetch_intent, has_save_intent
+
+
+def _auto_compress_messages(state, messages):
+    """如果估算 token 超过阈值，对较早对话轮次进行摘要压缩。"""
+    threshold = getattr(state, "context_compress_threshold", 4000)
+    keep_recent = getattr(state, "context_compress_keep_recent", 5)
+    if threshold <= 0 or len(messages) <= keep_recent * 2 + 1:
+        return
+    # 自适应阈值：不超过模型 token 上限的 60%，避免小上限模型未触发压缩
+    limit = getattr(state, "limit", 0) or 0
+    effective_threshold = min(threshold, int(limit * 0.6)) if limit > 0 else threshold
+    try:
+        compressed, did_compress, before, after = maybe_compress(
+            messages,
+            state.client,
+            state.model_name,
+            lang=state.lang,
+            threshold=effective_threshold,
+            keep_recent=keep_recent,
+        )
+        if did_compress:
+            saved = max(0, before - after)
+            print(f"{DIM}💡 已压缩早期对话摘要（估算节省约 {saved} tokens）{RESET}")
+            messages[:] = compressed
+    except Exception:
+        pass
 
 
 def _record_usage(state, usage):
@@ -128,25 +155,47 @@ def handle_ai_chat(state, u):
                 reasoning_text = engine.analyze(state, u, "react", intent, lang)
 
     if intent == "TOOL":
-        tools_info = "\n\n当前可用的工具列表：\n"
+        is_en = lang == "en"
+        title = "\n\nAvailable tools:\n" if is_en else "\n\n当前可用的工具列表：\n"
+        cmd_label = "Commands" if is_en else "可用命令"
+        param_label = "Parameters" if is_en else "参数"
+        none_label = "none" if is_en else "无参数"
+        important = (
+            "\n[Important] When the user's request requires a tool, you MUST output the invocation marker directly; the system will execute it automatically. Do not only provide a natural-language explanation. Format: 【调用：tool_name({\"parameter\": \"value\"})】\n"
+            if is_en else
+            "\n【重要】当用户请求需要工具才能完成时，你必须直接输出调用标记，系统会自动执行。不要只给出自然语言说明。调用格式：【调用：tool_name({\"参数\": \"值\"})】\n"
+        )
+        tools_info = title
         for i, tool in enumerate(tools, 1):
-            tools_info += f"{i}. {tool['name']}: {tool['description']}\n   可用命令: {', '.join(tool['commands'])}\n"
+            params = tool.get("params", {})
+            params_desc = ", ".join([f"{k}: {v}" for k, v in params.items()]) if params else none_label
+            tools_info += f"{i}. {tool['name']}: {tool['description']}\n   {cmd_label}: {', '.join(tool['commands'])}\n   {param_label}: {params_desc}\n"
+        tools_info += important
         # 注入 MCP 外部工具
         mcp_manager = getattr(state, "mcp", None)
         mcp_desc = _fetch_mcp_desc(mcp_manager)
         if mcp_desc:
             tools_info += mcp_desc + "\n"
-            tools_info += "\n调用 MCP 工具时，请使用格式：【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n"
+            if is_en:
+                tools_info += "\nTo call an MCP tool, use: 【调用：mcp_call({\"server\": \"server_name\", \"tool\": \"tool_name\", \"arguments\": {...}})】\n"
+            else:
+                tools_info += "\n调用 MCP 工具时，请使用格式：【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n"
 
         # 注入本地/远程 Agent 分身，让大模型知道可协作的独立 Agent
         try:
             from fr_cli.agent.client import discover_all_agents
             agents = discover_all_agents()
             if agents:
-                tools_info += "\n=== 可协作的独立Agent ===\n"
-                for a in agents:
-                    tools_info += f"- [{a['type']}] {a['name']}: {a['description']}\n"
-                tools_info += "\n调用方式: 【调用：agent_call({\"name\": \"Agent名\", \"user_input\": \"任务描述\"})】\n"
+                if is_en:
+                    tools_info += "\n=== Available Agents ===\n"
+                    for a in agents:
+                        tools_info += f"- [{a['type']}] {a['name']}: {a['description']}\n"
+                    tools_info += "\nInvocation: 【调用：agent_call({\"name\": \"AgentName\", \"user_input\": \"task description\"})】\n"
+                else:
+                    tools_info += "\n=== 可协作的独立Agent ===\n"
+                    for a in agents:
+                        tools_info += f"- [{a['type']}] {a['name']}: {a['description']}\n"
+                    tools_info += "\n调用方式: 【调用：agent_call({\"name\": \"Agent名\", \"user_input\": \"任务描述\"})】\n"
         except Exception:
             pass
         # 信息获取规范：当用户需要调用外部信息源时，采用双源回答模式
@@ -192,6 +241,9 @@ def handle_ai_chat(state, u):
         updated_messages[0]["content"] = system_content
 
     updated_messages.append({"role": "user", "content": prompt})
+
+    # 长会话自动压缩
+    _auto_compress_messages(state, updated_messages)
 
     # 检测是否调用了本地技能
     triggered_plugin = None
@@ -260,6 +312,9 @@ def handle_ai_chat(state, u):
 
         updated_messages[-1]["content"] = clean_txt if clean_txt.strip() else "[已执行命令]"
         updated_messages.append({"role": "system", "content": blend_system_content})
+
+        # 第二轮前再次压缩（工具结果可能很长）
+        _auto_compress_messages(state, updated_messages)
 
         # 方案二：检测保存意图，追加提示强制第二轮 AI 调用 write_file
         if has_save_intent(u):
