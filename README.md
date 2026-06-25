@@ -191,17 +191,13 @@ fr-cli
 #### 🔧 后台服务 / 系统
 ```
 /autostart [--agent-server port] [--hermes port]  一键启动所有后台服务
-/hermes status|start|stop|list|task|goal|confirm|review   Hermes 后台自治
-/hermes_daemon start|stop|status [port]  Hermes 独立 HTTP 守护进程
+/hermes status|start|stop|list|task|goal|confirm|review   Hermes 后台自治(统一入口,start 即启动独立 HTTP 守护进程)
 /gatekeeper start|stop|status             Gatekeeper 守护进程(Agent HTTP + Cron)
 /hermes_review approve|reject <id>        审核队列(动态构建 / Agent 自动产物)
 ```
 
 #### ⏰ 定时任务
 ```
-/cron_add <命令> <间隔> [args] 添加定时任务(最低 5s)
-/cron_list                     列出定时任务
-/cron_del <id>                 删除定时任务
 /agent_cron_add <名> <秒> [输入]  Agent 定时任务
 /agent_cron_list               列出 Agent 定时任务
 /agent_cron_del <id>           删除 Agent 定时任务
@@ -574,7 +570,7 @@ pip install bypy    # 百度网盘
 ```
 或单独控制:
 ```bash
-/hermes_daemon stop           # 停止 Hermes 守护进程
+/hermes stop                  # 停止 Hermes 守护进程
 /gatekeeper stop              # 停止 Gatekeeper 守护进程
 /master off                   # 关闭 MasterAgent 主控
 ```
