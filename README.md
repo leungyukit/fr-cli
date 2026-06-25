@@ -1,60 +1,73 @@
 # 凡人打字机 (fr-cli)
 
-**支持 27+ 种 AI 模型（智谱/智谱Coding/DeepSeek/Kimi/Kimi K2/Kimi Code/StepFun/Step-3/MiniMax/M2.7/讯飞星火/豆包/MiMo/LongCat）的终极全能终端工具。**
+**支持 25 种 AI 模型(智谱/Anthropic/OpenAI/DeepSeek/Kimi/StepFun/MiniMax/豆包/MiMo/Qwen 等)的终端全能 AI 工具。**
 
-**集成 Hermes Agent 核心功能：自我进化的 AI 助手。**
+**集成 MasterAgent 主控 + Hermes 后台自治任务引擎:自我进化、目标分解、定时执行。**
 
 ## ✨ 功能特性
 
-### 🤖 多模型支持
-支持以下 AI 模型提供商：
-- **智谱 AI**: GLM-4-Flash 等
-- **智谱 Coding Plan**: GLM-4.7 等 (https://docs.bigmodel.cn/cn/coding-plan/quick-start)
-- **OpenAI**: GPT-4o / GPT-4o-mini / o1-mini / o3-mini 等（标准 OpenAI 接口）
-- **DeepSeek**: DeepSeek-Chat 等
-- **Kimi (Moonshot)**: moonshot-v1-8k 等
-- **Kimi K2**: 代码优化版 kimi-k2-0905-preview
-- **Kimi Code**: 代码平台 kimi-for-coding (Kimi 会员)
-- **通义千问 (Qwen)**: qwen-turbo 等
-- **阶跃星辰 (StepFun)**: step-1-8k, step-2-16k, step-3-auto 等
-- **Step-Audio**: 实时语音交互
-- **MiniMax**: MiniMax-Text-01 等
-- **MiniMax M2.7**: Token Plan 订阅模型
-- **讯飞星火 (Spark)**: generalv3.5 等
-- **豆包 (Doubao)**: doubao-1-5-pro-32k 等
-- **小米 MiMo**: mimo-v2-flash 等
-- **LongCat (龙猫)**: LongCat-Flash-Chat 等 (https://longcat.chat/platform/docs/zh/)
+### 🤖 多模型支持(25 个厂商)
+支持以下 AI 模型提供商,默认 `zhipu / glm-4-flash`,启动时按 `default_provider → backup_provider` 自动降级:
+
+| 厂商 | 默认模型 | 协议 |
+|------|---------|------|
+| **zhipu** 智谱 | glm-4-flash | 原生 SDK |
+| **zhipu-coding** 智谱 Coding Plan | glm-4.7 | OpenAI 兼容 |
+| **anthropic** Anthropic Claude | claude-sonnet-4-5 | Anthropic 协议 |
+| **openai** | gpt-4o-mini | OpenAI 兼容 |
+| **deepseek** | deepseek-chat | OpenAI 兼容 |
+| **kimi** 月之暗面 | moonshot-v1-8k | OpenAI 兼容 |
+| **kimi-k2** | kimi-k2-0905-preview | OpenAI 兼容 |
+| **kimi-code** 代码平台 | kimi-for-coding | OpenAI 兼容 |
+| **kimi-code-anthropic** | kimi-for-coding | Anthropic 协议 |
+| **qwen** 通义千问 | qwen-turbo | OpenAI 兼容 |
+| **doubao** 豆包 | doubao-1-5-pro-32k | OpenAI 兼容 |
+| **mimo** 小米 MiMo | mimo-v2-flash | OpenAI 兼容 |
+| **mimo-token-plan** | mimo-v2-flash | OpenAI 兼容(Token Plan) |
+| **minimax** MiniMax | MiniMax-Text-01 | OpenAI 兼容 |
+| **minimax-chat** | abab6.5s-chat | OpenAI 兼容 |
+| **minimax-m27** Token Plan | MiniMax-M2.7 | OpenAI 兼容(Token Plan) |
+| **minimax-m27-fast** | MiniMax-M2.7-HighSpeed | OpenAI 兼容(Token Plan) |
+| **minimax-token-plan** | MiniMax-M2.7 | OpenAI 兼容(Token Plan) |
+| **stepfun** 阶跃星辰 | step-1-8k | OpenAI 兼容 |
+| **step-1 / step-2 / step-3** | step-X-8k/16k/auto | OpenAI 兼容 |
+| **step-audio** | step-audio-2 | OpenAI 兼容 |
+| **stepfun-step-plan** | step-3-auto | OpenAI 兼容(Token Plan) |
+| **ernie** 文心一言 | ernie-bot-4 | Wenxin SDK |
 
 ### 🧠 核心功能
-- **MasterAgent 主控**：自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化、失败驱动学习
-- **Hermes 后台自治任务**：持久化任务队列、目标自动分解、子任务依赖链、跨任务记忆、定时执行
-- **思维模式**：direct / CoT / ToT / ReAct / Plan 五种推理模式切换
-- **文件沙盒**：安全的虚拟文件系统，支持读写/目录操作
-- **联网搜索**：内置 Web 搜索与网页内容提取（SSRF 防护）
-- **Token 上下文压缩**：长会话自动摘要早期对话，降低 prompt token 消耗
+- **MasterAgent 主控**(默认启用):自我进化的 ReAct 主控 Agent,自动规划、调用工具、反思进化、失败驱动学习
+- **Hermes 后台自治任务**:持久化任务队列、目标自动分解、子任务依赖链、跨任务记忆、定时执行、审核队列
+- **启动流程 v2.6+**:首次启动自动引导配置 → 6 步模型向导 → default/backup 自动降级 → 后台服务自动拉起
+- **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
+- **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
+- **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
+- **Token 上下文压缩**:长会话自动摘要早期对话,降低 prompt token 消耗
+- **4 阶安全确认**:`Y / A / F / N` 四级授权,支持 `sandbox_auto` / `full_auto` 自治模式
 
 ### 🎯 特色功能
-- **视觉能力**：图片生成 (CogView) 与多模态识别 (GLM-4V)
-- **邮件收发**：支持 IMAP/SMTP 与 Microsoft 365 现代认证（OAuth2 + MFA）
-- **定时任务**：后台定时执行命令与 Agent 定时任务
-- **云盘集成**：百度/阿里/OneDrive 网盘
-- **插件系统**：AI 生成代码自动保存为插件（子进程隔离）
-- **会话记忆**：自动保留最近 5 轮对话摘要 + 按日期自动存档
-- **Agent 分身系统**：AI 自动生成 Agent，支持工作流编排与专属模型绑定
-- **Agent HTTP API**：将 Agent 发布为 REST API 供外部调用
-- **蜂群协作 (Swarm)**：parallel / council / pipeline 三种多 Agent/工具协作模式
-- **动态构建系统**：按需自动安装依赖、生成工具、自测回滚、能力缺口发现
-- **本机应用启动**：一键调用浏览器、微信、Word、WPS 等本地程序
-- **内置 Agent**：`@local` `@remote` `@spider` `@db` `@RAG` `@stock`
-- **数据卷轴**：Excel / CSV 读取与智能分析
-- **数据库助手**：MySQL / PostgreSQL / SQL Server / Oracle 智能 SQL 生成
-- **本地 RAG**：ChromaDB 向量库 + 自动文件监控与向量化
-- **股票助手**：akshare / 麦蕊 / tushare 数据源，模拟交易
-- **MCP 外部神通**：支持 Model Context Protocol
-- **多源信息融合**：大模型 + 工具结果统一汇总
-- **集中式错误报告**：`/status errors` 聚合 Hermes / 动态构建 / 审核拒绝 / MasterAgent 失败模式
-- **中英文切换**：完整国际化支持
-- **NO_COLOR 支持**：`NO_COLOR=1` 禁用所有 ANSI 颜色，适合 CI/管道环境
+- **视觉能力**:图片生成(CogView)与多模态识别(GLM-4V / Claude Vision)
+- **OCR 文字识别**:`/ocr <文件>` 识别图片或 PDF 中的文字,支持 Vision API + PaddleOCR 本地引擎
+- **邮件收发**:IMAP/SMTP 标准邮箱 + Microsoft 365 现代认证(OAuth2 + MFA)
+- **定时任务**:后台定时执行命令(Cron)与 Agent 定时任务(Agent Cron)
+- **云盘集成**:百度/阿里/OneDrive 网盘
+- **插件系统**:AI 生成代码自动保存为插件(子进程隔离,15s 超时)
+- **会话记忆**:最近 5 轮对话摘要注入 + 按日期自动存档 + 手动保存
+- **Agent 分身系统**:AI 自动生成 Agent,支持工作流编排、专属模型绑定、远程 Agent 注册
+- **Agent HTTP API**:将 Agent / 蜂群 / MasterAgent 发布为 REST API
+- **蜂群协作 (Swarm)**:`parallel / council / pipeline` 三种多 Agent/工具/MCP/插件协作模式
+- **动态构建系统**:按需自动安装依赖、生成工具、自测回滚、能力缺口发现
+- **本机应用启动**:一键调用浏览器、微信、Word、WPS 等本地程序
+- **内置 Agent**:`@local` `@remote` `@spider` `@db` `@RAG` `@stock`
+- **数据卷轴**:Excel / CSV 读取与智能分析
+- **数据库助手**:MySQL / PostgreSQL / SQL Server / Oracle 智能 SQL 生成
+- **本地 RAG**:ChromaDB 向量库 + 自动文件监控与向量化(支持独立守护进程)
+- **股票助手**:akshare / 麦蕊 / tushare 数据源,模拟交易
+- **MCP 外部神通**:支持 Model Context Protocol(stdio / SSE)
+- **多源信息融合**:大模型 + 工具结果统一汇总,双源回答
+- **集中式错误报告**:`/status errors` 聚合 Hermes / 动态构建 / 审核拒绝 / MasterAgent 失败模式
+- **中英文切换**:完整国际化支持
+- **NO_COLOR 支持**:`NO_COLOR=1` 禁用所有 ANSI 颜色,适合 CI/管道环境
 
 ## 🚀 快速开始
 
@@ -66,65 +79,170 @@ pip install fr-cli
 fr-cli
 
 # 或从源码运行
+git clone https://github.com/yourname/fr-cli.git
 cd fr-cli
-pip install -e .
+pip install -e ".[all]"
 fr-cli
 ```
 
-首次运行会引导输入当前道统的 API Key。直接回车可进入 Mock 模式试用。
+**首次运行**(v2.6+):
+1. 检测到未配置 → 提示是否进入 6 步配置向导
+2. 选 N → 进入 Mock 模式试用
+3. 选 Y → 6 步流程:`选厂商 → 选 compat → 选模型 → 设 baseUrl → 设 API Key → 设 default/backup`
+
+启动后自动:
+- 启用 MasterAgent(默认开,可 `/master off` 关掉)
+- 拉起 Hermes 后台守护进程(可 `autostart_on_launch: false` 关掉)
+- 拉起 Gatekeeper 守护进程(Agent HTTP + 定时任务持久化)
 
 ## 📝 使用方法
 
 ### 📋 常用命令
 
+#### 💬 对话 / 模型
 ```
-/dir                列出当前目录文件
-/open <file>        查看文件内容
-/write <file>       写入文件（多行输入，Ctrl+D 结束）
-/delete <file>      删除文件
-/search <query>     联网搜索
-/save <name>        保存会话
-/load               加载历史会话
-/export             导出会话为 Markdown
-/context [status|compress|threshold N|keep N]   管理上下文压缩
-/usage [days]       查看 LLM 用量统计
-/status [json|errors]          查看系统状态 / 集中错误报告
+/model <模型名>                切换 AI 模型(仅当前会话)
+/model <道统>:<模型名>         同时切换道统和模型
+/model current                 显示当前模型
+/model default                 恢复 factory 默认模型
+/model list                    列出所有可用模型
+/model config                  🆕 6 步模型配置向导(等价 /providers setup)
+/key <key>                     修改当前道统 API Key
+/key <道统> <key>              为指定道统设置 Key
+/providers                     查看所有道统配置(含 default/backup)
+/providers setup               🆕 6 步模型配置向导
+/providers add <p> <k> [m]     添加/更新道统配置
+/providers use <p>             切换到指定道统
+```
 
-/model <模型名>              切换AI模型（仅当前会话生效）
-/model <道统>:<模型名>       同时切换道统和模型
-/model config               🆕 交互式模型配置向导
-/model list                 列出所有可用模型
-/model current              显示当前模型
-/model default              恢复 factory 默认模型
-/key <key>                   修改当前道统 API Key
-/key <道统> <key>            为指定道统设置 Key
-/providers                   查看所有道统配置
-/providers setup            交互式配置向导
-/providers add <p> <k> [m]   添加/更新道统配置
-/providers use <p>           切换到指定道统
+#### 🧠 主控 / 思维
+```
+/master on|off|status          MasterAgent 主控(默认开)
+/mode direct|cot|tot|react|plan  切换思维模式
+/autonomous [mode]             切换自治模式(manual/sandbox_auto/full_auto/off)
+```
 
-/mode direct|cot|tot|react|plan   切换思维模式
-/master on|off|status       MasterAgent 主控
-/mcp_list                   列出 MCP 服务器及工具
-/mcp_add <名> <命令> [参数]  添加 MCP 服务器
-/mcp_del <名>               删除 MCP 服务器
+#### 📂 文件 / 上下文
+```
+/dir [路径]                    列出目录文件 / 添加允许访问的目录
+/dirs                          列出已挂载的工作目录
+/rmdir <索引>                  删除已挂载的目录
+/open <file>                   查看文件内容
+/write <file>                  写入文件(多行,Ctrl+D 结束)
+/delete <file>                 删除文件
+/context [status|compress|threshold N|keep N]  管理上下文压缩
+/limit <n>                     设置 Token 上限(最小 1000)
+```
 
-/mail setup        配置 IMAP/SMTP 邮箱
-/mail inbox        查看收件箱
-/mail read <id>    读取邮件
+#### 💾 会话 / 用量
+```
+/save <name>                   保存当前会话
+/load [name]                   加载历史会话
+/export [path]                 导出会话为 Markdown
+/session_list                  列出按日期自动存档的会话
+/session_load <idx>            加载自动存档的会话
+/session_del <idx>             删除自动存档
+/usage [days]                  查看 LLM 用量统计(provider/model/tokens/cost)
+/status [json|errors]          查看全局状态 / 集中错误报告
+```
+
+#### 🔌 MCP / 插件 / 动态构建
+```
+/mcp_list                      列出 MCP 服务器及工具
+/mcp_add <名> <命令> [参数]    添加 MCP 服务器
+/mcp_del <名>                  删除 MCP 服务器
+/mcp_enable / mcp_disable <名> 启用/禁用 MCP
+/mcp_refresh                   刷新 MCP 工具列表
+/build <需求>                  AI 自动生成工具并注册
+/build list                    列出已构建工具
+/build check <name>            重新测试已构建工具
+/build del <name>              删除已构建工具
+```
+
+#### 🤖 Agent 管理
+```
+/agent_create <名> <描述>      AI 自动生成 Agent
+/agent_forge <名>              从历史代码铸造 Agent
+/agent_list                    列出所有 Agent
+/agent_show <名>               查看 Agent 详情
+/agent_edit <名> persona|memory|skills  编辑 Agent 文件
+/agent_run <名> <任务>         运行 Agent
+/agent_model <名> [<provider>:<model>]  配置 Agent 专属模型
+/agent_delete <名>             删除 Agent
+/agent_server start|stop|status [port]   启动 Agent HTTP API
+```
+
+#### 🛰️ 远程 Agent / 内置 Agent
+```
+@local <任务>                  本地系统操作(安全确认后执行)
+/remote <host> <任务>          远程 SSH 操作(支持 sftp/scp)
+/spider <url> [depth]          智能网页爬虫
+/db <conn> <任务>              数据库智能助手
+@RAG <问题>                    本地知识库问答
+@stock <任务>                  股票/量化助手
+
+/remote_setup                  配置 SSH 远程主机
+/db_setup                      配置数据库连接
+/remote_agent_add <名> <url>   注册远程 Agent
+/remote_agent_list             列出远程 Agent
+/remote_agent_publish <名>    将本地 Agent 发布为 HTTP API
+```
+
+#### 🔧 后台服务 / 系统
+```
+/autostart [--agent-server port] [--hermes port]  一键启动所有后台服务
+/hermes status|start|stop|list|task|goal|confirm|review   Hermes 后台自治
+/hermes_daemon start|stop|status [port]  Hermes 独立 HTTP 守护进程
+/gatekeeper start|stop|status             Gatekeeper 守护进程(Agent HTTP + Cron)
+/hermes_review approve|reject <id>        审核队列(动态构建 / Agent 自动产物)
+```
+
+#### ⏰ 定时任务
+```
+/cron_add <命令> <间隔> [args] 添加定时任务(最低 5s)
+/cron_list                     列出定时任务
+/cron_del <id>                 删除定时任务
+/agent_cron_add <名> <秒> [输入]  Agent 定时任务
+/agent_cron_list               列出 Agent 定时任务
+/agent_cron_del <id>           删除 Agent 定时任务
+```
+
+#### 📧 邮件
+```
+/mail setup                    配置 IMAP/SMTP 邮箱
+/mail inbox                    查看收件箱
+/mail read <id>                读取邮件
 /mail send <to> <sub> <body>   发送邮件
-/m365_config setup 配置 Microsoft 365 邮箱（OAuth2 + MFA）
-/m365_inbox        查看 Microsoft 365 收件箱
-/m365_read <id>    读取 Microsoft 365 邮件
-/m365_send <to> <sub> <body>   发送 Microsoft 365 邮件
+/m365_config setup             配置 Microsoft 365 邮箱(OAuth2 + MFA)
+/m365_inbox / m365_read / m365_send
+```
 
-/help              查看帮助
-/exit              退出
+#### 🌐 RAG / 股票 / OCR
+```
+/rag_dir <目录>                设置并同步本地知识库
+/rag_sync [路径]               手动同步文件到向量库
+/rag_watch start|stop|status|log  RAG 独立文件监控守护进程
+/stock_config setup            交互式配置股票数据源
+/ocr <文件>                    OCR 识别图片或 PDF
+/ocr_config setup|engine|provider|model|key|base_url|prompt  配置 OCR
+```
+
+#### 🛠️ 其它
+```
+/search <query>                联网搜索
+/read_excel <xlsx>             读取 Excel
+/read_csv <csv>                读取 CSV
+/security                      查看安全设置
+/lang <zh|en>                  切换语言
+/update check|run              检查 / 执行更新
+/tutorial                      显示交互式教程
+/banner on|off                 控制启动动画
+/exit                          退出
 ```
 
 ### 🖥️ 非交互 / 批处理模式
 
-fr-cli 支持在不进入 REPL 的情况下执行单次命令或单次 AI 对话，适用于脚本、cron、管道等场景：
+适合脚本、cron、管道场景:
 
 ```bash
 # 执行一条 slash 命令后退出
@@ -139,197 +257,115 @@ fr-cli -p "Python 如何读取 JSON？"
 cat article.txt | fr-cli -s
 fr-cli -f prompt.txt
 
-# 静默模式（跳过启动 banner，只输出核心结果）
+# 静默模式(跳过启动 banner,只输出核心结果)
 fr-cli -q -c "/model current"
 fr-cli -q -p "1+1等于几"
 ```
 
-### 🤖 AI 模型配置
+### 🤖 模型配置详解(v2.6+)
 
+**首次启动自动引导**,或手动 `/model config` / `/providers setup` 启动 6 步向导:
+
+| 步骤 | 内容 |
+|------|------|
+| a | 选择供应商(25 个,显示已配置标记 + compat 类型) |
+| b | 选择 compat 模式(Anthropic / OpenAI,zhipu 自动跳过) |
+| c | 选择模型(支持 `c` 自定义) |
+| d | 设置 baseUrl(`none` 清空,可读环境变量) |
+| e | 设置 API Key(getpass 隐藏,可读环境变量) |
+| f | 设置 default / backup / 仅保存 |
+
+**default / backup 自动降级**:
+```json
+{
+  "default_provider": "zhipu",
+  "backup_provider": "deepseek",
+  "providers": {
+    "zhipu": {"key": "sk-xxx", "model": "glm-4-flash"},
+    "deepseek": {"key": "sk-yyy", "model": "deepseek-chat"}
+  }
+}
+```
+启动时若 `default_provider` 不可用(无 key / 接口挂),自动降级到 `backup_provider`,可通过 `/status json` 查看 `active_model_source`。
+
+**Agent 专属模型**(不影响全局默认):
 ```bash
-# 交互式配置向导（推荐）
->>> /model config
-
-# 直接切换（仅当前会话生效，重启后恢复 factory 默认）
->>> /model deepseek-chat
->>> /model deepseek:deepseek-reasoner
-
-# 查看当前模型
->>> /model current
-
-# 恢复 factory 默认模型
->>> /model default
-
-# 配置新的 API Key
->>> /providers add step-3 <your-api-key>
+>>> /agent_model my_agent
+>>> /agent_model my_agent deepseek:deepseek-chat
+>>> /agent_model my_agent --key sk-own-key
+>>> /agent_model my_agent clear
 ```
-
-### 🔧 Agent 管理
-
-```
-/agent_create coder "编写Python代码的助手"  # 创建 Agent
-/agent_list                                    # 列出所有 Agent
-/agent_show myagent                            # 查看 Agent 详情
-/agent_edit myagent persona                    # 编辑 Agent 人设
-/agent_run myagent "帮我写个排序算法"          # 运行 Agent
-/agent_delete oldagent                          # 删除 Agent
-/agent_server start 8080                        # 启动 HTTP API
-```
-
-### 🔗 MCP 外部神通
-
-```
-/mcp_list                  # 列出已配置的 MCP 服务器
-/mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp
-/mcp_del fs                # 删除 MCP 服务器
-/mcp_refresh               # 刷新工具列表
-```
-
-### 📊 数据处理
-
-```
-/read_excel report.xlsx    # 读取 Excel
-/read_csv data.csv         # 读取 CSV
-```
-
-### 🧑‍💻 内置 Agent
-
-```
-@local 查看当前目录最大的5个文件    # 本地系统操作
-@spider https://example.com 2        # 智能爬虫
-@db mydb 查询最近7天注册用户         # 数据库助手
-@RAG 什么是向量数据库                # 本地知识库问答
-@stock 查询茅台股价                  # 股票/量化助手
-```
-
-### ⚡ Hermes 后台自治任务
-
-```
-/hermes status                    查看 Hermes 引擎状态
-/hermes goal "完成某项目"          创建目标并自动分解子任务
-/hermes task "发送日报" --due 60   创建延迟任务（分钟后执行）
-/hermes list                      列出待执行/已完成任务
-/hermes run                       立即执行一次 Hermes 轮询
-/hermes stop                      停止 Hermes 守护线程
-```
+配置存储于 `~/.fr_cli/agents/<name>/config.json`。
 
 ### 🐝 蜂群协作 (Swarm)
 
-通过 AI 工具调用实现多 Agent / 工具协作：
+通过 AI 工具调用实现多 Agent / 工具协作:
 
 ```
 【调用：swarm_run({"mode": "parallel", "names": ["@local", "tool:search_web"], "user_input": "分析项目并搜索相关资料"})】
 【调用：swarm_run({"mode": "council", "names": ["planner", "coder", "reviewer"], "user_input": "设计用户登录模块"})】
+【调用：swarm_run({"mode": "pipeline", "names": ["extractor", "summarizer"], "user_input": "从报告中提取关键点"})】
 ```
 
-支持 `parallel`（并行执行取最佳）、`council`（议会讨论后汇总）、`pipeline`（前序输出作为后序输入）三种模式。
+支持任务单元:Agent / 内置 Agent / 注册表工具 / `/` 命令 / MCP 工具 / 自定义插件。
+也可用 `/swarm parallel coder,reviewer ...` 直接执行。
 
-### 🏗️ 动态构建
-
-```
-/build 生成一个二维码识别工具     AI 自动生成工具并注册
-/build list                       列出已构建工具
-/build check <name>               重新测试并修复指定工具
-/build del <name>                 删除已构建工具
-```
-
-### 📊 RAG 与股票
+### 🤖 AI 调用格式
 
 ```
-/rag_dir <目录>                   设置并同步本地知识库
-/rag_sync [路径]                  手动同步文件到向量库
-/rag_watch start [目录]           启动独立文件监控守护进程
-
-/stock_config setup               交互式配置股票数据源
-/stock 查询茅台股价
-/stock 买入 600519 1500.00 100    # 模拟交易
+【调用：search_web({"query": "搜索词"})】
+【调用：write_file({"path": "a.md", "content": "..."})】
+【命令：/build 生成二维码工具】
 ```
 
-### 🛡️ 安全命令
+## 🧠 Hermes 后台自治任务
 
-```
-/limit <n>        设置 Token 上限 (最小1000)
-/dir <path>       添加允许访问的目录
-/dirs             列出已挂载的工作目录
-/rmdir <索引>     删除已挂载的目录
-/security        查看安全设置
-```
-
-## 🧠 Hermes 核心功能
-
-Hermes 是 fr-cli 的后台自治引擎，负责目标分解、任务队列、定时执行、跨任务记忆与失败学习。
+Hermes 是 fr-cli 的后台自治引擎,负责目标分解、任务队列、定时执行、跨任务记忆、审核队列。
 
 ### REPL 命令
 ```
-/hermes status              查看引擎状态
-/hermes goal <目标>         创建目标并自动分解为子任务
-/hermes task <描述>         创建延迟任务（默认 5 分钟后执行）
-/hermes task "发送日报" --due 60 --depends <task_id>
-/hermes list                列出所有任务
-/hermes run                 立即执行一次轮询
-/hermes stop                停止守护线程
-/hermes http [port]         启动 HTTP 任务接口
+/hermes status                 查看引擎状态(任务/目标/统计/守护进程)
+/hermes start [port]           启动独立 HTTP 守护进程(默认 8765)
+/hermes stop                   停止守护进程
+/hermes goal [--autonomous] <目标> [--tags a,b]  创建目标并自动分解
+/hermes task [--autonomous|-a] <描述>  创建后台任务
+/hermes confirm <id>           显式确认 autonomous 任务(以 full_auto 执行)
+/hermes list [status]          列任务(pending/running/completed/failed/paused)
+/hermes log <id>               查看任务结果/日志
+/hermes cancel <id>            暂停任务
+/hermes review [approve|reject <id>]  审核队列(动态构建 / Agent 自动产物)
 ```
 
-### 程序化使用
-```python
-from fr_cli.agent.hermes import HermesEngine
+### HTTP API(默认 127.0.0.1:8765,写端点需 Bearer Token)
 
-engine = HermesEngine()
-engine.start()
+| 方法 | 路径 | 说明 |
+|------|------|------|
+| GET  | `/health` | 健康检查 |
+| GET  | `/tasks` / `/tasks/<id>` | 任务列表 / 详情 |
+| POST | `/task` | 创建任务(`execution_mode=autonomous` 返回 needs_confirmation) |
+| POST | `/tasks/<id>/confirm` | 确认 autonomous 任务 |
+| POST | `/chat` | 提交对话任务给 MasterAgent |
+| POST | `/goal` | 创建目标(带 `decompose=true` 自动分解) |
+| GET  | `/goals` | 目标列表 |
+| GET  | `/analytics` | 统计 |
+| GET  | `/review` | 审核队列列表 |
+| POST | `/review/<id>/approve?name=xxx` | 批准并安装产物 |
+| POST | `/review/<id>/reject` | 拒绝产物 |
 
-# 创建目标并自动分解
-engine.create_goal("完成项目文档", criteria=["结构清晰", "包含示例"])
+### 安全执行模式
 
-# 创建任务
-task_id = engine.create_task(
-    title="发送日报",
-    due_in_minutes=60,
-    action_type="command",
-    action_data={"command": "echo daily report"}
-)
+| 模式 | 说明 | 适用 |
+|------|------|------|
+| `sandbox`(默认) | 后台任务默认,沙盒操作自动放行,系统操作非交互时拒绝 | 普通后台任务 |
+| `autonomous` | 完全信任,所有操作自动放行 | `/hermes task -a` 创建后需 `/hermes confirm` |
+| `interactive` | 占位,走当前 REPL 模式 | 实时对话 |
 
-# 注册状态监听器
-engine.register_listener(lambda event: print(event["type"], event.get("task_id")))
-```
-
-### 🐚 Shell 模式 (Ctrl-X 切换)
+### 🐚 Shell 模式(Ctrl-X 切换)
 ```
 Agent 模式: 输入消息与 AI 对话
 Shell 模式: 直接执行 shell 命令
-
 按 Ctrl-X 切换模式
 ```
-
-## 🤖 支持的模型提供商（25+）
-
-| 道统 | 默认模型 | API 地址 | 常用模型 |
-|------|---------|----------|---------|
-| zhipu | glm-4-flash | open.bigmodel.cn/api/paas/v4 | glm-4-flash, glm-4-plus, glm-4, glm-4v-plus, glm-4-air, glm-4-long |
-| zhipu-coding | GLM-4.7 | open.bigmodel.cn/api/coding/paas/v4 (Coding Plan) | GLM-4.7, GLM-5.1, GLM-4.5-air |
-| zhipu-anthropic | glm-4.6 | open.bigmodel.cn/api/anthropic | glm-4.6 |
-| openai | gpt-4o-mini | api.openai.com/v1 | gpt-4o, gpt-4o-mini, gpt-4-turbo, gpt-3.5-turbo, o1-mini, o3-mini |
-| deepseek | deepseek-chat | api.deepseek.com | deepseek-chat, deepseek-reasoner, deepseek-coder |
-| kimi | moonshot-v1-8k | api.moonshot.cn | moonshot-v1-8k, moonshot-v1-32k, moonshot-v1-128k |
-| kimi-k2 | kimi-k2-0905-preview | api.moonshot.cn | kimi-k2-0905-preview |
-| kimi-code | kimi-for-coding | api.kimi.com/coding/v1 | kimi-for-coding |
-| qwen | qwen-turbo | dashscope.aliyuncs.com | qwen-turbo, qwen-plus, qwen-max, qwen-coder-plus |
-| stepfun | step-1-8k | api.stepfun.com (api.stepfun.com/step_plan/v1 for Step Plan) | step-1-8k, step-1-32k, step-2-16k, step-3-auto |
-| step-1 | step-1-8k | api.stepfun.com | step-1-8k |
-| step-2 | step-2-16k | api.stepfun.com | step-2-16k |
-| step-3 | step-3-auto | api.stepfun.com | step-3-auto |
-| step-audio | step-audio-2 | api.stepfun.com | step-audio-2 |
-| stepfun-step-plan | step-3-auto | api.stepfun.com/step_plan/v1 (Step Plan) | step-3-auto, step-2-16k, step-1-8k |
-| minimax | MiniMax-Text-01 | api.minimax.io (api.minimax.chat for Token Plan) | MiniMax-Text-01, MiniMax-M2.1, abab6.5s-chat, abab6.5t-chat |
-| minimax-m27 | MiniMax-M2.7 | api.minimax.chat (Token Plan) | MiniMax-M2.7 |
-| minimax-m27-fast | MiniMax-M2.7-HighSpeed | api.minimax.chat (Token Plan) | MiniMax-M2.7-HighSpeed |
-| minimax-token-plan | MiniMax-M2.7 | api.minimax.chat (Token Plan) | MiniMax-M2.7 |
-| spark | generalv3.5 | spark-api-open.xf-yun.com | generalv3.5 |
-| doubao | doubao-1-5-pro-32k-250115 | ark.cn-beijing.volces.com | doubao-1-5-pro-32k, doubao-1-5-lite-32k |
-| mimo | mimo-v2-flash | api.xiaomimimo.com | mimo-v2-flash, mimo-v2-pro |
-| mimo-token-plan | mimo-v2-flash | token-plan-sgp.xiaomimimo.com (Token Plan) | mimo-v2-flash, mimo-v2-pro |
-| longcat | LongCat-Flash-Chat | api.longcat.chat/openai | LongCat-Flash-Chat |
-| longcat-anthropic | LongCat | api.longcat.chat/anthropic | LongCat |
 
 ## 🔧 开发
 
@@ -344,75 +380,99 @@ pip install -e ".[all]"
 # 运行测试
 python3 -m pytest tests/ -v
 
-# 运行程序
-fr-cli
+# Lint
+ruff check fr_cli tests
 ```
 
 ### 环境变量
 
 | 变量 | 说明 |
 |------|------|
-| `NO_COLOR=1` | 禁用所有 ANSI 颜色输出，适合 CI/管道/日志重定向 |
-| `FR_CLI_DEBUG=1` | 开启调试模式，显示详细 traceback |
-| `FR_CLI_NON_INTERACTIVE=1` | 非交互模式，安全确认默认拒绝 |
+| `NO_COLOR=1` | 禁用所有 ANSI 颜色输出,适合 CI/管道/日志重定向 |
+| `FR_CLI_DEBUG=1` | 开启调试模式,显示详细 traceback |
+| `FR_CLI_NON_INTERACTIVE=1` | 非交互模式,安全确认默认拒绝 |
+| `FR_CLI_AUTONOMOUS_MODE` | 自治模式:`manual` / `sandbox_auto` / `full_auto` |
+| `FR_CLI_HERMES_TASK_TIMEOUT` | 单个 Hermes 任务超时秒数(默认 300) |
 
 ## 📂 项目结构
 
 ```
 fr_cli/
-├── main.py                    # 核心入口：REPL 循环与 AI 交互编排
+├── main.py                    # 核心入口:REPL 循环与 AI 交互编排
 ├── agent/                     # Agent 分身 / Master / Hermes / 蜂群系统
-│   ├── master/                # MasterAgent 主控（已拆分为多个 mixin）
-│   ├── hermes.py / hermes_daemon.py   # Hermes 后台自治任务
-│   ├── swarm.py / swarm_resolver.py   # 蜂群协作
-│   ├── builtins/              # 内置 Agent（local/remote/db/spider/rag/stock）
-│   └── ...
+│   ├── master.py              # MasterAgent 主类骨架(mixin 组装)
+│   ├── master_storage.py      # 配置文件路径 / 默认值 / 错误分类
+│   ├── master_prompt.py       # 默认 system prompt 模板
+│   ├── master_prompt_builder.py  # Prompt 组装
+│   ├── master_loop.py         # ReAct 主循环
+│   ├── master_reflect.py      # 反思进化
+│   ├── hermes/                # Hermes 后台自治(engines/managers/models/scheduler)
+│   ├── swarm.py / swarm_resolver.py  # 蜂群协作
+│   ├── review_queue.py        # 后台产物审核队列
+│   └── builtins/              # 内置 Agent(local/remote/db/spider/rag/stock)
 ├── command/                   # 统一工具注册表与命令执行引擎
-│   ├── registry.py            # 工具注册表
+│   ├── registry.py            # 工具注册表(单一真相源)
 │   ├── executor.py            # AI 回复解析与调度
+│   ├── security.py            # 安全确认中间件
 │   └── registered/            # 按类目拆分的工具实现
 ├── core/                      # 核心模块
-│   ├── llm.py                 # LLM 客户端（25+ 提供商）
-│   ├── model_factory.py       # 模型工厂配置
+│   ├── llm.py                 # LLM 客户端(25 个厂商 + Anthropic 兼容)
+│   ├── core.py                # AppState 全局状态(DI 容器)
 │   ├── result.py              # 统一 Result 返回风格
+│   ├── store.py               # 统一 JSON 持久化抽象
 │   ├── usage.py               # Token 用量统计
-│   ├── thinking.py            # 思维模式引擎
-│   └── compress.py            # 上下文压缩入口
-├── dynamic_builder/           # 动态构建系统（按需生成工具）
-├── repl/                      # REPL 命令路由与命令处理器
+│   ├── thinking.py            # 思维模式引擎(CoT/ToT/ReAct)
+│   ├── plan/                  # Plan 模式独立模块
+│   └── ...
+├── conf/                      # 配置与路径管理
+│   ├── config.py              # 配置读写 / 首次启动引导
+│   ├── model_wizard.py        # 6 步模型配置向导
+│   └── default_models.yaml    # 25 个厂商的元数据
+├── dynamic_builder/           # 动态构建系统(按需生成工具)
+├── repl/                      # REPL 命令路由
 │   ├── router.py              # 命令路由表
 │   └── commands/              # 40+ 命令处理器
-├── weapon/                    # 武器库（文件/网络/邮件/云盘/RAG/视觉等）
-├── memory/                    # 记忆系统（历史、会话、上下文、压缩）
-├── lang/                      # 国际化
-└── conf/                      # 配置与路径管理
+│       ├── config/            # 配置类(model/key/providers/limit/lang)
+│       └── system/            # 系统类(autostart/status/hermes/setup)
+├── weapon/                    # 武器库(文件/网络/邮件/云盘/RAG/视觉/OCR/图表)
+├── memory/                    # 记忆系统(历史/会话/上下文/压缩)
+├── addon/                     # 插件机制
+├── breakthrough/              # 自动更新
+├── gatekeeper/                # Gatekeeper 守护
+├── lang/                      # 国际化(zh/en)
+└── security/                  # 4 阶安全确认引擎
 ```
 
 ## 📚 文档
 
 - [AGENTS.md](AGENTS.md) - 面向 AI 编码助手的项目架构与开发指南
+- [fr_cli/README.md](fr_cli/README.md) - 项目内部说明
 
 ## 📂 配置目录
 
-> 配置统一在 `~/.fr_cli/` 目录下，旧路径（如 `~/.zhipu_cli_config.json`）会在首次启动时自动迁移到新路径。
+> 配置统一在 `~/.fr_cli/` 目录下,旧路径(如 `~/.zhipu_cli_config.json`)会在首次启动时自动迁移。
 
 | 路径 | 说明 |
 |------|------|
-| `~/.fr_cli/config.json` | 主配置文件（统一配置目录，含 context/usage 命名空间） |
+| `~/.fr_cli/config.json` | 主配置文件(scheme v3,含 default_provider / backup_provider / autostart_on_launch) |
 | `~/.fr_cli/config.json.bak` | 配置自动备份 |
 | `~/.fr_cli/history/` | 会话历史记录 |
-| `~/.fr_cli/sessions/` | 按日期自动存档的会话 |
+| `~/.fr_cli/sessions/manual/` | 手动保存的会话 |
+| `~/.fr_cli/sessions/auto/` | 按日期自动存档的会话 |
+| `~/.fr_cli/context.json` | 上下文记忆摘要 |
+| `~/.fr_cli/usage.json` | LLM 用量统计(文件权限 0o600) |
 | `~/.fr_cli/plugins/` | 用户插件目录 |
-| `~/.fr_cli/agents/` | Agent 分身目录 |
+| `~/.fr_cli/agents/<name>/` | Agent 分身目录 |
 | `~/.fr_cli/master/` | MasterAgent 记忆与进化记录 |
 | `~/.fr_cli/dynamic_tools/` | 动态构建生成的工具目录 |
+| `~/.fr_cli/hermes/` | Hermes 任务 / 目标 / 审核队列 / 日志 |
+| `~/.fr_cli/daemon/` | Gatekeeper 守护进程配置 |
+| `~/.fr_cli/cron.json` | 定时任务配置 |
 | `~/.fr_cli/remotes.json` | 远程主机配置 |
 | `~/.fr_cli/databases.json` | 数据库连接配置 |
-| `~/.fr_cli/rag_db/` | RAG 向量库（ChromaDB）|
-| `~/.fr_cli/hermes.json` | Hermes 任务与目标数据 |
-| `~/.fr_cli/cron.json` | 定时任务配置 |
-| `~/.fr_cli/usage.json` | LLM 用量统计 |
-| `~/.fr_cli/m365.json` | Microsoft 365 OAuth Token 缓存 |
+| `~/.fr_cli/rag_db/` | RAG 向量库(ChromaDB) |
+| `~/.fr_cli/rag/` | RAG 监控日志 |
+| `~/.fr_cli/m365.json` | Microsoft 365 OAuth Token 缓存(0o600) |
 | `~/.fr_cli/stock.json` | 股票数据源与模拟交易记录 |
 
 ## ❓ 常见问题
@@ -423,62 +483,75 @@ fr_cli/
 /mode cot      # 思维链
 /mode tot      # 思维树
 /mode react    # ReAct
-/mode plan     # 计划模式
+/mode plan     # 计划模式(独立模块)
 ```
 
-**Q: 模型切换后重启又变回去了？**
-这是预期行为。fr-cli 每次启动从 `model_factory.py` 的工厂配置读取默认模型，`/model` 切换仅当前会话生效。如需持久化切换默认模型，可修改 `fr_cli/core/model_factory.py` 中的默认模型，或使用 `/providers setup` 交互式配置向导。
-
-**Q: 如何配置模型？**
+**Q: 如何配置模型?**
 ```bash
-# 推荐：交互式向导
+# 推荐:6 步配置向导
 /model config
-
 # 或
 /providers setup
+
+# 启动时按 default → backup 自动降级,可通过 /status json 查看当前激活来源
 ```
 
-**Q: 如何保存会话?**
+**Q: 切换的模型重启后失效?**
+使用 `/model config` 配置后会持久化到 `~/.fr_cli/config.json`(写入 `default_provider` / `providers.*`)。重启仍然生效。仅 `/model xxx` 临时切换会随会话结束失效。
+
+**Q: 如何保存/加载会话?**
 ```bash
-/save my-session
-/load
-/export
+/save my-session               # 手动保存到 sessions/manual/
+/load                          # 列出并选择手动保存的会话
+/session_list                  # 列出按日期自动存档的会话
+/export                        # 导出当前会话为 Markdown
 ```
 
-**Q: 如何查看历史记录?**
+**Q: Token 上下文压缩?**
+会话历史累积超过阈值(默认 4000 token)时自动压缩为摘要,保留最近 N 轮完整对话。压缩摘要注入 system prompt,降低 token 成本。
 ```bash
-/session_list        # 列出已保存会话
-/load                # 加载并选择会话
-/export              # 导出当前会话为 Markdown
+/context status                # 查看当前状态
+/context compress              # 手动触发压缩
+/context threshold 8000        # 调整阈值
+/context keep 10               # 调整保留轮数
 ```
+配置位于 `~/.fr_cli/config.json` 的 `memory` 命名空间。
 
-**Q: 什么是 Token 上下文压缩?**
-当会话历史累积的 token 数超过阈值（默认 4000）时，fr-cli 会自动将早期对话压缩为摘要，保留最近 N 轮完整对话，从而降低 prompt 成本并避免超出模型上下文窗口。压缩后的摘要有独立的 system prompt 注入，可通过 `/context` 查看或恢复关键上下文片段。
-
-相关配置（位于 `~/.fr_cli/config.json` 的 `memory` 命名空间）：
-```json
-{
-  "memory": {
-    "compress_threshold": 4000,
-    "compress_keep_recent": 5
-  }
-}
+**Q: MasterAgent 默认开启吗?需要关掉?**
+v2.6+ 默认启用。普通对话自动进入 ReAct 循环(自主调用工具 / 反思)。如想恢复传统流式对话:
+```bash
+/master off
 ```
-- `compress_threshold`：触发压缩的 token 阈值，设置为 `0` 可关闭自动压缩
-- `compress_keep_recent`：压缩后保留的最近完整轮数
+所有原有 `/`、`!`、`@` 前缀行为不变。
 
 **Q: 邮件发送失败?**
-- QQ/163 邮箱需使用「授权码」而非登录密码
-- 授权码在邮箱设置 → 账户 → 开启 IMAP/SMTP 服务后生成
+QQ/163 邮箱需使用「授权码」而非登录密码。授权码在邮箱设置 → 账户 → 开启 IMAP/SMTP 服务后生成。
 
 **Q: Microsoft 365 / Outlook 邮箱如何使用?**
-Microsoft 365 已禁用基本认证，需使用 OAuth2 现代认证：
-1. 在 Azure AD 注册应用，添加 `Mail.Read`、`Mail.Send`、`User.Read` 委派权限
+Microsoft 365 已禁用基本认证,需使用 OAuth2 现代认证:
+1. 在 Azure AD 注册应用,添加 `Mail.Read`、`Mail.Send`、`User.Read` 委派权限
 2. 复制 Application (client) ID 和 Directory (tenant) ID
-3. 执行 `/m365_config setup`，按向导完成设备码或授权码登录（支持 MFA）
-4. 之后使用 `/m365_inbox`、`/m365_read <id>`、`/m365_send <to> <sub> <body>`
+3. 执行 `/m365_config setup`,按向导完成设备码或授权码登录(支持 MFA)
+4. 使用 `/m365_inbox`、`/m365_read <id>`、`/m365_send`
 
-Token 缓存于 `~/.fr_cli/m365.json`，文件权限 `0o600`。
+Token 缓存于 `~/.fr_cli/m365.json`,文件权限 `0o600`。
+
+**Q: OCR 使用?**
+```bash
+/ocr_config setup              # 交互式配置(选 vision / paddle 引擎)
+/ocr screenshot.png            # 识别图片
+/ocr invoice.pdf               # 识别 PDF(需 pip install pymupdf)
+```
+Vision 引擎复用全局 provider 配置(如 `zhipu / glm-4v`);PaddleOCR 为本地引擎,需 `pip install paddleocr paddlepaddle`。
+
+**Q: 股票数据源?**
+```bash
+/stock_config setup            # 交互式配置向导
+/stock_config source akshare   # 切换数据源(akshare / 麦蕊 / tushare)
+/stock_config key mairui <key> # 配置麦蕊 API Key
+/stock 查询茅台股价
+/stock 买入 600519 1500.00 100 # 模拟交易(需先 /stock_config trade)
+```
 
 **Q: 搜索功能无法使用?**
 ```bash
@@ -488,8 +561,23 @@ pip install requests
 **Q: 云盘功能无法使用?**
 ```bash
 pip install aligo   # 阿里云盘
+pip install bypy    # 百度网盘
 ```
 首次使用需运行 `/disk_setup` 完成扫码登录。
+
+**Q: 启动时自动拉起了后台服务,怎么关?**
+```json
+// ~/.fr_cli/config.json
+{
+  "autostart_on_launch": false
+}
+```
+或单独控制:
+```bash
+/hermes_daemon stop           # 停止 Hermes 守护进程
+/gatekeeper stop              # 停止 Gatekeeper 守护进程
+/master off                   # 关闭 MasterAgent 主控
+```
 
 ## 📄 License
 
