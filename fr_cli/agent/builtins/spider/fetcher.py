@@ -82,7 +82,6 @@ def _fetch_adaptive(url, state, memory=None, force_selenium=False):
 
 def _fetch_with_requests(url) -> Tuple[Optional[str], Optional[str]]:
     """使用 requests Session 获取页面，模拟完整浏览器指纹"""
-    import time
     requests = _get_requests()
     if not requests:
         return None, "requests 未安装 (pip install requests)"

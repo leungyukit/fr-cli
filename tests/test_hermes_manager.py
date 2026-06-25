@@ -1,7 +1,6 @@
 """
 Hermes 独立守护进程管理器测试
 """
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 import pytest

@@ -1,7 +1,6 @@
 """
 REPL /model 与 /model config 命令 —— 模型切换与配置向导
 """
-from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
 from fr_cli.repl.commands._common import _provider_has_key
 
@@ -125,115 +124,19 @@ def _cmd_model(state, parts):
 def _cmd_model_config(state):
     """交互式模型配置向导 —— /model config
 
-    流程:
-      1. 列出所有 provider，让用户选择
-      2. 列出该 provider 下的可用模型，让用户选择
-      3. 设置完成后自动切换并保存
-      4. 任意步骤输入 q / 空回车 / Ctrl+C 退出
+    v2.5+: 委托给 conf/model_wizard.run_model_wizard(6 步流程),
+    保持设置完成后自动切换并保存。
     """
-    from fr_cli.core.llm import list_providers, get_provider_info
-    providers = list_providers()
-    if not providers:
-        print(f"{RED}❌ 没有可用的模型提供商{RESET}")
-        return False
-
-    print()
-    print(f"{CYAN}╔{'═' * 50}╗{RESET}")
-    print(f"{CYAN}║{'🧙  模型配置向导':^48}║{RESET}")
-    print(f"{CYAN}╚{'═' * 50}╝{RESET}")
-
-    # ── 第一步：选择 Provider ──
-    print(f"\n{DIM}第一步：选择模型提供商{RESET}")
-    print(f"{DIM}输入编号选择，或输入 q / 回车退出{RESET}\n")
-    for i, p in enumerate(providers, 1):
-        marker = f" {YELLOW}👈 当前{RESET}" if p["id"] == state.provider else ""
-        has_key = _provider_has_key(state, p["id"])
-        key_status = f"{GREEN}✓{RESET}" if has_key else f"{RED}✗{RESET}"
-        print(f"  {CYAN}[{i}]{RESET} {key_status} {p['id']} — {p['name']}{DIM} (默认: {p['default_model']}){RESET}{marker}")
-
+    from fr_cli.conf.model_wizard import run_model_wizard
     try:
-        choice = input(f"\n{YELLOW}👉 Provider 编号 (q/回车退出): {RESET}").strip()
-    except (EOFError, KeyboardInterrupt):
+        run_model_wizard(state.cfg, mode="add")
+    except (KeyboardInterrupt, EOFError):
         print(f"\n{DIM}已取消。{RESET}")
         return False
-
-    if not choice or choice.lower() == "q":
-        print(f"{DIM}已取消。{RESET}")
-        return False
-
-    if not choice.isdigit():
-        print(f"{RED}❌ 请输入有效编号{RESET}")
-        return False
-
-    idx = int(choice) - 1
-    if idx < 0 or idx >= len(providers):
-        print(f"{RED}❌ 编号超出范围，有效范围: 1-{len(providers)}{RESET}")
-        return False
-
-    selected_provider = providers[idx]
-    provider_id = selected_provider["id"]
-    info = get_provider_info(provider_id)
-
-    # ── 第二步：选择 Model ──
-    models = info.get("models", [info.get("default_model", "")]) if info else [selected_provider.get("default_model", "")]
-    default_model = info.get("default_model", models[0]) if info else models[0]
-
-    print()
-    print(f"{DIM}第二步：选择模型 — {CYAN}{provider_id}{RESET}{DIM}{RESET}")
-    print(f"{DIM}输入编号选择，或输入 q / 回车返回上一步{RESET}\n")
-    for i, m in enumerate(models, 1):
-        marker = f" {YELLOW}★ 默认{RESET}" if m == default_model else ""
-        current = f" {GREEN}⟲ 当前使用{RESET}" if provider_id == state.provider and m == state.model_name else ""
-        print(f"  {CYAN}[{i}]{RESET} {m}{marker}{current}")
-    print(f"  {CYAN}[c]{RESET} {DIM}自定义输入模型名{RESET}")
-
-    try:
-        m_choice = input(f"\n{YELLOW}👉 模型编号 (q/回车返回): {RESET}").strip()
-    except (EOFError, KeyboardInterrupt):
-        print(f"\n{DIM}已取消。{RESET}")
-        return False
-
-    if not m_choice or m_choice.lower() == "q":
-        print(f"{DIM}已返回。{RESET}")
-        return False
-
-    if m_choice.lower() == "c":
-        # 自定义输入模型名
-        try:
-            custom_model = input(f"{YELLOW}👉 输入模型名: {RESET}").strip()
-        except (EOFError, KeyboardInterrupt):
-            print(f"\n{DIM}已取消。{RESET}")
-            return False
-        if not custom_model:
-            print(f"{DIM}已取消。{RESET}")
-            return False
-        target_model = custom_model
-    elif m_choice.isdigit():
-        m_idx = int(m_choice) - 1
-        if m_idx < 0 or m_idx >= len(models):
-            print(f"{RED}❌ 编号超出范围，有效范围: 1-{len(models)}{RESET}")
-            return False
-        target_model = models[m_idx]
-    else:
-        print(f"{RED}❌ 无效输入{RESET}")
-        return False
-
-    # ── 应用配置 ──
-    ok = state.update_model(f"{provider_id}:{target_model}")
-    if ok:
-        print()
-        print(f"{GREEN}✅ 默认模型已设置: [{state.provider}] {state.display_model}{RESET}")
-        if hasattr(state, '_prompt') and state._prompt:
-            state._prompt.update_status(model=state.display_model, provider=state.display_provider)
-        if not _provider_has_key(state, state.provider):
-            print(f"\n{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
-            try:
-                k = input(f"👉 请输入 [{state.provider}] 的 API Key (回车跳过): ").strip()
-            except (EOFError, KeyboardInterrupt):
-                k = ""
-            if k:
-                state.update_key(k)
-                print(f"{GREEN}✅ [{state.provider}] API Key 已保存{RESET}")
-    else:
-        print(f"{RED}❌ 设置失败: [{provider_id}] {target_model}{RESET}")
+    # 应用新配置到 state
+    state.reinit_client()
+    # 同步显示
+    if hasattr(state, '_prompt') and state._prompt:
+        state._prompt.update_status(model=state.display_model, provider=state.display_provider)
     return False
+

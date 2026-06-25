@@ -1,7 +1,7 @@
 """
 Agent HTTP 服务与 Gatekeeper 守护进程命令
 """
-from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.ui import CYAN, YELLOW, GREEN, DIM, RESET
 
 
 def _cmd_agent_server(state, parts):

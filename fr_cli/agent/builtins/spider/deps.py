@@ -4,7 +4,6 @@ spider 模块依赖管理 —— 延迟加载 requests / selenium / undetected-c
 按需 import，缺失时返回 None，让上层逻辑走"无依赖"分支或给出安装提示。
 """
 import threading
-from typing import Optional
 
 _requests = None
 _selenium = None

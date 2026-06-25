@@ -15,7 +15,7 @@ from fr_cli.command.security import SecurityManager
 from fr_cli.command.executor import CommandExecutor
 from fr_cli.weapon.loader import load_weapon_md
 from fr_cli.weapon.mcp import MCPManager
-from fr_cli.core.llm import create_llm_client, create_llm_client_for, get_provider_info, resolve_provider_model
+from fr_cli.core.llm import (create_llm_client, create_llm_client_for, get_provider_info, resolve_provider_model, resolve_active_model)
 from fr_cli.core.usage import UsageTracker
 from fr_cli.core.result import Result
 
@@ -44,12 +44,36 @@ class AppState:
         self.session_id = str(uuid.uuid4())
 
         # LLM 客户端统一初始化（万法归一）
-        # 优先读取用户保存的模型配置，无配置时保持未配置状态
-        self.client, self.provider, self.model_name = create_llm_client(cfg, prefer_saved_model=True)
-        # 若用户未显式配置 model，不自动使用 factory 默认
-        if not self._user_configured_model(cfg):
-            self.model_name = None
+        # v2.5+: 启动时按 default_provider / backup_provider 优先级选择可用模型
+        # 解析结果保存在 self._active_resolution,session 内始终参考它
+        self._active_resolution = resolve_active_model(cfg)
+        # 若有可用模型(default 或 backup),用其作为活跃模型
+        active_provider = self._active_resolution["provider"]
+        active_model = self._active_resolution["model"]
+        active_source = self._active_resolution["source"]  # "default"/"backup"/None
+
+        if active_provider:
+            # 把活跃 provider 同步到 cfg['provider'] / cfg['model'],保持向后兼容
+            self.cfg["provider"] = active_provider
+            if active_model:
+                self.cfg["model"] = active_model
+            self.client, self.provider, self.model_name = create_llm_client(cfg, prefer_saved_model=True)
+            if active_source == "backup":
+                # 备用模型激活:在 banner 中提示用户
+                self._fallback_notice = self._active_resolution["reason"]
+            else:
+                self._fallback_notice = None
+        else:
+            # 无可用模型:走原逻辑(可能进入 Mock)
+            self.client, self.provider, self.model_name = create_llm_client(cfg, prefer_saved_model=True)
+            self._fallback_notice = self._active_resolution["reason"]
+            # 若用户未显式配置 model,不自动使用 factory 默认
+            if not self._user_configured_model(cfg):
+                self.model_name = None
         self.api_key = self.client.api_key
+        # 记录激活来源,供 status / 显示使用
+        self.active_model_source = active_source  # None 表示无模型
+        self.is_fallback_active = (active_source == "backup")
 
         # 核心子系统实例化
         self.vfs = VFS(cfg.get("allowed_dirs", []))
@@ -148,11 +172,35 @@ class AppState:
             return "未配置"
         return self.model_name
 
-    def reinit_client(self):
-        """API Key、提供商或模型变更后更新客户端"""
-        # 运行时切换允许读取保存的 model
+    def reinit_client(self, *, prefer_active: bool = True):
+        """API Key、提供商或模型变更后更新客户端。
+
+        Args:
+            prefer_active: True 时优先按 default/backup 优先级重新选择活跃模型;
+                          False 时直接用 cfg['provider']/'model'(用户手动 /model 切时)
+        """
+        if prefer_active:
+            # 重新走 default → backup 解析,实现"配置变更后自动重选"
+            resolution = resolve_active_model(self.cfg)
+            self._active_resolution = resolution
+            if resolution["provider"]:
+                self.cfg["provider"] = resolution["provider"]
+                if resolution["model"]:
+                    self.cfg["model"] = resolution["model"]
+                self.active_model_source = resolution["source"]
+                self.is_fallback_active = (resolution["source"] == "backup")
+                self._fallback_notice = resolution["reason"] if resolution["source"] == "backup" else None
+            else:
+                self.active_model_source = None
+                self.is_fallback_active = False
+                self._fallback_notice = resolution["reason"]
+        else:
+            # 用户手动 /model 切:尊重 cfg 当前 provider/model,不走 default/backup 解析
+            self.active_model_source = "manual"
+            self.is_fallback_active = False
+            self._fallback_notice = None
+
         self.client, self.provider, self.model_name = create_llm_client(self.cfg, prefer_saved_model=True)
-        # 若用户未显式配置 model，不自动使用 factory 默认
         if not self._user_configured_model(self.cfg):
             self.model_name = None
         self.api_key = self.client.api_key
@@ -188,6 +236,8 @@ class AppState:
 
         切换时自动同步 model：优先使用 provider 专属配置中保存的 model，
         否则使用 factory 默认模型，并确保 providers_cfg 和顶层 cfg 保持一致。
+
+        用户主动切换:不重新走 default/backup 解析(避免覆盖用户意图)。
         """
         info = get_provider_info(provider_id)
         if not info:
@@ -206,7 +256,8 @@ class AppState:
             self.model_name = model
             pcfg["model"] = model  # 确保 providers_cfg 中始终同步
             self.save_cfg()
-            self.reinit_client()
+            # 用户主动切换时 prefer_active=False,不走 default/backup 重选
+            self.reinit_client(prefer_active=False)
         return True
 
     def update_model(self, arg):
@@ -231,18 +282,23 @@ class AppState:
             pcfg = providers_cfg.setdefault(self.provider, {})
             pcfg["model"] = new_model
             self.save_cfg()
-            self.reinit_client()
+            # 用户主动切换:不重选 default/backup
+            self.reinit_client(prefer_active=False)
         return True
 
     def update_key(self, key):
-        """更新 API 密钥（针对当前提供商）（线程安全）"""
+        """更新 API 密钥（针对当前提供商）（线程安全）
+
+        注意:此处 prefer_active=True,因为 key 变更可能让原 default 恢复可用,
+        应重新走 default/backup 选择。
+        """
         with self._lock:
             self.cfg["key"] = key
             providers_cfg = self.cfg.setdefault("providers", {})
             pcfg = providers_cfg.setdefault(self.provider, {})
             pcfg["key"] = key
             self.save_cfg()
-            self.reinit_client()
+            self.reinit_client(prefer_active=True)
 
     def update_limit(self, limit):
         """设置 Token 上限（线程安全）"""

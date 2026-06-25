@@ -1,7 +1,7 @@
 """
 /autostart 一键启动命令测试
 """
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 

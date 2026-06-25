@@ -203,37 +203,35 @@ def _cmd_tutorial(state, parts):
          "AI 会自动识别意图并调用工具（搜索、读写文件等）。"),
 
         ("⚙️ 第二步：配置模型与 API Key",
-         "fr-cli 支持智谱、DeepSeek、Kimi、Qwen、StepFun、MiniMax 等 20+ 提供商：\n"
+         "fr-cli 支持智谱、DeepSeek、Kimi、Qwen、StepFun、MiniMax 等 25+ 提供商：\n"
          "  /model                    查看当前模型和可用提供商\n"
          "  /model config             交互式配置向导（推荐新手）\n"
          "  /model <模型名>            按模型名切换，如 /model deepseek-chat\n"
-         "  /model <provider>          按提供商切换，如 /model stepfun-step-plan\n"
+         "  /model <provider>:<model>  同时切换，如 /model deepseek:deepseek-chat\n"
          "  /providers use <provider>  切换到指定提供商\n"
          "  /key <your-key>            为当前提供商设置 API Key\n"
          "未配置模型时，对话会被拦截并提示你先配置。"),
 
         ("📁 第三步：工作目录与文件操作",
          "使用 / 命令操作文件（受 VFS 沙盒保护）：\n"
-         "  /dir <path>     设置工作目录\n"
-         "  /ls             列出当前目录文件\n"
-         "  /cat <file>     查看文件内容\n"
-         "  /cd <dir>       切换目录\n"
+         "  /dir <path>     添加并列出工作目录\n"
+         "  /open <file>    查看文件内容\n"
+         "  /dirs           列出已挂载目录\n"
          "  /write <f>      写入文件（多行输入，Ctrl+D 结束）\n"
          "  /delete <f>     删除文件\n"
          "AI 也可以自动读写文件，危险操作会经过安全确认。"),
 
         ("💾 第四步：会话管理",
          "每个会话有唯一 UUID，自动存档到 ~/.fr_cli/sessions/auto/：\n"
-         "  /new            开启新会话，重置上下文并显示启动画面\n"
-         "  /save <name>    手动保存当前会话\n"
-         "  /load           加载历史会话\n"
-         "  /undo [N]       撤销最近 N 轮对话\n"
-         "  /session list   查看自动存档\n"
-         "  /session load <n> 加载指定自动存档"),
+         "  /new              开启新会话，重置上下文并显示启动画面\n"
+         "  /save <name>      手动保存当前会话\n"
+         "  /load             加载历史会话\n"
+         "  /export           导出当前会话为 Markdown\n"
+         "  /session_list     查看自动存档\n"
+         "  /session_load <n> 加载指定自动存档"),
 
         ("🌐 第五步：联网与多模态",
          "  /web <query>         联网搜索\n"
-         "  /fetch <url>         抓取网页正文\n"
          "  /see <img>           图片分析\n"
          "  /read_excel <f>      读取 Excel\n"
          "  /read_csv <f>        读取 CSV\n"
@@ -242,11 +240,12 @@ def _cmd_tutorial(state, parts):
 
         ("🤖 第六步：Agent 分身",
          "创建独立 Agent，每个 Agent 有独立的设定、记忆和技能：\n"
-         "  /agent create <name> <desc>   自动生成 Agent\n"
-         "  /agent list                   列出 Agent\n"
-         "  /agent run <name>             运行 Agent\n"
-         "  /agent_model <name> <model>   为 Agent 绑定专属模型\n"
-         "内置 Agent：@local @remote @db @RAG @spider"),
+         "  /agent_create <name> <desc>   自动生成 Agent\n"
+         "  /agent_list                   列出 Agent\n"
+         "  /agent_show <name>            查看 Agent 详情\n"
+         "  /agent_run <name>             运行 Agent\n"
+         "  /agent_model <name> <cfg>     为 Agent 绑定专属模型\n"
+         "内置 Agent：@local @remote @db @RAG @spider @stock"),
 
         ("📚 第七步：RAG 本地知识库",
          "把本地文档向量化，让 AI 基于知识库回答：\n"
@@ -257,19 +256,25 @@ def _cmd_tutorial(state, parts):
 
         ("🔌 第八步：MCP 外部工具",
          "通过 MCP 协议连接外部工具服务器：\n"
-         "  /mcp list            列出 MCP 服务器\n"
-         "  /mcp_add             添加服务器\n"
+         "  /mcp_list            列出 MCP 服务器\n"
+         "  /mcp_add <n> <cmd>   添加服务器\n"
          "  /mcp_enable <name>   启用服务器\n"
          "  /mcp_refresh         刷新工具列表"),
 
-        ("🧠 第九步：思维模式与主控",
-         "  /mode <direct|cot|tot|react>   切换思维模式\n"
-         "  /master on|off                 启用/禁用 MasterAgent 自我进化主控\n"
+        ("🧠 第九步：思维模式、主控与 Hermes",
+         "  /mode <direct|cot|tot|react|plan>   切换思维模式\n"
+         "  /master on|off                      启用/禁用 MasterAgent 主控\n"
+         "  /hermes goal <目标>                 创建目标并自动分解\n"
+         "  /hermes task <描述>                 创建后台自治任务\n"
          "  /mode react 会展示 AI 的推理过程。"),
 
         ("🚀 第十步：更多探索",
+         "  /build <需求>        动态构建新工具\n"
+         "  /context             管理上下文压缩\n"
+         "  /status errors       查看集中式错误报告\n"
+         "  /usage [days]        查看 LLM 用量\n"
          "  /tutorial            重新查看本教程\n"
-         "  /help <topic>        查看主题帮助（config/fs/session/agent/mail/m365/tools/mcp/all）\n"
+         "  /help <topic>        查看主题帮助（config/fs/session/agent/hermes/build/context/status/all）\n"
          "  /queue               查看对话队列状态\n"
          "  /exit                退出"),
     ]

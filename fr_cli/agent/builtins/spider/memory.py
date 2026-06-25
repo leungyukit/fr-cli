@@ -14,7 +14,6 @@
 import json
 import re
 from pathlib import Path
-from typing import Optional
 
 SPIDER_MEMORY_DIR = Path.home() / ".fr_cli" / "spider"
 SPIDER_MEMORY_FILE = SPIDER_MEMORY_DIR / "memory.json"

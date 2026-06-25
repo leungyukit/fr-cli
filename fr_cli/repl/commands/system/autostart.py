@@ -1,7 +1,7 @@
 """
 一键自动启动所有后台服务：/autostart
 """
-from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.ui import CYAN, YELLOW, GREEN, RESET
 
 
 def _cmd_autostart(state, parts):

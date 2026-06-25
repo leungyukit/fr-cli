@@ -49,15 +49,15 @@ class TestErrorClassification:
     """测试错误归类"""
 
     def test_classify_file_not_found(self, master_env):
-        from fr_cli.agent.master import _classify_error
+        from fr_cli.agent.master_storage import _classify_error
         assert _classify_error("File not found: /tmp/x") == "FileNotFound"
 
     def test_classify_permission(self, master_env):
-        from fr_cli.agent.master import _classify_error
+        from fr_cli.agent.master_storage import _classify_error
         assert _classify_error("Permission denied") == "PermissionDenied"
 
     def test_classify_timeout(self, master_env):
-        from fr_cli.agent.master import _classify_error
+        from fr_cli.agent.master_storage import _classify_error
         assert _classify_error("request timeout") == "Timeout"
 
 
@@ -76,7 +76,7 @@ class TestFailureDrivenEvolution:
 
     @patch("fr_cli.core.stream.stream_cnt")
     def test_reflect_and_evolve_generates_hints(self, mock_stream, master_env, mock_state):
-        from fr_cli.agent.master import MasterAgent, _classify_error
+        from fr_cli.agent.master import MasterAgent
 
         agent = MasterAgent(mock_state)
         # 构造 10 次 read_file 失败，触发反思

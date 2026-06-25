@@ -3,7 +3,7 @@
 """
 import json
 
-from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.ui import CYAN, YELLOW, GREEN, DIM, RESET
 
 
 def _cmd_status(state, parts):

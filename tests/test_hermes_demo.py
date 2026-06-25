@@ -8,15 +8,11 @@ Hermes 端到端 Demo 测试
   3. 文件确实写入 VFS 沙盒
   4. 用户主会话 state.messages 不被污染
 """
-import json
 import shutil
 import sys
 import tempfile
-import time
 from pathlib import Path
-from unittest.mock import MagicMock
 
-import pytest
 
 project_root = Path(__file__).parent.parent
 if str(project_root) not in sys.path:

@@ -26,28 +26,33 @@
 - **LongCat (龙猫)**: LongCat-Flash-Chat 等 (https://longcat.chat/platform/docs/zh/)
 
 ### 🧠 核心功能
-- **MasterAgent 主控**：自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化
-- **Agent2Agent Protocol (A2A)**：Agent 互操作协议，支持 Agent 发现、注册、任务委托
-- **思维模式**：direct / CoT / ToT / ReAct 四种推理模式切换
+- **MasterAgent 主控**：自我进化的 ReAct 主控 Agent，自动规划、调用工具、反思进化、失败驱动学习
+- **Hermes 后台自治任务**：持久化任务队列、目标自动分解、子任务依赖链、跨任务记忆、定时执行
+- **思维模式**：direct / CoT / ToT / ReAct / Plan 五种推理模式切换
 - **文件沙盒**：安全的虚拟文件系统，支持读写/目录操作
 - **联网搜索**：内置 Web 搜索与网页内容提取（SSRF 防护）
+- **Token 上下文压缩**：长会话自动摘要早期对话，降低 prompt token 消耗
 
 ### 🎯 特色功能
 - **视觉能力**：图片生成 (CogView) 与多模态识别 (GLM-4V)
-- **邮件收发**：支持 IMAP/SMTP 与 Microsoft 365 现代认证（OAuth2 + MFA，防头注入）
-- **定时任务**：后台定时执行命令（shlex 安全解析）
+- **邮件收发**：支持 IMAP/SMTP 与 Microsoft 365 现代认证（OAuth2 + MFA）
+- **定时任务**：后台定时执行命令与 Agent 定时任务
 - **云盘集成**：百度/阿里/OneDrive 网盘
 - **插件系统**：AI 生成代码自动保存为插件（子进程隔离）
 - **会话记忆**：自动保留最近 5 轮对话摘要 + 按日期自动存档
-- **Agent 分身系统**：AI 自动生成 Agent，支持工作流编排
+- **Agent 分身系统**：AI 自动生成 Agent，支持工作流编排与专属模型绑定
 - **Agent HTTP API**：将 Agent 发布为 REST API 供外部调用
+- **蜂群协作 (Swarm)**：parallel / council / pipeline 三种多 Agent/工具协作模式
+- **动态构建系统**：按需自动安装依赖、生成工具、自测回滚、能力缺口发现
 - **本机应用启动**：一键调用浏览器、微信、Word、WPS 等本地程序
-- **内置 Agent**：`@local` `@remote` `@spider` `@db` `@RAG`
+- **内置 Agent**：`@local` `@remote` `@spider` `@db` `@RAG` `@stock`
 - **数据卷轴**：Excel / CSV 读取与智能分析
 - **数据库助手**：MySQL / PostgreSQL / SQL Server / Oracle 智能 SQL 生成
 - **本地 RAG**：ChromaDB 向量库 + 自动文件监控与向量化
+- **股票助手**：akshare / 麦蕊 / tushare 数据源，模拟交易
 - **MCP 外部神通**：支持 Model Context Protocol
 - **多源信息融合**：大模型 + 工具结果统一汇总
+- **集中式错误报告**：`/status errors` 聚合 Hermes / 动态构建 / 审核拒绝 / MasterAgent 失败模式
 - **中英文切换**：完整国际化支持
 - **NO_COLOR 支持**：`NO_COLOR=1` 禁用所有 ANSI 颜色，适合 CI/管道环境
 
@@ -73,15 +78,17 @@ fr-cli
 ### 📋 常用命令
 
 ```
-/ls                 列出当前目录文件
-/cat <file>         查看文件内容
-/cd <dir>           切换工作目录
+/dir                列出当前目录文件
+/open <file>        查看文件内容
 /write <file>       写入文件（多行输入，Ctrl+D 结束）
-/delete <file>     删除文件
+/delete <file>      删除文件
 /search <query>     联网搜索
 /save <name>        保存会话
 /load               加载历史会话
 /export             导出会话为 Markdown
+/context [status|compress|threshold N|keep N]   管理上下文压缩
+/usage [days]       查看 LLM 用量统计
+/status [json|errors]          查看系统状态 / 集中错误报告
 
 /model <模型名>              切换AI模型（仅当前会话生效）
 /model <道统>:<模型名>       同时切换道统和模型
@@ -96,7 +103,7 @@ fr-cli
 /providers add <p> <k> [m]   添加/更新道统配置
 /providers use <p>           切换到指定道统
 
-/mode direct|cot|tot|react   切换思维模式
+/mode direct|cot|tot|react|plan   切换思维模式
 /master on|off|status       MasterAgent 主控
 /mcp_list                   列出 MCP 服务器及工具
 /mcp_add <名> <命令> [参数]  添加 MCP 服务器
@@ -122,7 +129,7 @@ fr-cli 支持在不进入 REPL 的情况下执行单次命令或单次 AI 对话
 ```bash
 # 执行一条 slash 命令后退出
 fr-cli -c "/model current"
-fr-cli -c "/ls"
+fr-cli -c "/dir"
 
 # 向 AI 提问后退出
 fr-cli "请总结 README.md"
@@ -192,6 +199,50 @@ fr-cli -q -p "1+1等于几"
 @spider https://example.com 2        # 智能爬虫
 @db mydb 查询最近7天注册用户         # 数据库助手
 @RAG 什么是向量数据库                # 本地知识库问答
+@stock 查询茅台股价                  # 股票/量化助手
+```
+
+### ⚡ Hermes 后台自治任务
+
+```
+/hermes status                    查看 Hermes 引擎状态
+/hermes goal "完成某项目"          创建目标并自动分解子任务
+/hermes task "发送日报" --due 60   创建延迟任务（分钟后执行）
+/hermes list                      列出待执行/已完成任务
+/hermes run                       立即执行一次 Hermes 轮询
+/hermes stop                      停止 Hermes 守护线程
+```
+
+### 🐝 蜂群协作 (Swarm)
+
+通过 AI 工具调用实现多 Agent / 工具协作：
+
+```
+【调用：swarm_run({"mode": "parallel", "names": ["@local", "tool:search_web"], "user_input": "分析项目并搜索相关资料"})】
+【调用：swarm_run({"mode": "council", "names": ["planner", "coder", "reviewer"], "user_input": "设计用户登录模块"})】
+```
+
+支持 `parallel`（并行执行取最佳）、`council`（议会讨论后汇总）、`pipeline`（前序输出作为后序输入）三种模式。
+
+### 🏗️ 动态构建
+
+```
+/build 生成一个二维码识别工具     AI 自动生成工具并注册
+/build list                       列出已构建工具
+/build check <name>               重新测试并修复指定工具
+/build del <name>                 删除已构建工具
+```
+
+### 📊 RAG 与股票
+
+```
+/rag_dir <目录>                   设置并同步本地知识库
+/rag_sync [路径]                  手动同步文件到向量库
+/rag_watch start [目录]           启动独立文件监控守护进程
+
+/stock_config setup               交互式配置股票数据源
+/stock 查询茅台股价
+/stock 买入 600519 1500.00 100    # 模拟交易
 ```
 
 ### 🛡️ 安全命令
@@ -206,42 +257,40 @@ fr-cli -q -p "1+1等于几"
 
 ## 🧠 Hermes 核心功能
 
-### 📋 任务管理
+Hermes 是 fr-cli 的后台自治引擎，负责目标分解、任务队列、定时执行、跨任务记忆与失败学习。
+
+### REPL 命令
 ```
-from fr_cli.agent.hermes import get_task_manager, get_analytics
+/hermes status              查看引擎状态
+/hermes goal <目标>         创建目标并自动分解为子任务
+/hermes task <描述>         创建延迟任务（默认 5 分钟后执行）
+/hermes task "发送日报" --due 60 --depends <task_id>
+/hermes list                列出所有任务
+/hermes run                 立即执行一次轮询
+/hermes stop                停止守护线程
+/hermes http [port]         启动 HTTP 任务接口
+```
+
+### 程序化使用
+```python
+from fr_cli.agent.hermes import HermesEngine
+
+engine = HermesEngine()
+engine.start()
+
+# 创建目标并自动分解
+engine.create_goal("完成项目文档", criteria=["结构清晰", "包含示例"])
 
 # 创建任务
-tm = get_task_manager()
-task = tm.create_task("完成代码审查")
+task_id = engine.create_task(
+    title="发送日报",
+    due_in_minutes=60,
+    action_type="command",
+    action_data={"command": "echo daily report"}
+)
 
-# 记录分析
-an = get_analytics()
-an.record_request("glm-4-flash", 1000, 0.01)
-```
-
-### 🎯 目标追踪
-```
-from fr_cli.agent.hermes import GoalTracker
-
-gt = GoalTracker()
-gt.set_goal("完成项目", ["阶段1", "阶段2", "阶段3"])
-gt.update_progress("已完成阶段1", 0.33)
-```
-
-### ⏰ 定时任务
-```
-from fr_cli.agent.hermes import get_cron_scheduler
-
-cron = get_cron_scheduler()
-cron.add_job("daily-report", "0 9 * * *", "生成日报")
-```
-
-### 🔌 插件系统
-```
-from fr_cli.agent.plugin_system import get_plugin_registry
-
-registry = get_plugin_registry()
-plugins = registry.list_all()
+# 注册状态监听器
+engine.register_listener(lambda event: print(event["type"], event.get("task_id")))
 ```
 
 ### 🐚 Shell 模式 (Ctrl-X 切换)
@@ -250,23 +299,6 @@ Agent 模式: 输入消息与 AI 对话
 Shell 模式: 直接执行 shell 命令
 
 按 Ctrl-X 切换模式
-```
-
-### 🔗 ACP (Agent Client Protocol)
-```bash
-# 启动 ACP 服务
-fr acp
-
-# 配置到 Zed
-# ~/.config/zed/settings.json
-{
-  "agent_servers": {
-    "fr-cli": {
-      "command": "fr",
-      "args": ["acp"]
-    }
-  }
-}
 ```
 
 ## 🤖 支持的模型提供商（25+）
@@ -328,17 +360,32 @@ fr-cli
 
 ```
 fr_cli/
-├── main.py              # 核心入口
-├── agent/                # Agent 系统
-│   ├── a2a.py           # Agent2Agent 协议
-│   ├── master.py        # MasterAgent 主控
+├── main.py                    # 核心入口：REPL 循环与 AI 交互编排
+├── agent/                     # Agent 分身 / Master / Hermes / 蜂群系统
+│   ├── master/                # MasterAgent 主控（已拆分为多个 mixin）
+│   ├── hermes.py / hermes_daemon.py   # Hermes 后台自治任务
+│   ├── swarm.py / swarm_resolver.py   # 蜂群协作
+│   ├── builtins/              # 内置 Agent（local/remote/db/spider/rag/stock）
 │   └── ...
-├── core/                 # 核心模块
-│   ├── llm.py           # LLM 客户端（20+ 提供商）
-│   └── model_factory.py # 模型工厂配置
-├── weapon/              # 武器库
-├── memory/              # 记忆系统
-└── lang/                # 国际化
+├── command/                   # 统一工具注册表与命令执行引擎
+│   ├── registry.py            # 工具注册表
+│   ├── executor.py            # AI 回复解析与调度
+│   └── registered/            # 按类目拆分的工具实现
+├── core/                      # 核心模块
+│   ├── llm.py                 # LLM 客户端（25+ 提供商）
+│   ├── model_factory.py       # 模型工厂配置
+│   ├── result.py              # 统一 Result 返回风格
+│   ├── usage.py               # Token 用量统计
+│   ├── thinking.py            # 思维模式引擎
+│   └── compress.py            # 上下文压缩入口
+├── dynamic_builder/           # 动态构建系统（按需生成工具）
+├── repl/                      # REPL 命令路由与命令处理器
+│   ├── router.py              # 命令路由表
+│   └── commands/              # 40+ 命令处理器
+├── weapon/                    # 武器库（文件/网络/邮件/云盘/RAG/视觉等）
+├── memory/                    # 记忆系统（历史、会话、上下文、压缩）
+├── lang/                      # 国际化
+└── conf/                      # 配置与路径管理
 ```
 
 ## 📚 文档
@@ -351,17 +398,22 @@ fr_cli/
 
 | 路径 | 说明 |
 |------|------|
-| `~/.fr_cli/config.json` | 主配置文件（统一配置目录） |
+| `~/.fr_cli/config.json` | 主配置文件（统一配置目录，含 context/usage 命名空间） |
 | `~/.fr_cli/config.json.bak` | 配置自动备份 |
 | `~/.fr_cli/history/` | 会话历史记录 |
-| `~/.fr_cli/context.json` | 上下文记忆 |
 | `~/.fr_cli/sessions/` | 按日期自动存档的会话 |
 | `~/.fr_cli/plugins/` | 用户插件目录 |
 | `~/.fr_cli/agents/` | Agent 分身目录 |
 | `~/.fr_cli/master/` | MasterAgent 记忆与进化记录 |
+| `~/.fr_cli/dynamic_tools/` | 动态构建生成的工具目录 |
 | `~/.fr_cli/remotes.json` | 远程主机配置 |
 | `~/.fr_cli/databases.json` | 数据库连接配置 |
 | `~/.fr_cli/rag_db/` | RAG 向量库（ChromaDB）|
+| `~/.fr_cli/hermes.json` | Hermes 任务与目标数据 |
+| `~/.fr_cli/cron.json` | 定时任务配置 |
+| `~/.fr_cli/usage.json` | LLM 用量统计 |
+| `~/.fr_cli/m365.json` | Microsoft 365 OAuth Token 缓存 |
+| `~/.fr_cli/stock.json` | 股票数据源与模拟交易记录 |
 
 ## ❓ 常见问题
 
@@ -371,6 +423,7 @@ fr_cli/
 /mode cot      # 思维链
 /mode tot      # 思维树
 /mode react    # ReAct
+/mode plan     # 计划模式
 ```
 
 **Q: 模型切换后重启又变回去了？**
@@ -394,9 +447,25 @@ fr_cli/
 
 **Q: 如何查看历史记录?**
 ```bash
-/history
-/session_list
+/session_list        # 列出已保存会话
+/load                # 加载并选择会话
+/export              # 导出当前会话为 Markdown
 ```
+
+**Q: 什么是 Token 上下文压缩?**
+当会话历史累积的 token 数超过阈值（默认 4000）时，fr-cli 会自动将早期对话压缩为摘要，保留最近 N 轮完整对话，从而降低 prompt 成本并避免超出模型上下文窗口。压缩后的摘要有独立的 system prompt 注入，可通过 `/context` 查看或恢复关键上下文片段。
+
+相关配置（位于 `~/.fr_cli/config.json` 的 `memory` 命名空间）：
+```json
+{
+  "memory": {
+    "compress_threshold": 4000,
+    "compress_keep_recent": 5
+  }
+}
+```
+- `compress_threshold`：触发压缩的 token 阈值，设置为 `0` 可关闭自动压缩
+- `compress_keep_recent`：压缩后保留的最近完整轮数
 
 **Q: 邮件发送失败?**
 - QQ/163 邮箱需使用「授权码」而非登录密码

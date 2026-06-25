@@ -82,7 +82,7 @@ _DEFAULT_SESSION = {
 }
 
 _DEFAULT_STATUS = {
-    "enabled": False,
+    "enabled": True,  # v2.5+: 默认启用 MasterAgent,启动时自动接管普通对话
     "total_interactions": 0,
     "evolution_count": 0,
     "created_at": datetime.now().isoformat(),

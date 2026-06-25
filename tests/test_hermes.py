@@ -4,8 +4,6 @@ Hermes 后台自治任务引擎测试
 """
 import os
 import time
-import tempfile
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
@@ -14,11 +12,9 @@ from fr_cli.agent.hermes import (
     TaskStatus,
     TaskPriority,
     Task,
-    Goal,
     PersistentTaskManager,
     PersistentGoalTracker,
     HermesAnalytics,
-    HermesScheduler,
     HermesEngine,
 )
 

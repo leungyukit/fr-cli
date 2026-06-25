@@ -24,7 +24,6 @@ from fr_cli.agent.master_storage import (
     SESSION_FILE,
     SKILLS_FILE,
     STATUS_FILE,
-    _classify_error,
     _DEFAULT_EVOLUTION,
     _DEFAULT_MEMORY,
     _DEFAULT_PERSONA,

@@ -4,14 +4,12 @@ Hermes 目标分解与子任务依赖测试
 """
 import json
 import time
-from pathlib import Path
 from unittest.mock import MagicMock
 
 import pytest
 
 from fr_cli.agent.hermes import (
     TaskStatus,
-    TaskPriority,
     HermesEngine,
 )
 from fr_cli.conf import paths as paths_module

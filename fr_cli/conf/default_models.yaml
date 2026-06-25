@@ -1,3 +1,11 @@
+# fr-cli 默认厂商配置
+# compat 字段表示 API 协议兼容模式：
+#   openai    → OpenAI 兼容协议（默认）
+#   anthropic → Anthropic Messages 协议
+#   zhipu     → 智谱原生 SDK
+# client 字段仍然保留，作为显式客户端类覆盖（默认按 compat 推断）
+# env_key 表示该厂商 API Key 对应的环境变量名（仅作提示，不强制读取）
+
 zhipu:
   name: 智谱
   model: glm-4-flash
@@ -10,6 +18,7 @@ zhipu:
   - glm-4-air
   - glm-4-long
   client: ZhipuLLMClient
+  compat: zhipu
   base_url: null
   token_plan_base_url: https://open.bigmodel.cn/api/coding/paas/v4
   is_token_plan: false
@@ -26,10 +35,47 @@ zhipu-coding:
   - glm-5.1
   - glm-4.5-air
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://open.bigmodel.cn/api/coding/paas/v4
   token_plan_base_url: https://open.bigmodel.cn/api/coding/paas/v4
   is_token_plan: true
   env_key: ZHIPU_API_KEY
+anthropic:
+  name: Anthropic (Claude)
+  model: claude-sonnet-4-5
+  models:
+  - claude-sonnet-4-5
+  - claude-3-7-sonnet-latest
+  - claude-3-5-sonnet-latest
+  - claude-3-5-haiku-latest
+  - claude-3-opus-latest
+  client: OpenAICompatibleClient
+  compat: anthropic
+  base_url: https://api.anthropic.com
+  token_plan_base_url: null
+  is_token_plan: false
+  env_key: ANTHROPIC_API_KEY
+openai:
+  name: OpenAI
+  model: gpt-4o-mini
+  models:
+  - gpt-4o
+  - gpt-4o-mini
+  - gpt-4-turbo
+  - gpt-3.5-turbo
+  - o1-mini
+  - o3-mini
+  client: OpenAICompatibleClient
+  compat: openai
+  base_url: https://api.openai.com/v1
+  token_plan_base_url: null
+  is_token_plan: false
+  env_key: OPENAI_API_KEY
+  vision_models:
+  - gpt-4o
+  - gpt-4o-mini
+  - gpt-4-turbo
+  - gpt-4-vision-preview
 kimi:
   name: Kimi (Moonshot)
   model: moonshot-v1-8k
@@ -38,6 +84,7 @@ kimi:
   - moonshot-v1-32k
   - moonshot-v1-128k
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.moonshot.cn/v1
   token_plan_base_url: null
   is_token_plan: false
@@ -50,6 +97,7 @@ kimi-k2:
   models:
   - kimi-k2-0905-preview
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.moonshot.cn/v1
   token_plan_base_url: null
   is_token_plan: false
@@ -60,6 +108,7 @@ kimi-code:
   models:
   - kimi-for-coding
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.kimi.com/coding/v1
   token_plan_base_url: null
   is_token_plan: false
@@ -70,30 +119,11 @@ kimi-code-anthropic:
   models:
   - kimi-for-coding
   client: OpenAICompatibleClient
+  compat: anthropic
   base_url: https://api.kimi.com/coding/
   token_plan_base_url: null
   is_token_plan: false
   env_key: MOONSHOT_API_KEY
-openai:
-  name: OpenAI
-  model: gpt-4o-mini
-  models:
-  - gpt-4o
-  - gpt-4o-mini
-  - gpt-4-turbo
-  - gpt-3.5-turbo
-  - o1-mini
-  - o3-mini
-  client: OpenAICompatibleClient
-  base_url: https://api.openai.com/v1
-  token_plan_base_url: null
-  is_token_plan: false
-  env_key: OPENAI_API_KEY
-  vision_models:
-  - gpt-4o
-  - gpt-4o-mini
-  - gpt-4-turbo
-  - gpt-4-vision-preview
 deepseek:
   name: DeepSeek
   model: deepseek-chat
@@ -102,6 +132,7 @@ deepseek:
   - deepseek-reasoner
   - deepseek-coder
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.deepseek.com
   token_plan_base_url: null
   is_token_plan: false
@@ -116,6 +147,7 @@ qwen:
   - qwen-max
   - qwen-coder-plus
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://dashscope.aliyuncs.com/compatible-mode/v1
   token_plan_base_url: null
   is_token_plan: false
@@ -130,6 +162,7 @@ doubao:
   - doubao-1-5-pro-32k-250115
   - doubao-1-5-lite-32k-250115
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://ark.cn-beijing.volces.com/api/v3
   token_plan_base_url: null
   is_token_plan: false
@@ -143,6 +176,7 @@ mimo:
   - mimo-v2-flash
   - mimo-v2-pro
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.xiaomimimo.com/v1
   token_plan_base_url: https://token-plan-sgp.xiaomimimo.com/v1
   is_token_plan: false
@@ -154,6 +188,7 @@ mimo-token-plan:
   - mimo-v2-flash
   - mimo-v2-pro
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://token-plan-sgp.xiaomimimo.com/v1
   token_plan_base_url: https://token-plan-sgp.xiaomimimo.com/v1
   is_token_plan: true
@@ -168,6 +203,7 @@ minimax:
   - abab6.5s-chat
   - abab6.5t-chat
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.minimax.io/v1
   token_plan_base_url: https://api.minimax.chat/v1
   is_token_plan: false
@@ -178,6 +214,7 @@ minimax-chat:
   models:
   - abab6.5s-chat
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.minimax.io/v1
   token_plan_base_url: https://api.minimax.chat/v1
   is_token_plan: false
@@ -188,6 +225,7 @@ minimax-m27:
   models:
   - MiniMax-M2.7
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.minimax.chat/v1
   token_plan_base_url: https://api.minimax.chat/v1
   is_token_plan: true
@@ -198,6 +236,7 @@ minimax-m27-fast:
   models:
   - MiniMax-M2.7-HighSpeed
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.minimax.chat/v1
   token_plan_base_url: https://api.minimax.chat/v1
   is_token_plan: true
@@ -208,6 +247,7 @@ minimax-token-plan:
   models:
   - MiniMax-M2.7
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.minimax.chat/v1
   token_plan_base_url: https://api.minimax.chat/v1
   is_token_plan: true
@@ -224,6 +264,7 @@ stepfun:
   - step-3-auto
   - step-3.7-flash
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.stepfun.com/v1
   token_plan_base_url: https://api.stepfun.com/step_plan/v1
   is_token_plan: false
@@ -237,6 +278,7 @@ step-1:
   models:
   - step-1-8k
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.stepfun.com/v1
   token_plan_base_url: https://api.stepfun.com/step_plan/v1
   is_token_plan: false
@@ -247,6 +289,7 @@ step-2:
   models:
   - step-2-16k
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.stepfun.com/v1
   token_plan_base_url: https://api.stepfun.com/step_plan/v1
   is_token_plan: false
@@ -257,6 +300,7 @@ step-3:
   models:
   - step-3-auto
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.stepfun.com/v1
   token_plan_base_url: https://api.stepfun.com/step_plan/v1
   is_token_plan: false
@@ -267,6 +311,7 @@ step-audio:
   models:
   - step-audio-2
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.stepfun.com/v1
   token_plan_base_url: https://api.stepfun.com/step_plan/v1
   is_token_plan: false
@@ -280,6 +325,7 @@ stepfun-step-plan:
   - step-1-8k
   - step-3.7-flash
   client: OpenAICompatibleClient
+  compat: openai
   base_url: https://api.stepfun.com/step_plan/v1
   token_plan_base_url: https://api.stepfun.com/step_plan/v1
   is_token_plan: true
@@ -292,6 +338,7 @@ ernie:
   - ernie-bot-4-turbo
   - ernie-speed-128k
   client: WenxinLLMClient
+  compat: openai
   base_url: null
   token_plan_base_url: null
   is_token_plan: false

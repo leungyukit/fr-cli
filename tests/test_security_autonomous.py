@@ -2,7 +2,6 @@
 自治模式安全策略测试
 覆盖：manual / sandbox_auto / full_auto 三种模式，以及环境变量覆盖。
 """
-import os
 
 import pytest
 

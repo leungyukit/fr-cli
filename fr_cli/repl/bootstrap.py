@@ -20,6 +20,7 @@ from fr_cli import __version__
 from fr_cli.memory.history import load_sess
 from fr_cli.memory.context import load_context
 from fr_cli.core.core import AppState
+from fr_cli.ui.ui import DIM, RESET
 
 
 def sync_manual_to_workspace(vfs):
@@ -184,6 +185,55 @@ def print_startup_banner(state, cfg, show_logo: bool = False):
     print_simple_banner(state, __version__)
 
 
+def _autostart_background_services(state, cfg):
+    """v2.5+: 启动时自动拉起后台服务(MasterAgent / Gatekeeper / Hermes)。
+
+    - MasterAgent: 通过 toggle() 启用(若已 enabled 则跳过)
+    - Gatekeeper / Hermes: 启动独立守护进程(若已在运行则跳过)
+
+    任意一项启动失败都不阻塞主流程,仅打印提示。
+    """
+    # 用户偏好:autostart_on_launch=False 时只启用 MasterAgent,不拉起守护进程
+    autostart_daemons = cfg.get("autostart_on_launch", True)
+
+    # 1. MasterAgent
+    try:
+        if not state.master_agent.is_enabled():
+            state.master_agent.toggle(True)
+            print(f"  {DIM}✅ MasterAgent 已启用{RESET}")
+    except Exception as e:
+        print(f"  {DIM}⚠️ MasterAgent 启用失败: {e}{RESET}")
+
+    if not autostart_daemons:
+        return
+
+    # 2. Hermes 独立守护进程
+    try:
+        from fr_cli.agent.hermes_manager import HermesManager
+        mgr = HermesManager()
+        if not mgr.is_running():
+            res = mgr.start(port=8765, host="127.0.0.1", lang=state.lang)
+            if res.ok:
+                print(f"  {DIM}✅ Hermes 守护进程: {res.data}{RESET}")
+            else:
+                print(f"  {DIM}⚠️ Hermes 启动失败: {res.error}{RESET}")
+    except Exception as e:
+        print(f"  {DIM}⚠️ Hermes 启动异常: {e}{RESET}")
+
+    # 3. Gatekeeper 守护进程
+    try:
+        if not state.gatekeeper.is_running():
+            # 同步当前 cron 配置后启动
+            state._sync_gatekeeper_config()
+            res = state.gatekeeper.start()
+            if res.ok:
+                print(f"  {DIM}✅ Gatekeeper 守护进程: {res.data}{RESET}")
+            else:
+                print(f"  {DIM}⚠️ Gatekeeper 启动失败: {res.error}{RESET}")
+    except Exception as e:
+        print(f"  {DIM}⚠️ Gatekeeper 启动异常: {e}{RESET}")
+
+
 def bootstrap(show_logo: bool = False, show_banner: bool = True):
     """启动引导主入口：返回 (cfg, state)
 
@@ -202,6 +252,16 @@ def bootstrap(show_logo: bool = False, show_banner: bool = True):
     sp = load_system_prompt(state, cfg.get("lang", "zh"))
     start_history_loader(state, sp)
     start_context_loader(state)
+
+    # v2.5+: 自动启动后台服务(批处理模式跳过)
+    if show_banner:  # 只有交互式 REPL 才拉起后台服务
+        _autostart_background_services(state, cfg)
+
     if show_banner:
         print_startup_banner(state, cfg, show_logo=show_logo)
+        # 启动横幅显示完后,若使用了 backup 模型,在下方追加一行提示
+        if getattr(state, '_fallback_notice', None):
+            from fr_cli.ui.ui import YELLOW, RESET
+            print(f"  {YELLOW}⚠️ {state._fallback_notice}{RESET}")
+            print()
     return cfg, state

@@ -85,58 +85,18 @@ def _cmd_providers(state, parts):
         return False
 
     if sub == "setup":
-        # 交互式配置向导
-        from fr_cli.core.llm import list_providers, get_provider_info
-        providers = list_providers()
-        print(f"{CYAN}🧙 大模型配置向导{RESET}")
-        print(f"{DIM}请选择要配置的提供商（输入编号）:{RESET}")
-        for i, p in enumerate(providers, 1):
-            print(f"  [{i}] {CYAN}{p['id']}{RESET} — {p['name']} {DIM}(默认模型: {p['default_model']}){RESET}")
-        choice = input(f"{YELLOW}👉 编号 (回车取消): {RESET}").strip()
-        if not choice or not choice.isdigit():
-            print(f"{DIM}已取消。{RESET}")
+        # 启动 6 步模型配置向导
+        from fr_cli.conf.model_wizard import run_model_wizard
+        try:
+            run_model_wizard(state.cfg, mode="add")
+        except (KeyboardInterrupt, EOFError):
+            print(f"\n{DIM}已取消。{RESET}")
             return False
-        idx = int(choice) - 1
-        if idx < 0 or idx >= len(providers):
-            print(f"{RED}❌ 无效编号{RESET}")
-            return False
-        selected = providers[idx]
-        provider_id = selected["id"]
-        info = get_provider_info(provider_id)
-
-        # 输入 API Key
-        print(f"\n{DIM}正在配置 [{provider_id}]{RESET}")
-        k = input(f"{YELLOW}👉 请输入 API Key: {RESET}").strip()
-        if not k:
-            print(f"{RED}❌ API Key 不能为空{RESET}")
-            return False
-
-        # 选择模型
-        default_model = info["default_model"]
-        print(f"\n{DIM}默认模型: {default_model}{RESET}")
-        m = input(f"{YELLOW}👉 模型名 (回车使用默认): {RESET}").strip()
-        model = m if m else default_model
-
-        # 保存配置
-        pcfg = providers_cfg.setdefault(provider_id, {})
-        pcfg["key"] = k
-        pcfg["model"] = model
-        state.cfg["providers"] = providers_cfg
-
-        # 询问是否设为全局默认
-        is_default = input(f"\n{YELLOW}👉 是否设为全局默认? [Y/n]: {RESET}").strip().lower()
-        if is_default in ("", "y", "yes"):
-            state.cfg["provider"] = provider_id
-            state.cfg["model"] = model
-            state.provider = provider_id
-            state.model_name = model
-
-        state.save_cfg()
+        # 应用新配置到 state
         state.reinit_client()
-        print(f"\n{GREEN}✅ [{provider_id}] 配置完成！{RESET}")
-        print(f"   模型: {DIM}{model}{RESET}")
-        if state.provider == provider_id:
-            print(f"   {YELLOW}⭐ 已设为全局默认{RESET}")
+        # 同步显示
+        if hasattr(state, '_prompt') and state._prompt:
+            state._prompt.update_status(model=state.display_model, provider=state.display_provider)
         return False
 
     if sub == "add":

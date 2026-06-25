@@ -1,7 +1,7 @@
 """
 本机应用启动命令：/open, /launch, /apps
 """
-from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.ui import CYAN, RED, GREEN, RESET
 
 
 def _cmd_open(state, parts):

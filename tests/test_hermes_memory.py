@@ -2,7 +2,7 @@
 Hermes 跨任务记忆测试
 """
 from types import SimpleNamespace
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -48,7 +48,7 @@ class TestHermesTaskMemoryInjection:
     """测试 Hermes 任务执行时注入历史记忆"""
 
     def test_execute_task_injects_memory_hints(self, hermes_env, monkeypatch):
-        from fr_cli.agent.hermes import HermesEngine, Task, TaskStatus
+        from fr_cli.agent.hermes import HermesEngine, TaskStatus
 
         engine = HermesEngine(state_provider=lambda: None)
         engine.scheduler.stop()

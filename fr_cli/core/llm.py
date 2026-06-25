@@ -21,16 +21,27 @@ def _load_providers_from_factory():
         configs = factory._config or {}
 
         # 导入客户端类
-        from fr_cli.core.llm import ZhipuLLMClient, OpenAICompatibleClient, WenxinLLMClient
+        from fr_cli.core.llm import (
+            ZhipuLLMClient,
+            OpenAICompatibleClient,
+            AnthropicCompatibleClient,
+            WenxinLLMClient,
+        )
 
         for pid, cfg in configs.items():
-            client_type = cfg.get("client", "OpenAICompatibleClient")
-            if client_type == "ZhipuLLMClient":
-                client_cls = ZhipuLLMClient
-            elif client_type == "WenxinLLMClient":
-                client_cls = WenxinLLMClient
+            # 兼容模式优先于 client 字段：compat=anthropic → AnthropicCompatibleClient
+            # 这样既保持向后兼容，又允许用户按"协议"维度切客户端
+            compat = (cfg.get("compat") or "").strip().lower()
+            if compat == "anthropic":
+                client_cls = AnthropicCompatibleClient
             else:
-                client_cls = OpenAICompatibleClient
+                client_type = cfg.get("client", "OpenAICompatibleClient")
+                if client_type == "ZhipuLLMClient":
+                    client_cls = ZhipuLLMClient
+                elif client_type == "WenxinLLMClient":
+                    client_cls = WenxinLLMClient
+                else:
+                    client_cls = OpenAICompatibleClient
 
             default_model = cfg.get("model")
             _PROVIDERS[pid] = {
@@ -41,6 +52,7 @@ def _load_providers_from_factory():
                 "base_url": cfg.get("base_url"),
                 "token_plan_base_url": cfg.get("token_plan_base_url"),
                 "is_token_plan": cfg.get("is_token_plan", False),
+                "compat": compat or ("zhipu" if cfg.get("client") == "ZhipuLLMClient" else "openai"),
             }
             # 建立反向映射：模型名 → provider（默认模型 + 所有可选模型）
             all_models = cfg.get("models", [])
@@ -151,6 +163,135 @@ class OpenAICompatibleClient(BaseLLMClient):
             timeout=timeout or self.DEFAULT_TIMEOUT,
         )
         yield from self._yield_chunks(response)
+
+
+class AnthropicCompatibleClient(BaseLLMClient):
+    """
+    Anthropic 兼容格式客户端（HTTP + SSE 直连，不依赖 anthropic SDK）
+
+    覆盖：原生 Anthropic Messages API 及任何兼容 Anthropic 协议的厂商
+    （如 kimi-code-anthropic、moonshot 自定义端点等）。
+
+    请求格式（POST /v1/messages）：
+      Headers: x-api-key, anthropic-version, content-type
+      Body:    {model, messages, max_tokens, stream}
+
+    流式响应（SSE）：
+      event: message_start
+      event: content_block_start
+      event: content_block_delta    → delta.text 是真正的 token
+      event: content_block_stop
+      event: message_delta          → 包含 usage 信息
+      event: message_stop
+    """
+    ANTHROPIC_VERSION = "2023-06-01"
+    DEFAULT_BASE_URL = "https://api.anthropic.com"
+
+    def __init__(self, api_key: str, base_url: str = None, **kwargs):
+        super().__init__(api_key, **kwargs)
+        # 去掉末尾斜杠，避免拼接出 //v1/messages
+        self.base_url = (base_url or self.DEFAULT_BASE_URL).rstrip("/")
+        # 兼容 Anthropic 风格的 beta header（可由 provider 配置覆盖）
+        self.extra_headers = kwargs.get("extra_headers") or {}
+
+    def _build_payload(self, model, messages, max_tokens):
+        """转换 OpenAI 风格 messages → Anthropic 风格 system+messages"""
+        system_parts = []
+        converted = []
+        for m in messages:
+            role = m.get("role")
+            content = m.get("content", "")
+            if role == "system":
+                if content:
+                    system_parts.append(content)
+            else:
+                converted.append({"role": role, "content": content})
+        payload = {
+            "model": model,
+            "messages": converted,
+            "max_tokens": max(1, int(max_tokens)),
+            "stream": True,
+        }
+        if system_parts:
+            payload["system"] = "\n\n".join(system_parts)
+        return payload
+
+    def _build_headers(self):
+        return {
+            "x-api-key": self.api_key,
+            "anthropic-version": self.ANTHROPIC_VERSION,
+            "content-type": "application/json",
+            "accept": "text/event-stream",
+            **self.extra_headers,
+        }
+
+    def _parse_sse(self, response, timeout):
+        """逐行解析 Anthropic SSE 流，yield 与 BaseLLMClient 一致的 chunk 格式"""
+        usage = None
+        for raw_line in response.iter_lines():
+            if not raw_line:
+                continue
+            line = raw_line.decode("utf-8", errors="replace")
+            if not line.startswith("data:"):
+                continue
+            data = line[5:].strip()
+            if not data or data == "[DONE]":
+                continue
+            try:
+                import json as _json
+                evt = _json.loads(data)
+            except Exception:
+                continue
+            evt_type = evt.get("type", "")
+            if evt_type == "content_block_delta":
+                delta = evt.get("delta", {}) or {}
+                text = delta.get("text", "")
+                if text:
+                    yield {"content": text, "usage": None}
+            elif evt_type == "message_delta":
+                # 包含 usage 信息（input/output tokens）
+                u = evt.get("usage")
+                if u:
+                    usage = {
+                        "input_tokens": u.get("input_tokens"),
+                        "output_tokens": u.get("output_tokens"),
+                    }
+            elif evt_type == "message_stop":
+                # 流结束，最后带上 usage
+                yield {"content": "", "usage": usage}
+                return
+            elif evt_type == "error":
+                err = evt.get("error", {}) or {}
+                msg = err.get("message", "Anthropic API error")
+                raise RuntimeError(f"Anthropic API error: {msg}")
+
+    def stream_chat(self, model, messages, max_tokens=4096, timeout=None):
+        import requests
+        url = f"{self.base_url}/v1/messages"
+        payload = self._build_payload(model, messages, max_tokens)
+        headers = self._build_headers()
+        try:
+            response = requests.post(
+                url,
+                json=payload,
+                headers=headers,
+                stream=True,
+                timeout=timeout or self.DEFAULT_TIMEOUT,
+            )
+        except requests.RequestException as e:
+            raise RuntimeError(f"Anthropic 请求失败: {e}") from e
+
+        if response.status_code >= 400:
+            # 读取错误响应体（可能含详细错误信息）
+            try:
+                err_body = response.text[:500]
+            except Exception:
+                err_body = "<unreadable>"
+            raise RuntimeError(
+                f"Anthropic API 返回 {response.status_code}: {err_body}"
+            )
+
+        return self._parse_sse(response, timeout or self.DEFAULT_TIMEOUT)
 
 
 class WenxinLLMClient(BaseLLMClient):
@@ -360,6 +501,98 @@ def create_llm_client(cfg: dict, prefer_saved_model: bool = True):
 
     client_class, kwargs = _resolve_llm_kwargs(provider, cfg)
     return client_class(**kwargs), provider, model
+
+
+def check_provider_availability(provider: str, cfg: dict) -> tuple:
+    """本地检测某个 provider 是否可用(无需真发请求)。
+
+    检查项:
+      - provider 是否在 factory 白名单
+      - 是否有非空 API key
+      - 客户端类能否成功初始化(检查 SDK 缺失)
+
+    Returns:
+        (available: bool, reason: str, model_name: str)
+    """
+    if not _PROVIDERS:
+        _load_providers_from_factory()
+
+    info = _PROVIDERS.get(provider)
+    if not info:
+        return False, f"未知 provider: {provider}", ""
+
+    pcfg = (cfg.get("providers") or {}).get(provider, {})
+    api_key = pcfg.get("key") or cfg.get("key", "")
+    if not api_key:
+        return False, "未配置 API Key", ""
+
+    # 检查 SDK 是否能导入
+    client_class = info.get("client_class", OpenAICompatibleClient)
+    try:
+        # 只验证能构造,不真发请求
+        if client_class in (ZhipuLLMClient, AnthropicCompatibleClient, OpenAICompatibleClient, WenxinLLMClient):
+            # 这些类的构造都只接 api_key/base_url,不会立即抛错
+            pass
+        return True, "OK", pcfg.get("model") or info.get("default_model") or ""
+    except Exception as e:
+        return False, f"客户端初始化失败: {e}", ""
+
+
+def resolve_active_model(cfg: dict) -> dict:
+    """根据配置解析本次 session 应使用的活跃模型。
+
+    优先级:
+      1. default_provider(若本地检测可用)
+      2. backup_provider(若 default 不可用)
+      3. 返回 None(均不可用 → 上层提示用户配置)
+
+    Returns:
+        {
+          "provider": str | None,
+          "model": str | None,
+          "client_factory": callable | None,  # 接收 api_key, base_url 返回 BaseLLMClient
+          "source": "default" | "backup" | None,
+          "reason": str,
+        }
+    """
+    if not _PROVIDERS:
+        _load_providers_from_factory()
+
+    default = cfg.get("default_provider") or ""
+    backup = cfg.get("backup_provider") or ""
+
+    # 1. 尝试 default
+    if default:
+        ok, reason, model = check_provider_availability(default, cfg)
+        if ok:
+            return {
+                "provider": default,
+                "model": model,
+                "client_factory": None,  # 由调用方通过 create_llm_client 构造
+                "source": "default",
+                "reason": f"使用默认模型 [{default}] {model}",
+            }
+
+    # 2. 回退到 backup
+    if backup:
+        ok, reason, model = check_provider_availability(backup, cfg)
+        if ok:
+            return {
+                "provider": backup,
+                "model": model,
+                "client_factory": None,
+                "source": "backup",
+                "reason": f"默认模型不可用 ({default or '未设置'}: {reason}),已切换到备用 [{backup}] {model}",
+            }
+
+    # 3. 均不可用
+    return {
+        "provider": None,
+        "model": None,
+        "client_factory": None,
+        "source": None,
+        "reason": "未配置 default / backup 模型,请运行 /providers setup 配置",
+    }
 
 
 def create_llm_client_for(provider: str, model: str, cfg: dict, override_key: str = None):

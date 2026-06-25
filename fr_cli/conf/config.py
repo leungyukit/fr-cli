@@ -22,7 +22,7 @@ DEFAULT_LIMIT = 20000
 def _default_config():
     """返回默认配置字典 —— provider/model 不再硬编码，由用户显式配置"""
     return {
-        "version": 2,
+        "version": 3,
         "key": "",
         # 注意：默认不设置 provider 和 model，由用户通过 /model config 显式配置
         # 未配置时状态栏显示'未配置'
@@ -37,6 +37,10 @@ def _default_config():
         "thinking_mode": "direct",
         "mcp": {"servers": []},
         "providers": {},
+        # v3 新增：默认/备用模型（启动时优先用 default，default 不可用则降级到 backup）
+        # 为空字符串表示"未设置"，启动时会进入向导引导配置
+        "default_provider": "",
+        "backup_provider": "",
         "ocr": {
             "provider": "",
             "model": "",
@@ -58,24 +62,40 @@ def _default_config():
         "splash_bg_threshold": 30,
         "context_compress_threshold": 4000,
         "context_compress_keep_recent": 5,
+        # v3 新增：是否跳过首次启动向导（手动配置后置位）
+        "model_wizard_skipped": False,
+        # v3 新增：后台服务自启动偏好
+        "autostart_on_launch": True,
     }
 
 
 def _upgrade_schema(cfg):
     """把旧版配置升级到当前 schema（幂等执行）"""
     version = cfg.get("version", 1)
-    if version >= 2:
+    if version >= 3:
         return cfg
 
-    # v1 -> v2: 将顶层 model 同步到当前 provider 的专属配置中
-    provider = cfg.get("provider")
-    if provider and cfg.get("model"):
-        providers = cfg.setdefault("providers", {})
-        pcfg = providers.setdefault(provider, {})
-        if not pcfg.get("model"):
-            pcfg["model"] = cfg["model"]
+    # v1 / v2 -> v3: 引入 default_provider / backup_provider 概念
+    # 规则：若配置中已存在 provider，则把 provider 视为 default_provider；
+    # backup_provider 默认空，由用户后续配置。
+    if not cfg.get("default_provider") and cfg.get("provider"):
+        cfg["default_provider"] = cfg["provider"]
+    # 确保 backup_provider 字段存在
+    cfg.setdefault("backup_provider", "")
 
-    cfg["version"] = 2
+
+
+    # 兼容老版本:确保 version 字段已升级
+    if version < 2:
+        # v1 -> v2: 将顶层 model 同步到当前 provider 的专属配置中
+        provider = cfg.get("provider")
+        if provider and cfg.get("model"):
+            providers = cfg.setdefault("providers", {})
+            pcfg = providers.setdefault(provider, {})
+            if not pcfg.get("model"):
+                pcfg["model"] = cfg["model"]
+
+    cfg["version"] = 3
     return cfg
 
 
@@ -198,8 +218,13 @@ def save_namespace(key, value):
     save_config(cfg)
 
 
-def init_config():
-    """首次运行引导：迁移旧配置 → 检查并要求输入 API Key → 自动创建默认工作空间"""
+def init_config(*, force_wizard: bool = False, interactive: bool = None):
+    """首次运行引导：迁移旧配置 → 检查并引导模型配置 → 自动创建默认工作空间
+
+    Args:
+        force_wizard: 强制进入向导(例如 /model setup 调用)
+        interactive: 是否允许交互式输入。None 时根据 stdin 是否 tty 自动判断。
+    """
     # 1. 自动迁移旧路径 → 新路径（一次性，幂等）
     moved = paths_migrate()
     if moved:
@@ -214,87 +239,67 @@ def init_config():
         save_config(c)
         print(f"{GREEN}✅ 默认目录已添加: {DEFAULT_WORKSPACE}{RESET}")
 
-    provider = c.get("provider")
-    providers_cfg = c.get("providers", {})
+    # 检测是否需要进入模型配置向导
+    has_default = bool(c.get("default_provider"))
+    has_providers = bool(c.get("providers"))
+    needs_wizard = force_wizard or not (has_default and has_providers)
 
-    # ── 配置引导：无 provider 或未配置 Key 时提示 ──
-    from fr_cli.ui.ui import get_display_width
+    # 非交互环境判断
+    if interactive is None:
+        import sys as _sys
+        interactive = _sys.stdin.isatty() if _sys.stdin else False
 
-    def _box_line(content: str, box_width: int = 50) -> str:
-        """按实际显示宽度填充，确保框线对齐"""
-        inner = box_width - 2
-        import re
-        plain = re.sub(r'\033\[[0-9;]*m', '', content)
-        w = get_display_width(plain)
-        pad = max(inner - w, 0)
-        return f"{YELLOW}║{RESET}{content}{' ' * pad}{YELLOW}║{RESET}"
+    # 批处理模式直接跳过向导
+    import os as _os
+    batch_mode = _os.environ.get("FR_CLI_NON_INTERACTIVE") == "1"
 
-    if not provider:
-        # 尚未选择 provider
-        from fr_cli.core.llm import list_providers
-        providers = list_providers()
-        print()
-        print(f"{YELLOW}╔{'═' * 50}╗{RESET}")
-        print(f"{YELLOW}║{'🚨  尚未配置 LLM 提供商':^48}║{RESET}")
-        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
-        ids = [p['id'] for p in providers]
-        ids_text = ', '.join(ids[:3])
-        if len(ids) > 3:
-            ids_text += f" ... 等 {len(ids)} 家"
-        print(_box_line(f"  支持厂商: {DIM}{ids_text}{RESET}"))
-        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
-        print(_box_line("  配置方式:"))
-        print(_box_line(f"  1. 启动后执行 {CYAN}/model config{RESET} 交互式配置"))
-        print(_box_line(f"  2. 启动后执行 {CYAN}/providers setup{RESET} 交互式配置"))
-        print(f"{YELLOW}╚{'═' * 50}╝{RESET}")
-        print()
-        print(f"{YELLOW}→ 进入 Mock 模式 🧪（可用 /model config 配置真实模型）{RESET}")
-        return c
+    if needs_wizard and interactive and not batch_mode and not c.get("model_wizard_skipped"):
+        # ── 引导进入 6 步模型配置向导 ──
+        from fr_cli.ui.ui import get_display_width
+        from fr_cli.conf.model_wizard import run_model_wizard
 
-    pcfg = providers_cfg.get(provider, {})
-
-    # 检查当前提供商是否已配置 key（兼容旧版顶层 key 字段）
-    has_key = bool(pcfg.get("key") or c.get("key", ""))
-
-    if not has_key:
-        from fr_cli.core.llm import list_providers, get_provider_info
-        providers = list_providers()
-        info = get_provider_info(provider)
-        default_model = info.get("default_model", "未知") if info else "未知"
+        def _box_line(content: str, box_width: int = 56) -> str:
+            inner = box_width - 2
+            import re
+            plain = re.sub(r'\033\[[0-9;]*m', '', content)
+            w = get_display_width(plain)
+            pad = max(inner - w, 0)
+            return f"{YELLOW}║{RESET}{content}{' ' * pad}{YELLOW}║{RESET}"
 
         print()
-        print(f"{YELLOW}╔{'═' * 50}╗{RESET}")
-        print(f"{YELLOW}║{'🚨  尚未配置 API Key':^48}║{RESET}")
-        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
-        print(_box_line(f"  当前厂商: {CYAN}{provider}{RESET}"))
-        print(_box_line(f"  默认模型: {DIM}{default_model}{RESET}"))
-        print(f"{YELLOW}╠{'═' * 50}╣{RESET}")
-        print(_box_line("  配置方式:"))
-        print(_box_line("  1. 直接输入 API Key（下方）"))
-        print(_box_line(f"  2. 启动后执行 {CYAN}/providers setup{RESET} 交互式配置"))
-        print(_box_line(f"  3. 启动后执行 {CYAN}/model config{RESET} 交互式配置"))
-        print(f"{YELLOW}╚{'═' * 50}╝{RESET}")
+        print(f"{YELLOW}╔{'═' * 56}╗{RESET}")
+        print(f"{YELLOW}║{'🧙  尚未配置默认模型':^52}║{RESET}")
+        print(f"{YELLOW}╠{'═' * 56}╣{RESET}")
+        print(_box_line("  fr-cli 需要至少一个 LLM 模型才能正常工作。"))
+        print(_box_line("  接下来会引导你完成 6 步配置。"))
+        print(_box_line(""))
+        print(_box_line(f"  {DIM}也可以稍后执行 {CYAN}/providers setup{RESET}{DIM} 启动向导{RESET}"))
+        print(f"{YELLOW}╚{'═' * 56}╝{RESET}")
         print()
 
         try:
-            k = input(f"👉 输入 [{CYAN}{provider}{RESET}] 的 API Key（回车进 Mock 试用）: ").strip()
+            enter = input(f"{CYAN}👉 现在进入配置向导? [Y/n]: {RESET}").strip().lower()
         except (EOFError, KeyboardInterrupt):
-            k = ""
-        if k:
-            c["key"] = k
-            pcfg = providers_cfg.setdefault(provider, {})
-            pcfg["key"] = k
-            # 不再自动注入默认模型；model 由用户通过 /model 显式配置
-            c["providers"] = providers_cfg
-            ok = save_config(c)
-            if ok:
-                print(f"{GREEN}✅ API Key 已保存，下次启动自动生效{RESET}")
-            else:
-                print(f"{RED}❌ 配置保存失败，下次启动可能需要重新输入。{RESET}")
+            enter = "n"
+        if enter in ("", "y", "yes", "是"):
+            print()
+            try:
+                c = run_model_wizard(c, mode="setup")
+            except (KeyboardInterrupt, EOFError):
+                print(f"\n{DIM}已取消配置。{RESET}")
         else:
-            print()
-            print(f"{YELLOW}→ 进入 Mock 模式 🧪{RESET}")
-            print(f"{DIM}  AI 回答为本地回声，命令功能（/ls /cat /web 等）仍可正常使用。{RESET}")
-            print(f"{DIM}  随时可用 /key <your-key> 或 /model config 配置真实模型。{RESET}")
-            print()
+            print(f"{DIM}→ 跳过向导,进入 Mock 模式{RESET}")
+            print(f"{DIM}  命令功能可用,AI 回答为本地回声。随时 /providers setup 启动向导。{RESET}")
+
+    # 兼容旧版字段(provider/model 顶层),用于运行时 active model
+    # 如果 default_provider 已配置但顶层 provider 为空,同步过来
+    if c.get("default_provider") and not c.get("provider"):
+        c["provider"] = c["default_provider"]
+        providers_cfg = c.setdefault("providers", {})
+        pcfg = providers_cfg.setdefault(c["default_provider"], {})
+        if not c.get("model") and pcfg.get("model"):
+            c["model"] = pcfg["model"]
+        save_config(c)
+
     return c
+
