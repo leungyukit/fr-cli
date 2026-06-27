@@ -5,10 +5,14 @@
 import re
 import json
 import ast
+import time
 from types import SimpleNamespace
 from fr_cli.command.registry import get_registry
 from fr_cli.addon.plugin import exec_plugin
 from fr_cli.core.result import Result
+from fr_cli.command.parallel import (
+    ParallelExecutor, remove_parallel_markers, DEFAULT_MAX_WORKERS,
+)
 
 
 def _build_deps(state, client=None, model_name=None):
@@ -338,6 +342,33 @@ class CommandExecutor:
         markers_to_remove = []
         # 记录已覆盖的 span，用于格式 3 中 plain 模式去重 quoted 模式已匹配的文本
         markers_to_remove_spans = []
+
+        # ===== 格式0：【并行调用：...】(v2.8+ 并发执行) =====
+        parallel_text, parallel_calls = remove_parallel_markers(ai_response)
+        if parallel_calls:
+            # 并行模式要求 skip_security=True(并发场景通常已人工确认过)
+            parallel_skip = skip_security
+            par_exec = ParallelExecutor(self, max_workers=DEFAULT_MAX_WORKERS)
+            t0 = time.time()
+            par_results, par_markers = par_exec.execute_batch(
+                [(t, a, m) for t, a, m in parallel_calls],
+                msgs=msgs, skip_security=parallel_skip,
+                client=client, model_name=model_name,
+            )
+            _ = time.time() - t0  # 耗时统计,保留备用
+
+            for (tool_name, _, _), res in zip(parallel_calls, par_results):
+                if res.is_fail():
+                    results.append(f"❌ 并行工具调用失败: {tool_name}\n   {res.error}")
+                else:
+                    r = str(res.unwrap()) if res.unwrap() is not None else ""
+                    if len(r) > 5000:
+                        r = r[:5000] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
+                    results.append(f"✅ 并行工具调用成功: {tool_name}\n   结果: {r}")
+
+            # 移除【并行调用：...】标记
+            ai_response = parallel_text
+            markers_to_remove.extend(par_markers)
 
         # ===== 格式1：【调用：...】 =====
         for tool_name, arg_str, marker in self._extract_tool_calls(ai_response):

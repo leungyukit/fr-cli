@@ -92,7 +92,8 @@ def worktree_list(cwd: Optional[str] = None) -> Dict[str, Any]:
 def worktree_create(cwd: Optional[str] = None, branch: Optional[str] = None,
                    path: Optional[str] = None,
                    base: Optional[str] = None,
-                   detach: bool = False) -> Dict[str, Any]:
+                   detach: bool = False,
+                   register_cleanup: bool = True) -> Dict[str, Any]:
     """创建新 worktree
 
     Args:
@@ -101,6 +102,7 @@ def worktree_create(cwd: Optional[str] = None, branch: Optional[str] = None,
         path: 自定义路径
         base: 基于哪个分支/commit 创建(默认基于当前 HEAD)
         detach: 是否 detached HEAD(不创建分支)
+        register_cleanup: 是否注册到自动清理列表(默认 True)
     """
     if not worktree_is_repo(cwd):
         return {"ok": False, "error": "不是 git 仓库"}
@@ -136,6 +138,14 @@ def worktree_create(cwd: Optional[str] = None, branch: Optional[str] = None,
     if not result["ok"]:
         return {"ok": False, "error": result["stderr"] or "git worktree add 失败"}
 
+    # v2.8+:注册到自动清理列表
+    if register_cleanup and branch:
+        try:
+            from fr_cli.weapon.worktree_cleanup import register_worktree
+            register_worktree(path, branch, auto_clean=True)
+        except Exception:
+            pass  # 注册失败不影响主流程
+
     return {
         "ok": True,
         "path": path,
@@ -165,6 +175,13 @@ def worktree_remove(cwd: Optional[str] = None, path: Optional[str] = None,
     result = _run_git(args, cwd=cwd, timeout=15)
     if not result["ok"]:
         return {"ok": False, "error": result["stderr"] or "git worktree remove 失败"}
+
+    # v2.8+:从清理注册表移除
+    try:
+        from fr_cli.weapon.worktree_cleanup import unregister_worktree
+        unregister_worktree(path)
+    except Exception:
+        pass
 
     return {"ok": True, "removed": path}
 

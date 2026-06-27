@@ -53,6 +53,11 @@
 - **Plan mode UI 增强 (v2.8+)**:彩色 ANSI 渲染 + 进度条 `████░░░░ 60%` + 步骤状态图标 `✅❌🏃⏳⏭️` + 步骤耗时估算 + 依赖箭头可视化
 - **RAG 检索结果缓存 (v2.8+)**:基于 query+top_k+lang 的 SHA256 hash,10 分钟 TTL,128 条 LRU 自动清理,避免重复 embedding + LLM 调用
 - **会话自动恢复 (v2.8+)**:启动时检测 24h 内的最近会话,询问是否继续(加载最后 5 轮到 messages),支持 y/n/s 三个选项
+- **消息分块持久化 (v2.8+)**:增量写 + 周期 full snapshot(默认 20 条触发一次),减少大 messages 列表的 IO 开销
+- **并行工具调用 (v2.8+)**:AI 用 `【并行调用：tool1({...}),tool2({...})】` 显式并发执行,ThreadPoolExecutor 后台跑,失败隔离
+- **Plan mode 撤销栈 (v2.8+)**:保存 20 步历史 plan,`undo_plan` / `redo_plan` 回退/重做,持久化到 `~/.fr_cli/plan_history/`
+- **Worktree 自动清理 (v2.8+)**:空闲 7 天的 worktree 自动加入清理列表,`clean_idle_worktrees` 支持 `--dry-run` / `--force`
+- **RAG 跨会话缓存 (v2.8+)**:可选持久化模式,缓存写到 `~/.fr_cli/rag_cache.json`,重启后还能命中
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -581,7 +586,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:35+ 个测试文件,1122+ 个测试用例**
+**累计:40+ 个测试文件,1184+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -592,6 +597,11 @@ v2.8+ 新增测试:
 | `test_plan_ui.py` | 16 | Plan mode 彩色 UI(渲染 / 进度 / 摘要 / 估算) |
 | `test_rag_cache.py` | 10 | RAG 检索结果缓存(SHA256 / TTL / LRU) |
 | `test_resume.py` | 18 | 会话自动恢复(找最新 / 时间窗 / 加载 / 询问) |
+| `test_incremental.py` | 12 | 消息增量持久化(snapshot / delta / 触发 / 兼容) |
+| `test_parallel.py` | 13 | 并行工具调用(提取 / 拆分 / 并发执行 / 失败隔离) |
+| `test_plan_undo.py` | 13 | Plan 撤销栈(push / undo / redo / 清空 / 深度限制) |
+| `test_worktree_cleanup.py` | 14 | Worktree 自动清理(注册 / touch / 找空闲 / dry-run / 实际清理) |
+| `test_rag_persistent.py` | 7 | RAG 跨会话持久化(写盘 / 读盘 / 过期跳过 / 删除) |
 
 ### 环境变量
 

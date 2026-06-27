@@ -30,10 +30,25 @@ def _plan_file_for_session(session_id: str) -> str:
 
 
 def save_pending_plan(session_id: str, plan: Dict[str, Any]) -> bool:
-    """保存待审批的计划"""
+    """保存待审批的计划(同时推入撤销栈)"""
     try:
         path = _plan_file_for_session(session_id)
         from fr_cli.core.store import JsonStore
+
+        # v2.8+:先压栈旧版本(如果有)
+        try:
+            old_plan = None
+            if os.path.exists(path):
+                old_plan = JsonStore(path, default=None).read()
+            if old_plan:
+                from fr_cli.core.plan_undo import push_version, load_history
+                # 如果当前 plan_history 里的 current != 旧 plan,推入
+                history = load_history(session_id)
+                if history.get("current") != old_plan:
+                    push_version(session_id, old_plan)
+        except Exception:
+            pass  # 撤销栈失败不影响主保存
+
         JsonStore(path, default=dict).write(plan)
         return True
     except Exception:
@@ -57,6 +72,12 @@ def clear_pending_plan(session_id: str) -> bool:
         path = _plan_file_for_session(session_id)
         if os.path.exists(path):
             os.remove(path)
+        # v2.8+:同时清空 plan 历史(批准后没必要保留)
+        try:
+            from fr_cli.core.plan_undo import clear_history
+            clear_history(session_id)
+        except Exception:
+            pass
         return True
     except Exception:
         return False
@@ -155,6 +176,43 @@ def show_pending_plan_json(state) -> Result:
     if current is None:
         return Result.fail("未找到待查看的计划")
     return Result.ok(json.dumps(current, ensure_ascii=False, indent=2))
+
+
+def undo_plan(state, steps: int = 1) -> Result:
+    """撤销 plan 到上一步历史版本
+
+    Args:
+        steps: 撤销步数(默认 1)
+    """
+    from fr_cli.core.plan_undo import undo as _undo, format_history_summary
+
+    session_id = getattr(state, "session_id", None) or "default"
+    plan = _undo(session_id, steps=steps)
+    if plan is None:
+        return Result.fail("没有可撤销的 plan 历史")
+
+    # 保存到 pending
+    save_pending_plan(session_id, plan)
+
+    # 渲染
+    text = render_plan_for_user(plan, lang=state.lang if hasattr(state, "lang") else "zh")
+    history_text = format_history_summary(session_id, lang=state.lang if hasattr(state, "lang") else "zh")
+    return Result.ok(f"↩️ 已撤销 {steps} 步\n{history_text}\n\n{text}")
+
+
+def redo_plan(state) -> Result:
+    """重做 plan"""
+    from fr_cli.core.plan_undo import redo as _redo, format_history_summary
+
+    session_id = getattr(state, "session_id", None) or "default"
+    plan = _redo(session_id)
+    if plan is None:
+        return Result.fail("没有可重做的 plan")
+
+    save_pending_plan(session_id, plan)
+    text = render_plan_for_user(plan, lang=state.lang if hasattr(state, "lang") else "zh")
+    history_text = format_history_summary(session_id, lang=state.lang if hasattr(state, "lang") else "zh")
+    return Result.ok(f"↪️ 已重做\n{history_text}\n\n{text}")
 
 
 def exit_plan_mode(state, approved: bool, edited_plan: Optional[Dict[str, Any]] = None) -> Result:

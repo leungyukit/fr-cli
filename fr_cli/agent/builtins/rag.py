@@ -47,12 +47,23 @@ class RAGManager:
     CHUNK_SIZE = 500
     CHUNK_OVERLAP = 50
 
-    def __init__(self, kb_dir=None, db_path=None):
+    def __init__(self, kb_dir=None, db_path=None, persist_cache=False):
         self.kb_dir = Path(kb_dir) if kb_dir else None
-        # 检索结果缓存(10 分钟 TTL)
+        # 检索结果缓存(10 分钟 TTL,默认内存,可选持久化)
         self._query_cache: Dict[str, Tuple[float, Any]] = {}
         self._cache_ttl = 600  # 秒
         self._cache_max = 128  # 最多缓存条数
+        # v2.8+:跨会话持久化缓存(到磁盘)
+        self._persist_cache = persist_cache
+        self._persist_path = None
+        if persist_cache:
+            try:
+                from fr_cli.conf.paths import ROOT as FR_CLI_DIR
+                cache_path = FR_CLI_DIR / "rag_cache.json"
+                self._persist_path = str(cache_path)
+                self._load_persistent_cache()
+            except Exception:
+                pass
         self.db_path = Path(db_path) if db_path else RAG_DB_DIR
         self.client = None
         self.collection = None
@@ -323,6 +334,13 @@ Instructions:
         """清空缓存,返回清理条数"""
         n = len(self._query_cache)
         self._query_cache.clear()
+        # v2.8+:清理持久化文件
+        if self._persist_cache and self._persist_path:
+            try:
+                if os.path.exists(self._persist_path):
+                    os.remove(self._persist_path)
+            except Exception:
+                pass
         return n
 
     def cache_stats(self) -> Dict[str, Any]:
@@ -336,7 +354,69 @@ Instructions:
             "expired": expired,
             "ttl_seconds": self._cache_ttl,
             "max_entries": self._cache_max,
+            "persist_enabled": self._persist_cache,
+            "persist_path": self._persist_path,
         }
+
+    def _load_persistent_cache(self) -> None:
+        """从磁盘加载持久化缓存"""
+        if not self._persist_path or not os.path.exists(self._persist_path):
+            return
+        try:
+            import json
+            with open(self._persist_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # data 是 {key: [ts, value]}
+            now = time.time()
+            loaded = 0
+            for key, (ts, value) in data.items():
+                if now - ts < self._cache_ttl:  # 只加载未过期
+                    self._query_cache[key] = (ts, value)
+                    loaded += 1
+                    if loaded >= self._cache_max:
+                        break
+        except Exception:
+            pass
+
+    def _flush_persistent_cache(self) -> None:
+        """把缓存刷到磁盘"""
+        if not self._persist_cache or not self._persist_path:
+            return
+        try:
+            import json
+            import tempfile
+            now = time.time()
+            valid_items = {
+                k: (ts, v)
+                for k, (ts, v) in self._query_cache.items()
+                if now - ts < self._cache_ttl
+            }
+            # 限制大小
+            if len(valid_items) > self._cache_max:
+                by_ts = sorted(valid_items.items(), key=lambda x: x[1][0])
+                valid_items = dict(by_ts[-self._cache_max:])
+
+            fd, tmp = tempfile.mkstemp(
+                dir=os.path.dirname(self._persist_path),
+                prefix=".rag_cache_", suffix=".tmp"
+            )
+            with os.fdopen(fd, "w", encoding="utf-8") as f:
+                json.dump(valid_items, f, ensure_ascii=False)
+            os.replace(tmp, self._persist_path)
+        except Exception:
+            pass
+
+    def enable_persistent_cache(self, enable: bool = True) -> bool:
+        """开关持久化缓存"""
+        self._persist_cache = enable
+        if enable and not self._persist_path:
+            try:
+                from fr_cli.conf.paths import ROOT as FR_CLI_DIR
+                self._persist_path = str(FR_CLI_DIR / "rag_cache.json")
+                self._load_persistent_cache()
+            except Exception:
+                return False
+        return True
 
     # ---------- 后台监控 ----------
 
