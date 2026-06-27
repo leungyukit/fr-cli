@@ -115,6 +115,91 @@ def _to_bool(v):
     return bool(v)
 
 
+@register(
+    name="multi_edit",
+    triggers=["多文件编辑", "批量编辑", "multi_edit", "batch_edit"],
+    description="原子性多文件编辑:一次操作同时编辑多个文件,任一失败整体回滚",
+    params={"edits": list},  # [{"path": str, "old_text": str, "new_text": str, "use_regex": bool}, ...]
+    security="sec_write",
+    aliases=["/multi_edit"],
+)
+def _multi_edit(deps, **kwargs):
+    """原子性多文件编辑。
+
+    edits 格式: [{"path": str, "old_text": str, "new_text": str, "use_regex": bool}, ...]
+
+    行为:
+      - 先把所有文件读入内存
+      - 在内存里做替换(校验所有 old_text 都能找到)
+      - 全部成功后再写回磁盘(避免一半成功的中间状态)
+      - 任一校验失败 → 整体放弃,不修改任何文件
+    """
+    edits = kwargs.get("edits", [])
+    if not isinstance(edits, list) or not edits:
+        return Result.fail("edits 必须是非空列表")
+
+    # 1. 读取所有文件并准备替换
+    file_contents = {}  # path -> 原始内容
+    file_replacements = {}  # path -> [(old_text, new_text, use_regex), ...]
+    files_to_modify = set()
+
+    for i, edit in enumerate(edits):
+        if not isinstance(edit, dict):
+            return Result.fail(f"第 {i+1} 个 edit 不是字典")
+
+        path = edit.get("path")
+        old = edit.get("old_text")
+        new = edit.get("new_text", "")
+        use_regex = _to_bool(edit.get("use_regex", False))
+
+        if not path or old is None:
+            return Result.fail(f"第 {i+1} 个 edit 缺少 path 或 old_text")
+
+        # 读取文件(如果还没读过)
+        if path not in file_contents:
+            read_result = deps.vfs.read(path, deps.lang)
+            if not read_result.is_ok():
+                return Result.fail(f"读取 {path} 失败: {read_result.error}")
+            file_contents[path] = read_result.unwrap()
+
+        file_replacements.setdefault(path, []).append((old, new, use_regex))
+        files_to_modify.add(path)
+
+    # 2. 在内存里执行所有替换(同时校验)
+    new_contents = {}
+    for path, content in file_contents.items():
+        new_content = content
+        for old, new, use_regex in file_replacements[path]:
+            if use_regex:
+                import re
+                try:
+                    pattern = re.compile(old)
+                except re.error as e:
+                    return Result.fail(f"{path}: 正则编译失败: {e}")
+                if not pattern.search(new_content):
+                    return Result.fail(f"{path}: 正则未匹配到内容")
+                new_content = pattern.sub(new, new_content)
+            else:
+                if old not in new_content:
+                    return Result.fail(f"{path}: 未找到文本 \"{old[:50]}{'...' if len(old) > 50 else ''}\"")
+                new_content = new_content.replace(old, new)
+        new_contents[path] = new_content
+
+    # 3. 全部校验通过,写回所有文件
+    written = []
+    for path in files_to_modify:
+        result = deps.vfs.write(path, new_contents[path], deps.lang)
+        if not result.is_ok():
+            # 理论上不应到这里(因为我们先读了再改)
+            return Result.fail(f"写入 {path} 失败: {result.error}")
+        written.append(path)
+
+    return Result.ok({
+        "edited": written,
+        "count": len(written),
+    })
+
+
 def _replace_text(deps, **kwargs):
     result = deps.vfs.replace_text(
         kwargs["path"],

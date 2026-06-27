@@ -39,6 +39,12 @@
 - **MasterAgent 主控**(默认启用):自我进化的 ReAct 主控 Agent,自动规划、调用工具、反思进化、失败驱动学习
 - **Hermes 后台自治任务**:持久化任务队列、目标自动分解、子任务依赖链、跨任务记忆、定时执行、审核队列
 - **启动流程 v2.6+**:首次启动自动引导配置 → 6 步模型向导 → default/backup 自动降级 → 后台服务自动拉起
+- **项目记忆自动加载 (v2.7+)**:自动发现 `.frcli.md` / `AGENTS.md` / `CLAUDE.md` / `.github/AGENTS.md`,注入到 system prompt(类似 Claude Code 的 CLAUDE.md 机制)
+- **完整 Plan mode (v2.7+)**:AI 主动 `enter_plan_mode` → 生成执行计划 → 用户审批 → `exit_plan_mode` 自动执行(类似 Claude Code 的 EnterPlanMode/ExitPlanMode)
+- **多文件原子编辑 (v2.7+)**:`multi_edit` 工具一次性编辑多个文件,任一失败整体回滚
+- **Git 集成 (v2.7+)**:7 个 AI 工具(`git_status` / `git_diff` / `git_log` / `git_add` / `git_commit` / `git_branch` / `git_show`),让 AI 像 Claude Code 一样感知版本控制
+- **Sub-agent 委派 (v2.7+)**:MasterAgent 通过 `spawn_agent` 工具启动子 Agent 处理子任务,`task_output` 查询后台任务状态(类似 Claude Code 的 Task/TaskOutput)
+- **Skill 系统 (v2.7+)**:用户可定义 `.md` skill(frontmatter + steps),通过触发词或 `/skill` 命令加载,AI 自动按步骤执行
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -120,6 +126,11 @@ fr-cli
 /master on|off|status          MasterAgent 主控(默认开)
 /mode direct|cot|tot|react|plan  切换思维模式
 /autonomous [mode]             切换自治模式(manual/sandbox_auto/full_auto/off)
+
+# v2.7+:完整 Plan mode(类似 Claude Code 的 EnterPlanMode/ExitPlanMode)
+# AI 工具:
+enter_plan_mode      AI 主动进入计划模式,生成详细执行计划
+exit_plan_mode       用户审批/拒绝后,自动按步骤执行或放弃
 ```
 
 #### 📂 文件 / 上下文
@@ -132,6 +143,22 @@ fr-cli
 /delete <file>                 删除文件
 /context [status|compress|threshold N|keep N]  管理上下文压缩
 /limit <n>                     设置 Token 上限(最小 1000)
+```
+
+#### 🧬 项目记忆 + 多文件编辑 + Git
+```
+# v2.7+:自动加载 .frcli.md / AGENTS.md / CLAUDE.md 作为项目记忆
+# 放在项目根目录(或 .github/AGENTS.md)即可被 AI 自动感知
+
+# AI 工具:
+multi_edit          原子性多文件编辑(任一失败整体回滚,适合批量重构)
+git_status          git working tree 状态
+git_diff [path]     查看变更内容
+git_log [limit]     查看提交历史
+git_add [paths]     暂存文件
+git_commit          提交变更
+git_branch          列出/创建/切换/删除分支
+git_show            查看某次提交详情
 ```
 
 #### 💾 会话 / 用量
@@ -194,6 +221,31 @@ fr-cli
 /hermes status|start|stop|list|task|goal|confirm|review   Hermes 后台自治(统一入口,start 即启动独立 HTTP 守护进程)
 /gatekeeper start|stop|status             Gatekeeper 守护进程(Agent HTTP + Cron)
 /hermes_review approve|reject <id>        审核队列(动态构建 / Agent 自动产物)
+
+# v2.7+:AI 工具(类似 Claude Code 的 TaskOutput)
+task_output            查询 Hermes 后台任务的状态/输出
+list_background_tasks  列出所有后台任务
+spawn_agent            启动子 Agent 处理子任务,返回 task_id(可并发)
+```
+
+#### 🎯 Skill 系统 (v2.7+)
+```
+# 用户可定义 .md skill,放在 ~/.fr_cli/skills/ 或项目 .fr_cli/skills/
+
+# skill 文件格式(Markdown frontmatter):
+---
+name: my-skill
+description: 描述
+triggers:
+  - 触发词1
+  - 触发词2
+steps: |
+  1. 第一步
+  2. 第二步
+---
+
+# 触发方式:/skill <name> 或自然语言包含触发词
+# AI 会自动加载 skill 并按步骤执行
 ```
 
 #### ⏰ 定时任务

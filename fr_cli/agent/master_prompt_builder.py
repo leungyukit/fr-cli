@@ -107,6 +107,17 @@ class MasterAgentPromptMixin:
         if self.session.get("context_notes"):
             parts.append(f"\n[会话上下文]\n{self.session['context_notes']}")
 
+        # 项目记忆(.frcli.md / AGENTS.md / CLAUDE.md 自动加载)
+        try:
+            from fr_cli.agent.project_memory import build_project_memory_section
+            from pathlib import Path
+            cwd = Path(getattr(self.state, "vfs", None) and self.state.vfs.cwd or ".").resolve()
+            memory_section = build_project_memory_section(cwd)
+            if memory_section:
+                parts.append(f"\n{memory_section}")
+        except Exception:
+            pass
+
         return "\n".join(parts)
 
     # ---------- 插件 / Agent 自动检测 ----------
