@@ -20,12 +20,17 @@ def save_plan(state, plan: Dict[str, Any], step_results: Optional[List[Tuple[boo
     if not session_id or not plan:
         return None
     path = _plan_file_path(session_id)
+    # plan_step_idx 应是 int,如果 state 是 MagicMock 之类的可能返回 MagicMock
+    # 这里确保是 int,避免 JSON 序列化失败
+    plan_step_idx = getattr(state, "plan_step_idx", 0)
+    if not isinstance(plan_step_idx, int):
+        plan_step_idx = 0
     data = {
         "session_id": session_id,
         "timestamp": time.time(),
         "plan": plan,
         "step_results": step_results or [],
-        "plan_step_idx": getattr(state, "plan_step_idx", 0),
+        "plan_step_idx": plan_step_idx,
     }
     try:
         path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

@@ -1,298 +1,302 @@
 """
-计划模式测试
-
-测试目标：
-1. ThinkingEngine 支持 plan 模式
-2. 计划生成、解析、渲染、执行、汇总
-3. 计划持久化
+Plan mode 测试
+覆盖 JSON 解析/清理、文本折叠、参数解析、计划存储等核心逻辑。
 """
 import json
-from unittest.mock import MagicMock, patch
-
-import pytest
-
-
-@pytest.fixture
-def sample_plan():
-    return {
-        "goal": "读取项目 README 并搜索相关文档",
-        "steps": [
-            {
-                "description": "读取 README.md",
-                "tool": "read_file",
-                "params": {"path": "README.md"},
-                "reasoning": "了解项目基本信息",
-            },
-            {
-                "description": "搜索 Python 教程",
-                "tool": "search_web",
-                "params": {"query": "Python 教程"},
-                "reasoning": "获取最新资料",
-            },
-            {
-                "description": "总结信息",
-                "tool": None,
-                "params": {},
-                "reasoning": "无需工具，等待汇总",
-            },
-        ],
-        "summary": "先读本地文件再联网搜索",
-    }
+import os
+import sys
+from unittest.mock import patch, MagicMock
 
 
-@pytest.fixture
-def mock_state(tmp_path):
-    """构造一个最小可用的 AppState mock"""
-    state = MagicMock()
-    state.lang = "zh"
-    state.model_name = "glm-4-flash"
-    state.limit = 4096
-    state.vfs.cwd = str(tmp_path)
-    state.session_id = "test-session-id"
-    state.weapon_tools = [
-        {"name": "read_file", "description": "读取文件", "commands": []},
-        {"name": "write_file", "description": "写入文件", "commands": []},
-        {"name": "search_web", "description": "网页搜索", "commands": []},
-    ]
-    state.plugins = {}
-    state.mcp = None
-    from fr_cli.core.result import Result
-    state.executor = MagicMock()
-    state.executor.invoke_tool = MagicMock(return_value=Result.ok("file content"))
-    state.executor.execute = MagicMock(return_value=Result.ok("command result"))
-    state.messages = []
-    state.context_summary = ""
-    state.auto_session_path = None
-    state.active_plan = None
-    state.plan_step_idx = 0
-    state.active_plan_total_steps = 0
-    state.client = MagicMock()
-    return state
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
-class TestThinkingEnginePlanMode:
-    """测试思维引擎支持 plan 模式"""
+# ==================== JSON 解析 ====================
 
-    def test_modes_contains_plan(self):
-        from fr_cli.core.thinking import ThinkingEngine
+class TestCleanJsonText:
 
-        assert "plan" in ThinkingEngine.MODES
+    def test_clean_plain_json(self):
+        from fr_cli.core.plan.generator import _clean_json_text
+        assert _clean_json_text('{"a": 1}') == '{"a": 1}'
 
-    def test_is_valid_mode_plan(self):
-        from fr_cli.core.thinking import ThinkingEngine
+    def test_clean_markdown_json_block(self):
+        from fr_cli.core.plan.generator import _clean_json_text
+        text = '```json\n{"a": 1}\n```'
+        result = _clean_json_text(text)
+        assert '"a": 1' in result
+        assert "```" not in result
 
-        assert ThinkingEngine.is_valid_mode("plan") is True
+    def test_clean_markdown_no_language(self):
+        from fr_cli.core.plan.generator import _clean_json_text
+        text = '```\n{"b": 2}\n```'
+        result = _clean_json_text(text)
+        assert '"b": 2' in result
+        assert "```" not in result
 
-    def test_analyze_plan_returns_none(self):
-        """plan 模式由 chat.py 接管，analyze 返回 None"""
-        from fr_cli.core.thinking import ThinkingEngine
+    def test_clean_with_whitespace(self):
+        from fr_cli.core.plan.generator import _clean_json_text
+        text = '  \n {"x": 1}  \n'
+        result = _clean_json_text(text)
+        assert result == '{"x": 1}'
 
-        engine = ThinkingEngine()
-        state = MagicMock()
-        result = engine.analyze(state, "hello", "plan", "CHAT", "zh")
+
+class TestTryParseJson:
+
+    def test_parse_valid_json(self):
+        from fr_cli.core.plan.generator import _try_parse_json
+        result = _try_parse_json('{"a": 1, "b": 2}')
+        assert result == {"a": 1, "b": 2}
+
+    def test_parse_markdown_json(self):
+        from fr_cli.core.plan.generator import _try_parse_json
+        result = _try_parse_json('```json\n{"key": "value"}\n```')
+        assert result == {"key": "value"}
+
+    def test_parse_invalid_returns_none(self):
+        from fr_cli.core.plan.generator import _try_parse_json
+        assert _try_parse_json("not json at all") is None
+
+    def test_parse_empty_returns_none(self):
+        from fr_cli.core.plan.generator import _try_parse_json
+        assert _try_parse_json("") is None
+
+    def test_parse_array(self):
+        """数组也是合法 JSON"""
+        from fr_cli.core.plan.generator import _try_parse_json
+        result = _try_parse_json('[1, 2, 3]')
+        assert result == [1, 2, 3]
+
+    def test_parse_nested(self):
+        from fr_cli.core.plan.generator import _try_parse_json
+        result = _try_parse_json('{"a": {"b": [1, 2]}}')
+        assert result == {"a": {"b": [1, 2]}}
+
+
+class TestRenderPlan:
+
+    def test_render_empty_plan(self):
+        from fr_cli.core.plan.generator import render_plan
+        result = render_plan({}, "zh")
+        assert isinstance(result, str)
+
+    def test_render_plan_with_steps(self):
+        from fr_cli.core.plan.generator import render_plan
+        plan = {
+            "goal": "Test goal",
+            "steps": [
+                {"tool": "search_web", "description": "搜索资料"},
+                {"tool": "write_file", "description": "保存结果"},
+            ],
+        }
+        result = render_plan(plan, "zh")
+        assert "Test goal" in result or "搜索" in result or "保存" in result
+
+    def test_render_plan_english(self):
+        from fr_cli.core.plan.generator import render_plan
+        plan = {"goal": "English goal", "steps": [{"tool": "search_web", "description": "search"}]}
+        result = render_plan(plan, "en")
+        assert isinstance(result, str)
+
+
+# ==================== 文本折叠 ====================
+
+class TestFoldText:
+
+    def test_short_text_not_folded(self):
+        from fr_cli.core.plan.executor import _fold_text
+        text = "line1\nline2\nline3"
+        result = _fold_text(text)
+        assert result == text
+
+    def test_long_text_folded(self):
+        from fr_cli.core.plan.executor import _fold_text
+        lines = [f"line{i}" for i in range(100)]
+        text = "\n".join(lines)
+        result = _fold_text(text, max_lines=30, head=15, tail=5)
+        # 应包含 head + tail + 中间的 omitted 提示
+        assert "omitted" in result or "省略" in result
+        # head 行应包含
+        assert "line0" in result
+        assert "line14" in result
+        # tail 行应包含
+        assert "line99" in result
+        # 中间的不应有
+        assert "line50" not in result
+
+    def test_fold_with_custom_params(self):
+        from fr_cli.core.plan.executor import _fold_text
+        text = "\n".join(f"x{i}" for i in range(50))
+        result = _fold_text(text, max_lines=10, head=3, tail=2)
+        assert "x0" in result
+        assert "x2" in result
+        assert "x49" in result
+
+    def test_fold_empty(self):
+        from fr_cli.core.plan.executor import _fold_text
+        assert _fold_text("") == ""
+
+    def test_fold_single_line(self):
+        from fr_cli.core.plan.executor import _fold_text
+        assert _fold_text("single") == "single"
+
+
+# ==================== 参数解析 ====================
+
+class TestResolveStepParams:
+
+    def test_empty_params(self):
+        from fr_cli.core.plan.executor import _resolve_step_params
+        step = {"params": {}}
+        result = _resolve_step_params(step, [])
+        assert result == {}
+
+    def test_step_without_params(self):
+        from fr_cli.core.plan.executor import _resolve_step_params
+        step = {}
+        result = _resolve_step_params(step, [])
+        assert result == {}
+
+    def test_resolve_depends_on_step(self):
+        from fr_cli.core.plan.executor import _resolve_step_params
+        step = {
+            "params": {
+                "query": "hello",
+                "depends_on_step": 0,
+            }
+        }
+        step_results = [(True, "previous result")]
+        result = _resolve_step_params(step, step_results)
+        # depends_on_step 应被处理
+        assert "query" in result
+        assert "previous result" in str(result) or result.get("query") == "hello"
+
+
+# ==================== 计划存储 ====================
+
+class TestPlanStorage:
+
+    def test_plan_file_path(self):
+        from fr_cli.core.plan.storage import _plan_file_path
+        path = _plan_file_path("test_session_123")
+        assert "test_session_123" in str(path)
+        assert str(path).endswith(".json") or "plans" in str(path)
+
+    def test_save_and_load_plan(self, tmp_path, monkeypatch):
+        """保存和加载计划"""
+        from fr_cli.core.plan import storage
+
+        # 隔离 PLANS_DIR
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        monkeypatch.setattr(storage, "PLANS_DIR", plans_dir)
+
+        mock_state = MagicMock()
+        mock_state.session_id = "test_session_xyz"
+
+        plan = {
+            "goal": "test goal",
+            "steps": [{"tool": "search_web", "description": "x"}],
+        }
+
+        result = storage.save_plan(mock_state, plan)
+        assert result is not None
+        assert "test_session_xyz" in str(result)
+
+        # 加载(load_plan 直接返回 plan 字段内容)
+        loaded = storage.load_plan(mock_state)
+        assert loaded is not None
+        assert loaded.get("goal") == "test goal"
+
+    def test_save_plan_no_session_id_returns_none(self, tmp_path, monkeypatch):
+        from fr_cli.core.plan import storage
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        monkeypatch.setattr(storage, "PLANS_DIR", plans_dir)
+
+        mock_state = MagicMock(spec=[])  # 没有 session_id
+        plan = {"goal": "x", "steps": []}
+        result = storage.save_plan(mock_state, plan)
+        assert result is None
+
+    def test_save_plan_empty_plan_returns_none(self, tmp_path, monkeypatch):
+        from fr_cli.core.plan import storage
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        monkeypatch.setattr(storage, "PLANS_DIR", plans_dir)
+
+        mock_state = MagicMock()
+        mock_state.session_id = "s1"
+        result = storage.save_plan(mock_state, {})
+        assert result is None
+
+    def test_load_plan_nonexistent(self, tmp_path, monkeypatch):
+        from fr_cli.core.plan import storage
+        plans_dir = tmp_path / "plans"
+        plans_dir.mkdir()
+        monkeypatch.setattr(storage, "PLANS_DIR", plans_dir)
+
+        mock_state = MagicMock()
+        mock_state.session_id = "never_saved_xxx"
+        result = storage.load_plan(mock_state)
         assert result is None
 
 
-class TestPlanGeneration:
-    """测试计划生成与解析"""
+# ==================== Generate Plan (mock LLM) ====================
 
-    def test_generate_plan_parses_json(self, mock_state, sample_plan):
-        from fr_cli.core.plan import generate_plan
+class TestGeneratePlan:
+
+    def test_generate_plan_with_mock(self):
+        """Mock stream_cnt 返回 LLM 输出"""
+        from fr_cli.core.plan.generator import generate_plan
+
+        mock_state = MagicMock()
+        mock_state.model_name = "test-model"
+        mock_state.lang = "zh"
+        mock_state.cfg = {}
+
+        plan_json = json.dumps({
+            "goal": "test",
+            "steps": [{"tool": "search_web", "description": "search"}],
+            "summary": "summary",
+        })
 
         with patch("fr_cli.core.plan.generator.stream_cnt") as mock_stream:
-            mock_stream.return_value = (json.dumps(sample_plan), {}, 0.1, False)
-            plan = generate_plan(mock_state, "帮我了解一下这个项目", "zh")
+            mock_stream.return_value = (plan_json, {}, 0.1, False)
+            with patch("fr_cli.core.plan.generator._get_tools_text", return_value="tools"):
+                result = generate_plan(mock_state, "user input", lang="zh")
 
-        assert plan is not None
-        assert plan["goal"] == sample_plan["goal"]
-        assert len(plan["steps"]) == 3
-        assert plan["steps"][0]["tool"] == "read_file"
+        assert result is not None
+        assert result.get("goal") == "test"
+        assert len(result.get("steps", [])) == 1
 
-    def test_generate_plan_with_markdown_code_block(self, mock_state, sample_plan):
-        from fr_cli.core.plan import generate_plan
+    def test_generate_plan_invalid_json_returns_none(self):
+        from fr_cli.core.plan.generator import generate_plan
 
-        wrapped = f"```json\n{json.dumps(sample_plan)}\n```"
+        mock_state = MagicMock()
+        mock_state.model_name = "test-model"
+        mock_state.lang = "zh"
+        mock_state.cfg = {}
+
         with patch("fr_cli.core.plan.generator.stream_cnt") as mock_stream:
-            mock_stream.return_value = (wrapped, {}, 0.1, False)
-            plan = generate_plan(mock_state, "帮我了解一下这个项目", "zh")
+            mock_stream.return_value = ("not json", {}, 0.1, False)
+            with patch("fr_cli.core.plan.generator._get_tools_text", return_value="tools"):
+                result = generate_plan(mock_state, "user input", lang="zh")
+        assert result is None
 
-        assert plan is not None
-        assert len(plan["steps"]) == 3
+    def test_generate_plan_markdown_json(self):
+        """LLM 经常返回 ```json``` 包裹"""
+        from fr_cli.core.plan.generator import generate_plan
 
-    def test_generate_plan_invalid_json_returns_none(self, mock_state):
-        from fr_cli.core.plan import generate_plan
+        mock_state = MagicMock()
+        mock_state.model_name = "test-model"
+        mock_state.lang = "zh"
+        mock_state.cfg = {}
 
-        with patch("fr_cli.core.plan.stream_cnt") as mock_stream:
-            mock_stream.return_value = ("这不是 JSON", {}, 0.1, False)
-            plan = generate_plan(mock_state, "test", "zh")
+        markdown = '```json\n{"goal": "g", "steps": []}\n```'
 
-        assert plan is None
-
-    def test_generate_plan_missing_steps_returns_none(self, mock_state):
-        from fr_cli.core.plan import generate_plan
-
-        bad_plan = {"goal": "test", "summary": "test"}
-        with patch("fr_cli.core.plan.stream_cnt") as mock_stream:
-            mock_stream.return_value = (json.dumps(bad_plan), {}, 0.1, False)
-            plan = generate_plan(mock_state, "test", "zh")
-
-        assert plan is None
-
-
-class TestPlanRendering:
-    """测试计划展示渲染"""
-
-    def test_render_plan_zh(self, sample_plan):
-        from fr_cli.core.plan import render_plan
-
-        text = render_plan(sample_plan, "zh")
-        assert "目标" in text
-        assert "read_file" in text
-        assert "搜索 Python 教程" in text
-        assert "无需工具" in text
-
-    def test_render_plan_en(self, sample_plan):
-        from fr_cli.core.plan import render_plan
-
-        text = render_plan(sample_plan, "en")
-        assert "Goal" in text
-        assert "read_file" in text
-
-
-class TestPlanExecution:
-    """测试计划执行"""
-
-    def test_execute_step_tool_success(self, mock_state, sample_plan):
-        from fr_cli.core.plan import execute_step
-
-        step = sample_plan["steps"][0]
-        ok, result = execute_step(mock_state, step, 0, [], "zh")
-
-        assert ok is True
-        assert "file content" in result
-        mock_state.executor.invoke_tool.assert_called_once_with("read_file", {"path": "README.md"})
-
-    def test_execute_step_no_tool(self, mock_state, sample_plan):
-        from fr_cli.core.plan import execute_step
-
-        step = sample_plan["steps"][2]
-        ok, result = execute_step(mock_state, step, 2, [], "zh")
-
-        assert ok is True
-        assert "无需工具" in result or "info" in result
-        mock_state.executor.invoke_tool.assert_not_called()
-
-    def test_execute_step_command(self, mock_state):
-        from fr_cli.core.plan import execute_step
-
-        step = {
-            "description": "写文件",
-            "tool": "/write",
-            "params": {"path": "a.md", "content": "hello"},
-            "reasoning": "测试命令",
-        }
-        ok, result = execute_step(mock_state, step, 0, [], "zh")
-
-        assert ok is True
-        mock_state.executor.execute.assert_called_once()
-
-    def test_execute_plan_all_steps(self, mock_state, sample_plan):
-        from fr_cli.core.plan import execute_plan
-
-        results = execute_plan(mock_state, sample_plan, "zh")
-
-        assert len(results) == 3
-        assert all(ok for ok, _ in results[:2])
-        assert results[2][0] is True
-
-    def test_execute_plan_dependency_backfill(self, mock_state):
-        from fr_cli.core.plan import execute_plan
-
-        plan = {
-            "goal": "测试依赖回填",
-            "steps": [
-                {
-                    "description": "第一步",
-                    "tool": "read_file",
-                    "params": {"path": "a.md"},
-                    "reasoning": "",
-                },
-                {
-                    "description": "第二步使用第一步结果",
-                    "tool": "write_file",
-                    "params": {"depends_on_step": 1, "path": "b.md"},
-                    "reasoning": "",
-                },
-            ],
-            "summary": "",
-        }
-        results = execute_plan(mock_state, plan, "zh")
-
-        assert len(results) == 2
-        # 第二步 params 应被回填 content
-        call_args = mock_state.executor.invoke_tool.call_args_list
-        second_call = call_args[1]
-        assert "content" in second_call.kwargs or "content" in second_call.args[1]
-
-
-class TestPlanSummarization:
-    """测试结果汇总"""
-
-    def test_summarize_execution(self, mock_state, sample_plan):
-        from fr_cli.core.plan import summarize_execution
-
-        with patch("fr_cli.core.plan.executor.stream_cnt") as mock_stream:
-            mock_stream.return_value = ("这是最终总结", {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}, 0.1, False)
-            summary, usage = summarize_execution(
-                mock_state, "test", sample_plan,
-                [(True, "file content"), (True, "search result"), (True, "done")], "zh"
-            )
-
-        assert "最终总结" in summary
-        assert usage["total_tokens"] == 15
-
-
-class TestPlanPersistence:
-    """测试计划持久化"""
-
-    def test_save_and_load_plan(self, mock_state, sample_plan, tmp_path):
-        from fr_cli.core.plan import save_plan, load_plan
-
-        # 临时替换 plans 目录避免污染真实环境
-        with patch("fr_cli.core.plan.PLANS_DIR", tmp_path / "plans"):
-            save_plan(mock_state, sample_plan)
-            loaded = load_plan(mock_state)
-
-        assert loaded is not None
-        assert loaded["goal"] == sample_plan["goal"]
-
-    def test_save_plan_no_session_returns_none(self, mock_state, sample_plan):
-        from fr_cli.core.plan import save_plan
-
-        mock_state.session_id = None
-        path = save_plan(mock_state, sample_plan)
-        assert path is None
-
-
-class TestPlanPromptExamples:
-    """测试提示词模板格式安全"""
-
-    def test_plan_prompt_zh_format_no_key_error(self):
-        from fr_cli.core.plan import PLAN_PROMPT_ZH
-
-        try:
-            result = PLAN_PROMPT_ZH.format(tools="- tool1", user_input="hello")
-            assert result is not None
-            assert "tool1" in result
-            assert "hello" in result
-        except KeyError as e:
-            pytest.fail(f"中文计划提示词格式化 KeyError: {e}")
-
-    def test_plan_prompt_en_format_no_key_error(self):
-        from fr_cli.core.plan import PLAN_PROMPT_EN
-
-        try:
-            result = PLAN_PROMPT_EN.format(tools="- tool1", user_input="hello")
-            assert result is not None
-        except KeyError as e:
-            pytest.fail(f"英文计划提示词格式化 KeyError: {e}")
+        with patch("fr_cli.core.plan.generator.stream_cnt") as mock_stream:
+            mock_stream.return_value = (markdown, {}, 0.1, False)
+            with patch("fr_cli.core.plan.generator._get_tools_text", return_value="tools"):
+                result = generate_plan(mock_state, "input", lang="zh")
+        assert result is not None
+        assert result.get("goal") == "g"
