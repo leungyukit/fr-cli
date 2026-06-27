@@ -13,7 +13,10 @@ Voice / 多模态输出 —— TTS 集成
   - 如果 TTS 失败 → 优雅降级到文本输出
 """
 from pathlib import Path
-from typing import List, Optional
+from typing import TYPE_CHECKING, List, Optional
+
+if TYPE_CHECKING:
+    from fr_cli.core.result import Result
 
 
 _voice_enabled = False

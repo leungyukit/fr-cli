@@ -48,6 +48,11 @@
 - **Hooks 系统 (v2.7+)**:PreToolUse / PostToolUse / UserPromptSubmit / SessionStart 等可扩展点,支持 shell 命令钩子(`exit 2` 阻止 / JSON 输出修改参数)
 - **Per-tool 权限 (v2.7+)**:在 `sec_*` 类别基础上加 tool 级控制(always_allow / always_deny / ask_each_time + path_rules)
 - **Voice / TTS (v2.7+)**:复用 matrix MCP 的 TTS 工具,支持 AI 回复自动朗读
+- **STT 语音输入 (v2.8+)**:通过 matrix MCP `transcribe_audio` 工具转写音频文件(mp3/wav/m4a/flac 等),可选本地 `faster-whisper` fallback;macOS 支持 `/voice_record` 录音 + 转写
+- **Git Worktree 环境隔离 (v2.8+)**:4 个 AI 工具(`worktree_create` / `worktree_list` / `worktree_remove` / `worktree_switch`),主仓库里并行开多个独立 worktree,互不干扰地开发多个 feature
+- **Plan mode UI 增强 (v2.8+)**:彩色 ANSI 渲染 + 进度条 `████░░░░ 60%` + 步骤状态图标 `✅❌🏃⏳⏭️` + 步骤耗时估算 + 依赖箭头可视化
+- **RAG 检索结果缓存 (v2.8+)**:基于 query+top_k+lang 的 SHA256 hash,10 分钟 TTL,128 条 LRU 自动清理,避免重复 embedding + LLM 调用
+- **会话自动恢复 (v2.8+)**:启动时检测 24h 内的最近会话,询问是否继续(加载最后 5 轮到 messages),支持 y/n/s 三个选项
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -304,6 +309,61 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 【调用：voice_speak({"text": "你好世界"})】
 ```
 
+#### 🎙️ STT 语音输入 (v2.8+)
+```
+# 需要配置 matrix MCP server(内置 transcribe_audio 工具)
+# 用法:
+/voice_input /path/to/audio.mp3          # 文件转写
+/voice_input /path/to/audio.wav --lang en  # 英文转写
+/voice_input /path/to/audio.mp3 --local    # 优先用本地 whisper
+/voice_record 30                          # macOS 录音 30 秒 + 自动转写
+# AI 工具:
+【调用：voice_input({"path": "/tmp/audio.mp3", "language": "zh"})】
+```
+支持的音频格式:mp3 / wav / m4a / flac / ogg / opus / webm / aac
+引擎优先级:MCP matrix → 本地 faster-whisper(fallback)
+
+#### 🌳 Git Worktree 环境隔离 (v2.8+)
+```
+# 在当前 git 仓库下创建隔离 working copy,适合并行开发多个 feature
+/worktree_create feat-x                # 创建 feat-x 分支 + worktree
+/worktree_create feat-y /path/to/wt    # 自定义路径
+/worktree_list                         # 列出所有 worktree
+/worktree_switch /path/to/wt           # 切换 cwd 到 worktree
+/worktree_remove /path/to/wt --force   # 删除 worktree(保留分支)
+# AI 工具:
+【调用：worktree_create({"branch": "feat-x", "base": "master"})】
+【调用：worktree_list({})】
+```
+默认路径: `<repo>/.worktrees/<branch>/`,可自定义。删除分支用普通 git 命令。
+
+#### 📋 Plan mode UI 增强 (v2.8+)
+```
+# Plan mode 的可视化增强:
+- ANSI 彩色(标题/成功/失败/警告)
+- 进度条 ████░░░░ 60%
+- 步骤状态 ✅ ❌ 🏃 ⏳ ⏭️
+- 步骤耗时估算(基于工具类型)
+- 依赖箭头 │ ▼ 连接步骤
+- 审批选项:y/n/e/s/d(原版只有 y/n/e/s)
+  + d = 步骤详情(查看每个步骤的参数)
+```
+
+#### 💾 RAG 缓存 + 会话自动恢复 (v2.8+)
+```
+# RAG 检索缓存:
+- 10 分钟 TTL,基于 query + top_k + lang 的 SHA256 hash
+- 最多缓存 128 条,LRU 自动清理
+- 避免重复 embedding + LLM 调用
+
+# 会话自动恢复:
+- 启动时检测 24h 内的最近会话
+- 提示:y / n / s
+  - y / 回车 = 继续上次(加载最后 5 轮)
+  - n         = 开始新会话
+  - s         = 选择其他会话
+```
+
 #### ⏰ 定时任务
 ```
 /agent_cron_add <名> <秒> [输入]  Agent 定时任务
@@ -521,7 +581,17 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:30+ 个测试文件,1053+ 个测试用例**
+**累计:35+ 个测试文件,1122+ 个测试用例**
+
+v2.8+ 新增测试:
+
+| 测试文件 | 数量 | 覆盖范围 |
+|---------|------|---------|
+| `test_worktree.py` | 18 | Git worktree(create/list/remove/prune/format) |
+| `test_voice_input.py` | 7 | STT 音频转写(格式校验 / fallback) |
+| `test_plan_ui.py` | 16 | Plan mode 彩色 UI(渲染 / 进度 / 摘要 / 估算) |
+| `test_rag_cache.py` | 10 | RAG 检索结果缓存(SHA256 / TTL / LRU) |
+| `test_resume.py` | 18 | 会话自动恢复(找最新 / 时间窗 / 加载 / 询问) |
 
 ### 环境变量
 

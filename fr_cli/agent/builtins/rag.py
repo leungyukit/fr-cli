@@ -11,6 +11,7 @@ import sys
 import threading
 import time
 from pathlib import Path
+from typing import Any, Dict, Tuple
 
 # 可选依赖延迟导入
 _chroma = None
@@ -48,6 +49,10 @@ class RAGManager:
 
     def __init__(self, kb_dir=None, db_path=None):
         self.kb_dir = Path(kb_dir) if kb_dir else None
+        # 检索结果缓存(10 分钟 TTL)
+        self._query_cache: Dict[str, Tuple[float, Any]] = {}
+        self._cache_ttl = 600  # 秒
+        self._cache_max = 128  # 最多缓存条数
         self.db_path = Path(db_path) if db_path else RAG_DB_DIR
         self.client = None
         self.collection = None
@@ -209,9 +214,23 @@ class RAGManager:
     # ---------- 检索生成 ----------
 
     def query(self, question, client, model, lang="zh", top_k=8):
-        """向量检索 -> 取 Top-K 片段 -> 大模型综合生成回答"""
+        """向量检索 -> 取 Top-K 片段 -> 大模型综合生成回答
+
+        缓存策略:基于 question + top_k + lang 的 SHA256 hash,TTL 10 分钟。
+        跳过缓存:lang != "zh"/"en" 或 question > 2000 字符
+        """
         if not self._ensure_initialized():
             return None, "缺少依赖: pip install chromadb sentence-transformers"
+
+        # 缓存命中
+        cache_key = self._query_cache_key(question, top_k, lang)
+        if cache_key in self._query_cache:
+            ts, cached = self._query_cache[cache_key]
+            if time.time() - ts < self._cache_ttl:
+                return cached, None
+            else:
+                # 过期清理
+                self._query_cache.pop(cache_key, None)
 
         with self._db_lock:
             if self.collection.count() == 0:
@@ -275,7 +294,49 @@ Instructions:
         from fr_cli.core.stream import stream_cnt
         messages = [{"role": "user", "content": prompt}]
         result, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
+
+        # 写缓存
+        self._write_cache(cache_key, (result, None))
         return result, None
+
+    def _query_cache_key(self, question: str, top_k: int, lang: str) -> str:
+        """生成查询缓存 key"""
+        # 超长问题或非标准 lang 不缓存
+        if len(question) > 2000 or lang not in ("zh", "en"):
+            return f"_nocache_{id(self)}_{time.time()}"
+        h = hashlib.sha256(f"{question}|{top_k}|{lang}".encode("utf-8")).hexdigest()
+        return h[:32]
+
+    def _write_cache(self, key: str, value: Any) -> None:
+        """写缓存(满了清掉最旧的)"""
+        if key.startswith("_nocache_"):
+            return
+        if len(self._query_cache) >= self._cache_max:
+            # 清掉最旧的 1/4
+            to_remove = max(1, self._cache_max // 4)
+            by_ts = sorted(self._query_cache.items(), key=lambda x: x[1][0])
+            for k, _ in by_ts[:to_remove]:
+                self._query_cache.pop(k, None)
+        self._query_cache[key] = (time.time(), value)
+
+    def clear_cache(self) -> int:
+        """清空缓存,返回清理条数"""
+        n = len(self._query_cache)
+        self._query_cache.clear()
+        return n
+
+    def cache_stats(self) -> Dict[str, Any]:
+        """缓存统计"""
+        now = time.time()
+        valid = sum(1 for ts, _ in self._query_cache.values() if now - ts < self._cache_ttl)
+        expired = len(self._query_cache) - valid
+        return {
+            "total": len(self._query_cache),
+            "valid": valid,
+            "expired": expired,
+            "ttl_seconds": self._cache_ttl,
+            "max_entries": self._cache_max,
+        }
 
     # ---------- 后台监控 ----------
 

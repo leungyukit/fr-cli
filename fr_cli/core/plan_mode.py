@@ -97,14 +97,20 @@ def enter_plan_mode(state, user_input: str) -> Result:
 def render_plan_for_user(plan: dict, lang: str = "zh") -> str:
     """渲染计划并附带审批指引"""
     from fr_cli.core.plan.generator import render_plan
-    text = render_plan(plan, lang=lang)
-    text += "\n\n" + "=" * 50 + "\n"
-    text += "📋 计划已生成。请审批:\n"
-    text += "  y / 回车 = 批准并执行\n"
-    text += "  n = 拒绝,继续普通对话\n"
-    text += "  e = 编辑计划(用自然语言描述修改)\n"
-    text += "  s = 展示完整 JSON\n"
-    return text
+    # 使用增强版 UI(颜色 + 进度条 + 估算)
+    try:
+        from fr_cli.core.plan_ui import render_plan_beautiful
+        return render_plan_beautiful(plan, lang=lang)
+    except Exception:
+        # 回退到原版
+        text = render_plan(plan, lang=lang)
+        text += "\n\n" + "=" * 50 + "\n"
+        text += "📋 计划已生成。请审批:\n"
+        text += "  y / 回车 = 批准并执行\n"
+        text += "  n = 拒绝,继续普通对话\n"
+        text += "  e = 编辑计划(用自然语言描述修改)\n"
+        text += "  s = 展示完整 JSON\n"
+        return text
 
 
 def edit_pending_plan(state, edit_instruction: str) -> Result:
@@ -177,10 +183,16 @@ def exit_plan_mode(state, approved: bool, edited_plan: Optional[Dict[str, Any]] 
     clear_pending_plan(session_id)
     state._plan_pending = False
 
-    # 汇总结果
-    summary = "\n".join(f"步骤 {i+1}: {'✅' if ok else '❌'} {result[:80]}"
-                        for i, (ok, result) in enumerate(results))
-    success_count = sum(1 for ok, _ in results if ok)
-    return Result.ok(
-        f"计划执行完成 ({success_count}/{len(results)} 步成功):\n{summary}"
-    )
+    # 使用增强版 UI 汇总(进度条 + 颜色 + 步骤详情)
+    try:
+        from fr_cli.core.plan_ui import render_execution_summary
+        lang = state.lang if hasattr(state, "lang") else "zh"
+        return Result.ok(render_execution_summary(results, plan, lang=lang))
+    except Exception:
+        # 回退
+        summary = "\n".join(f"步骤 {i+1}: {'✅' if ok else '❌'} {result[:80]}"
+                            for i, (ok, result) in enumerate(results))
+        success_count = sum(1 for ok, _ in results if ok)
+        return Result.ok(
+            f"计划执行完成 ({success_count}/{len(results)} 步成功):\n{summary}"
+        )

@@ -295,6 +295,48 @@ class ToolRegistry:
         if name == "read_csv":
             return {"path": arg1}
 
+        # Worktree 工作树
+        if name == "worktree_create":
+            # /worktree_create <branch> [path]
+            return {"branch": arg1, "path": arg2 or None}
+        if name == "worktree_remove":
+            # /worktree_remove <path> [--force]
+            kwargs = {"path": arg1}
+            if "--force" in parts:
+                kwargs["force"] = True
+            return kwargs
+        if name == "worktree_switch":
+            return {"path": arg1}
+        if name == "worktree_list":
+            return {}
+
+        # 语音输入 STT
+        if name == "voice_input":
+            # /voice_input <path> [--lang en] [--local]
+            kwargs = {"path": arg1}
+            for tok in parts[2:]:
+                if tok in ("--local", "--prefer-local"):
+                    kwargs["prefer_local"] = True
+                elif tok in ("--inject",):
+                    kwargs["inject"] = True
+                elif tok.startswith("--lang="):
+                    kwargs["language"] = tok.split("=", 1)[1]
+                elif tok in ("--lang", "-l"):
+                    pass  # 下个 token 是值,简化处理
+            # 默认 zh
+            if "language" not in kwargs:
+                # 检查 arg2 是否为语言代码
+                if arg2 and len(arg2) <= 3 and arg2.isalpha():
+                    kwargs["language"] = arg2
+                else:
+                    kwargs["language"] = "zh"
+            return kwargs
+        if name == "voice_record":
+            return {
+                "duration": int(arg1) if arg1.isdigit() else 0,
+                "language": arg2 if arg2 and arg2.isalpha() and len(arg2) <= 3 else "zh",
+            }
+
         return {}
 
     def get_tools(self):
