@@ -86,10 +86,36 @@ class CommandExecutor:
             client / model_name: v2.4.4 起，显式覆盖 LLM 上下文（取代 push_agent_context 栈）。
                 传 None 时使用 AppState 默认。
         """
+        # v2.7+:PreToolUse hook(可阻止/修改)
+        if not skip_security:
+            try:
+                from fr_cli.agent.hooks import get_hook_manager
+                cfg = getattr(self.state, "cfg", None)
+                hook_mgr = get_hook_manager(cfg=cfg)
+                pre_result = hook_mgr.run_pre_tool_use(tool_name, kwargs)
+                if pre_result.blocked:
+                    return Result.fail(f"工具被 hook 阻止: {pre_result.reason}")
+                if pre_result.modified_args:
+                    kwargs.update(pre_result.modified_args)
+            except Exception:
+                pass  # hook 失败不影响主流程
+
         data, err = self._reg.dispatch(
             self._get_deps(client=client, model_name=model_name),
             tool_name, msgs=msgs, skip_security=skip_security, **kwargs
         )
+
+        # v2.7+:PostToolUse hook(可修改结果)
+        try:
+            from fr_cli.agent.hooks import get_hook_manager
+            cfg = getattr(self.state, "cfg", None)
+            hook_mgr = get_hook_manager(cfg=cfg)
+            post_result = hook_mgr.run_post_tool_use(tool_name, kwargs, data)
+            if post_result.modified_args.get("tool_result"):
+                data = post_result.modified_args["tool_result"]
+        except Exception:
+            pass
+
         return Result.ok(data) if err is None else Result.fail(err)
 
     def peek_ai_commands(self, ai_response):

@@ -4,17 +4,14 @@ Skill 系统测试
 """
 import os
 import sys
-import tempfile
-from pathlib import Path
 
-import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from fr_cli.agent.skills import (
-    Skill, load_skill_file, discover_skills, find_skill_by_name,
+    load_skill_file, discover_skills, find_skill_by_name,
     find_skill_by_trigger, list_skills, install_skill_template,
-    _parse_frontmatter, SKILL_USER_DIR,
+    _parse_frontmatter,
 )
 
 

@@ -16,7 +16,6 @@ import pytest
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-from fr_cli.core.result import Result
 from fr_cli.command.registered.fs import _multi_edit
 
 

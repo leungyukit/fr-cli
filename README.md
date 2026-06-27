@@ -45,6 +45,9 @@
 - **Git 集成 (v2.7+)**:7 个 AI 工具(`git_status` / `git_diff` / `git_log` / `git_add` / `git_commit` / `git_branch` / `git_show`),让 AI 像 Claude Code 一样感知版本控制
 - **Sub-agent 委派 (v2.7+)**:MasterAgent 通过 `spawn_agent` 工具启动子 Agent 处理子任务,`task_output` 查询后台任务状态(类似 Claude Code 的 Task/TaskOutput)
 - **Skill 系统 (v2.7+)**:用户可定义 `.md` skill(frontmatter + steps),通过触发词或 `/skill` 命令加载,AI 自动按步骤执行
+- **Hooks 系统 (v2.7+)**:PreToolUse / PostToolUse / UserPromptSubmit / SessionStart 等可扩展点,支持 shell 命令钩子(`exit 2` 阻止 / JSON 输出修改参数)
+- **Per-tool 权限 (v2.7+)**:在 `sec_*` 类别基础上加 tool 级控制(always_allow / always_deny / ask_each_time + path_rules)
+- **Voice / TTS (v2.7+)**:复用 matrix MCP 的 TTS 工具,支持 AI 回复自动朗读
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -246,6 +249,59 @@ steps: |
 
 # 触发方式:/skill <name> 或自然语言包含触发词
 # AI 会自动加载 skill 并按步骤执行
+```
+
+#### 🎣 Hooks 系统 (v2.7+)
+```
+# ~/.fr_cli/hooks.json 或项目级 .fr_cli/hooks.json
+{
+  "PreToolUse": [
+    {"matcher": "delete_file", "command": "exit 2", "description": "禁止删除"}
+  ],
+  "PostToolUse": [
+    {"matcher": ".*", "command": "logger.sh"}
+  ],
+  "UserPromptSubmit": [
+    {"matcher": ".*rm\\s+-rf.*", "command": "exit 2"}
+  ]
+}
+
+# PreToolUse hook:
+#   - exit 0: 放行
+#   - exit 2: 阻止(类似 Claude Code)
+#   - stdout 输出 JSON {block: true} → 阻止
+#   - stdout 输出 JSON {modified_args: {...}} → 修改参数
+#   - 纯文本 stdout → 替换 tool_result(用于 PostToolUse)
+```
+
+#### 🔐 Per-tool 权限 (v2.7+)
+```json
+// ~/.fr_cli/config.json
+{
+  "permissions": {
+    "always_allow": ["search_web", "read_file"],
+    "always_deny":  ["delete_file"],
+    "ask_each_time": ["git_commit"],
+    "path_rules": {
+      "write_file": {
+        "always_allow_paths": ["/tmp/*"],
+        "always_deny_paths": ["/etc/*", "/usr/*", "re:.*\\.env$"]
+      }
+    }
+  }
+}
+```
+优先级:`deny` > `path_allow` > `always_allow` > `ask` > `fallthrough(sec_*)`
+
+#### 🔊 Voice / TTS (v2.7+)
+```
+# 需要配置 matrix MCP server(内置 TTS 工具)
+# 配置后:
+voice_speak          朗读文本(同步,生成音频文件)
+voice_list           列出可用声音
+voice_toggle         切换自动朗读(AI 回复自动朗读)
+# AI 工具:
+【调用：voice_speak({"text": "你好世界"})】
 ```
 
 #### ⏰ 定时任务
@@ -453,9 +509,19 @@ ruff check fr_cli tests
 | `test_result.py` | 19 | Result 统一返回风格 |
 | `test_store.py` | 19 | JsonStore 原子持久化 |
 | `test_dataframe.py` | 9 | Excel/CSV 读取 |
+| `test_project_memory.py` | 18 | 项目记忆加载(.frcli.md/AGENTS.md/CLAUDE.md) |
+| `test_multi_edit.py` | 13 | 原子多文件编辑 |
+| `test_git_tools.py` | 31 | Git 集成(7 个工具,真实 git 仓库) |
+| `test_skills.py` | 21 | Skill 系统(解析/发现/触发词) |
+| `test_hooks.py` | 28 | Hooks 系统(Pre/Post/UserPromptSubmit) |
+| `test_permissions.py` | 26 | Per-tool 权限 + path rules |
+| `test_plan_mode.py` | 15 | Plan mode(EnterPlanMode/edit/show) |
+| `test_voice.py` | 18 | Voice / TTS(matrix MCP 集成) |
 | 其他 | ~450 | 既有测试(MasterAgent/Hermes/Swarm/MCP 等) |
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
+
+**累计:30+ 个测试文件,1053+ 个测试用例**
 
 ### 环境变量
 

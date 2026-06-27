@@ -10,9 +10,7 @@ Git 集成工具 —— 让 fr-cli 像 Claude Code 一样感知版本控制
 - git_branch: 查看/创建/切换分支
 - git_show: 查看某次提交详情
 """
-import os
 import subprocess
-import sys
 from typing import List, Optional
 
 

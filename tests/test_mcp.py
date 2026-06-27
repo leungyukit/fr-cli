@@ -10,9 +10,6 @@ MCP (Model Context Protocol) 测试
 import os
 import sys
 import json
-import tempfile
-from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 import pytest
 

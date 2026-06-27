@@ -7,8 +7,6 @@ Git 集成工具测试
 import os
 import sys
 import subprocess
-import tempfile
-from pathlib import Path
 
 import pytest
 

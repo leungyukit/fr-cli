@@ -29,8 +29,6 @@ steps: |
   4. 生成 Markdown 格式的审查报告
 ---
 """
-import os
-import sys
 from pathlib import Path
 from typing import Dict, List, Optional, Any
 

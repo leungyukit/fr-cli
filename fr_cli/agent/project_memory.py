@@ -12,7 +12,6 @@
 
 最多回溯到 git root(如果存在)或最多 5 层。
 """
-import os
 from pathlib import Path
 from typing import List, Optional, Tuple
 
