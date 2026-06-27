@@ -101,7 +101,7 @@ class CronManager:
             return None, f"{RED}Invalid seconds{RESET}"
 
         if interval < 5:
-            return None, f"{RED}{T('cron_too_short', lang, min_interval=5)}{RESET}"
+            return None, f"{RED}间隔不能小于 5 秒(当前: {interval}s){RESET}"
 
         # 如果调用方传了 state 而没传 state_provider，自动包成 lambda
         # （不直接绑死 state，而是返回 state 的当前引用 —— 调用方有责任在 state

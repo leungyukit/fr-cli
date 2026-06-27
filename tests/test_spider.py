@@ -10,7 +10,6 @@
 import os
 import sys
 import socket
-import tempfile
 import threading
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler

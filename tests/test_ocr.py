@@ -8,7 +8,6 @@ PaddleOCR 引擎没装,跳过相关测试。
 import base64
 import os
 import sys
-import tempfile
 from pathlib import Path
 from unittest.mock import patch, MagicMock
 
@@ -28,7 +27,6 @@ from fr_cli.weapon.ocr import (
     _recognize_image_bytes,
     _create_ocr_client,
 )
-from fr_cli.core.result import Result
 
 
 # ==================== 依赖检查 ====================

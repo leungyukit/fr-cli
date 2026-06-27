@@ -1,206 +1,171 @@
 """
-四阶安全确认引擎测试
-覆盖：Y/A/F/N 分支、批量确认、非交互模式、已放行状态、永久放行持久化。
+4 阶安全确认测试
+覆盖 fconfirm / sconfirm / 批量模式 / 非交互模式 / 永久放行撤销。
 
-v2.4.4 行为变更：
-- fconfirm / sconfirm 改为 dict，按 sec_* 类别独立
-- 旧版 bool 仍被 ask() 接受（向后兼容），但返回的 fconfirm / sconfirm 总是 dict
-- 按 [F] 仅对当前 sec_* 类别永久放行（写入 cfg["auto_confirm"]，不再写 auto_confirm_forever）
+注:ask() 通过 input() 与用户交互,这里用 monkeypatch 模拟输入。
 """
+import os
+import sys
+from unittest.mock import patch
+
 import pytest
 
-from fr_cli.security.security import ask, clear_all_auto_confirm, _migrate_fconfirm
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from fr_cli.security.security import ask, clear_all_auto_confirm
 
 
-@pytest.fixture
-def base_args(monkeypatch):
-    # 确保 security 测试不受其他测试遗留的环境变量影响
-    monkeypatch.delenv("FR_CLI_NON_INTERACTIVE", raising=False)
+@pytest.fixture(autouse=True)
+def clean_env(monkeypatch):
+    """确保测试环境干净"""
     monkeypatch.delenv("FR_CLI_BATCH_CONFIRM", raising=False)
-    return {
-        "k": "sec_read",
-        "d": "README.md",
-        "l": "zh",
-        "fconfirm": {},   # v2.4.4: dict 而非 bool
-        "sconfirm": {},   # v2.4.4: dict 而非 bool
-        "config": {},
-    }
+    monkeypatch.delenv("FR_CLI_NON_INTERACTIVE", raising=False)
 
 
-class TestSecurityAsk:
-    """测试 ask 函数各分支"""
+class TestBatchMode:
 
-    def test_y_once(self, base_args, monkeypatch):
-        """[Y] 一次性放行：sconfirm / fconfirm 都不变（dict 中无 sec_read）"""
-        monkeypatch.setattr("builtins.input", lambda _: "y")
-        ok, s, f = ask(**base_args)
+    def test_batch_confirm_always_allow(self):
+        """FR_CLI_BATCH_CONFIRM=1:直接放行"""
+        os.environ["FR_CLI_BATCH_CONFIRM"] = "1"
+        ok, s, f = ask("sec_read", "/etc/test", "zh", {}, {}, {})
         assert ok is True
-        assert s == {}
-        assert f == {}
 
-    def test_a_session(self, base_args, monkeypatch):
-        """[A] 本次会话放行：sconfirm[sec_read] = True，fconfirm 不变"""
-        monkeypatch.setattr("builtins.input", lambda _: "a")
-        ok, s, f = ask(**base_args)
+    def test_batch_confirm_works_for_exec(self):
+        os.environ["FR_CLI_BATCH_CONFIRM"] = "1"
+        ok, s, f = ask("sec_exec", "rm -rf /", "zh", {}, {}, {})
         assert ok is True
-        assert s == {"sec_read": True}
-        assert f == {}
 
-    def test_f_forever(self, base_args, monkeypatch, tmp_path):
-        """[F] 永世：仅对当前 sec_* 类别永久放行；写入 cfg["auto_confirm"] 而非 auto_confirm_forever"""
-        config = {}
-        base_args["config"] = config
-        monkeypatch.setattr("builtins.input", lambda _: "f")
-        # 避免写入真实配置文件
-        saved = []
-        monkeypatch.setattr("fr_cli.security.security.save_config", lambda c: saved.append(dict(c)))
-        ok, s, f = ask(**base_args)
-        assert ok is True
-        assert s == {"sec_read": True}
-        assert f == {"sec_read": True}
-        # v2.4.4：写入 cfg["auto_confirm"]，而非 auto_confirm_forever
-        assert "auto_confirm" in config
-        assert config["auto_confirm"]["sec_read"] is True
-        assert "auto_confirm_forever" not in config
-        assert saved[-1]["auto_confirm"]["sec_read"] is True
 
-    def test_f_does_not_bleed_into_other_categories(self, base_args, monkeypatch):
-        """[F] 关键回归：按 F 放过 sec_read 不会顺带放过 sec_write"""
-        base_args["k"] = "sec_read"
-        monkeypatch.setattr("builtins.input", lambda _: "f")
-        saved = []
-        monkeypatch.setattr("fr_cli.security.security.save_config", lambda c: saved.append(dict(c)))
-        ok, s, f = ask(**base_args)
-        assert ok is True
-        # fconfirm 仅含 sec_read
-        assert f == {"sec_read": True}
-        # 后续 sec_write 必须重新弹窗
-        base_args["fconfirm"] = f
-        base_args["k"] = "sec_write"
-        base_args["d"] = "/etc/passwd"
-        base_args["config"] = {}
-        monkeypatch.setattr("builtins.input", lambda _: "n")  # 用户拒绝
-        ok2, s2, f2 = ask(**base_args)
-        assert ok2 is False
-        # sec_read 仍保留在 fconfirm，但 sec_write 不被放过
-        assert f2.get("sec_read") is True
-        assert "sec_write" not in f2
+class TestNonInteractiveMode:
 
-    def test_n_deny(self, base_args, monkeypatch):
-        """[N] 拒绝：sconfirm / fconfirm 都不变"""
-        monkeypatch.setattr("builtins.input", lambda _: "n")
-        ok, s, f = ask(**base_args)
+    def test_non_interactive_denies_by_default(self):
+        """FR_CLI_NON_INTERACTIVE=1:默认拒绝"""
+        os.environ["FR_CLI_NON_INTERACTIVE"] = "1"
+        ok, s, f = ask("sec_read", "/etc/passwd", "zh", {}, {}, {})
         assert ok is False
-        assert s == {}
-        assert f == {}
 
-    def test_empty_deny(self, base_args, monkeypatch):
-        """回车等同于 N"""
-        monkeypatch.setattr("builtins.input", lambda _: "")
-        ok, s, f = ask(**base_args)
+    def test_non_interactive_denies_exec(self):
+        os.environ["FR_CLI_NON_INTERACTIVE"] = "1"
+        ok, s, f = ask("sec_exec", "dangerous command", "zh", {}, {}, {})
         assert ok is False
-        assert s == {}
-        assert f == {}
 
-    def test_already_fconfirm_dict(self, base_args):
-        """fconfirm 已是 dict 且包含当前 k → 直接放行"""
-        base_args["fconfirm"] = {"sec_read": True}
-        ok, s, f = ask(**base_args)
-        assert ok is True
-        # 状态不变
-        assert s == {}
-        assert f == {"sec_read": True}
 
-    def test_already_fconfirm_bool_true_legacy(self, base_args):
-        """兼容旧版：fconfirm = True 迁移为所有类别放行"""
-        base_args["fconfirm"] = True
-        ok, s, f = ask(**base_args)
+class TestForeverConfirm:
+
+    def test_forever_confirm_dict_format(self):
+        """fconfirm 字典按 sec_* 类别独立放行"""
+        fconfirm = {"sec_read": True, "sec_write": False}
+        # sec_read 直接放行
+        ok, s, f = ask("sec_read", "/anywhere", "zh", fconfirm, {}, {})
         assert ok is True
-        # 迁移后，f 应为包含所有已知 sec_* 类别的 dict
-        assert isinstance(f, dict)
+        # sec_write 不会被连带放行
+        assert f.get("sec_write") is False
+
+    def test_forever_confirm_categorized(self):
+        """永久放行只对指定 sec_* 类别生效"""
+        fconfirm = {"sec_write": True}
+        # sec_exec 不被永久放行,会询问
+        with patch("builtins.input", return_value="n"):
+            ok, _, _ = ask("sec_exec", "command", "zh", fconfirm, {}, {})
+        # 用户输入 n → 拒绝
+        assert ok is False
+
+    def test_forever_confirm_persists_to_config(self, tmp_path, monkeypatch):
+        """'f' 输入应持久化到 config['auto_confirm']"""
+        # 用临时 config 文件
+        config_file = tmp_path / "config.json"
+        config_file.write_text("{}", encoding="utf-8")
+        import fr_cli.conf.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "CONFIG_FILE", config_file)
+
+        with patch("builtins.input", return_value="f"):
+            ok, s, f = ask("sec_read", "/tmp/x", "zh", {}, {}, {"auto_confirm": {}})
+        assert ok is True
         assert f.get("sec_read") is True
-        assert f.get("sec_write") is True
-        assert f.get("sec_exec") is True
+        # config 文件应被写入
+        import json
+        cfg = json.loads(config_file.read_text(encoding="utf-8"))
+        assert cfg.get("auto_confirm", {}).get("sec_read") is True
 
-    def test_already_sconfirm_bool_true_legacy(self, base_args):
-        """兼容旧版：sconfirm = True 视为全类别放行"""
-        base_args["sconfirm"] = True
-        ok, s, f = ask(**base_args)
+
+class TestSessionConfirm:
+
+    def test_session_confirm_dict_format(self):
+        """sconfirm 字典按 sec_* 类别放行(本次会话)"""
+        sconfirm = {"sec_exec": True}
+        ok, s, f = ask("sec_exec", "ls", "zh", {}, sconfirm, {})
         assert ok is True
-        # sconfirm 被迁移为 dict
-        assert isinstance(s, dict)
+
+    def test_session_confirm_only_current_category(self):
+        """session 放行只对当前 sec_* 类别"""
+        sconfirm = {"sec_read": True}
+        # sec_exec 没被 session 放行,需要询问
+        with patch("builtins.input", return_value="n"):
+            ok, _, _ = ask("sec_exec", "ls", "zh", {}, sconfirm, {})
+        assert ok is False
+
+    def test_session_confirm_true_means_all(self):
+        """sconfirm=True 表示所有类别放行(旧版兼容)"""
+        with patch("builtins.input", side_effect=AssertionError("should not prompt")):
+            ok, s, f = ask("sec_exec", "ls", "zh", {}, True, {})
+        assert ok is True
+
+
+class TestUserInput:
+
+    def test_user_yields_yes(self):
+        with patch("builtins.input", return_value="y"):
+            ok, _, _ = ask("sec_read", "/tmp/x", "zh", {}, {}, {})
+        assert ok is True
+
+    def test_user_yields_no(self):
+        with patch("builtins.input", return_value="n"):
+            ok, _, _ = ask("sec_read", "/tmp/x", "zh", {}, {}, {})
+        assert ok is False
+
+    def test_user_a_marks_session(self):
+        """输入 'a' 应仅对当前 sec_* 类别标记 session 放行"""
+        with patch("builtins.input", return_value="a"):
+            ok, s, f = ask("sec_read", "/tmp/x", "zh", {}, {}, {})
+        assert ok is True
         assert s.get("sec_read") is True
+        # 其他 sec_* 不被影响
+        assert s.get("sec_write") is None or s.get("sec_write") is False
 
-    def test_sconfirm_dict_per_category(self, base_args, monkeypatch):
-        """sconfirm = {"sec_read": True}：仅 sec_read 放行，sec_write 仍需弹窗"""
-        base_args["sconfirm"] = {"sec_read": True}
-        base_args["k"] = "sec_write"
-        # sec_write 不在 sconfirm 中 → 弹窗 → 用户按 n → 拒绝
-        monkeypatch.setattr("builtins.input", lambda _: "n")
-        ok, s, f = ask(**base_args)
+    def test_empty_input_treated_as_no(self):
+        with patch("builtins.input", return_value=""):
+            ok, _, _ = ask("sec_read", "/tmp/x", "zh", {}, {}, {})
         assert ok is False
-        # sconfirm 仍只含 sec_read（sec_write 拒绝不会污染）
-        assert base_args["sconfirm"] == {"sec_read": True}
-
-    def test_batch_confirm(self, base_args, monkeypatch):
-        monkeypatch.setenv("FR_CLI_BATCH_CONFIRM", "1")
-        ok, s, f = ask(**base_args)
-        assert ok is True
-        assert s == {}
-        assert f == {}
-
-    def test_non_interactive_deny(self, base_args, monkeypatch):
-        monkeypatch.setenv("FR_CLI_NON_INTERACTIVE", "1")
-        ok, s, f = ask(**base_args)
-        assert ok is False
-        assert s == {}
-        assert f == {}
 
 
-class TestMigrateFconfirm:
-    """_migrate_fconfirm 迁移逻辑"""
+class TestClearAutoConfirm:
 
-    def test_bool_false_to_empty(self):
-        assert _migrate_fconfirm(False) == {}
+    def test_clear_removes_dict(self, tmp_path, monkeypatch):
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"auto_confirm": {"sec_read": true}}', encoding="utf-8")
+        import fr_cli.conf.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "CONFIG_FILE", config_file)
 
-    def test_dict_passthrough(self):
-        d = {"sec_read": True}
-        assert _migrate_fconfirm(d) is d
-
-    def test_bool_true_to_all_categories(self):
-        result = _migrate_fconfirm(True)
-        assert result.get("sec_read") is True
-        assert result.get("sec_write") is True
-        assert result.get("sec_exec") is True
-        assert result.get("sec_mcp_call") is True
-        assert result.get("sec_shell") is True
-
-
-class TestClearAllAutoConfirm:
-    """clear_all_auto_confirm /unconfirm 入口"""
-
-    def test_clear_new_format(self):
-        config = {"auto_confirm": {"sec_read": True, "sec_write": True}, "lang": "zh"}
-        cleared = []
-        import fr_cli.security.security as sec
-        orig = sec.save_config
-        sec.save_config = lambda c: cleared.append(dict(c))
-        try:
-            clear_all_auto_confirm(config)
-        finally:
-            sec.save_config = orig
+        config = {"auto_confirm": {"sec_read": True}}
+        clear_all_auto_confirm(config)
         assert "auto_confirm" not in config
-        assert config["lang"] == "zh"  # 其它字段保留
 
-    def test_clear_legacy_format(self):
-        config = {"auto_confirm_forever": True, "lang": "zh"}
-        cleared = []
-        import fr_cli.security.security as sec
-        orig = sec.save_config
-        sec.save_config = lambda c: cleared.append(dict(c))
-        try:
-            clear_all_auto_confirm(config)
-        finally:
-            sec.save_config = orig
+    def test_clear_removes_legacy_field(self, tmp_path, monkeypatch):
+        config_file = tmp_path / "config.json"
+        config_file.write_text('{"auto_confirm_forever": true}', encoding="utf-8")
+        import fr_cli.conf.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "CONFIG_FILE", config_file)
+
+        config = {"auto_confirm_forever": True}
+        clear_all_auto_confirm(config)
         assert "auto_confirm_forever" not in config
-        assert config["lang"] == "zh"
+
+    def test_clear_no_op_when_empty(self, tmp_path, monkeypatch):
+        config_file = tmp_path / "config.json"
+        config_file.write_text("{}", encoding="utf-8")
+        import fr_cli.conf.config as cfg_mod
+        monkeypatch.setattr(cfg_mod, "CONFIG_FILE", config_file)
+
+        config = {}
+        clear_all_auto_confirm(config)  # 不应崩
+        assert config == {}

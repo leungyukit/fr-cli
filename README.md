@@ -380,6 +380,31 @@ python3 -m pytest tests/ -v
 ruff check fr_cli tests
 ```
 
+### 测试覆盖
+
+项目共有 **745+ 个测试用例**,覆盖核心模块:
+
+| 测试文件 | 数量 | 覆盖范围 |
+|---------|------|---------|
+| `test_remote.py` | 10 | SSH / SCP(本地 mock server) |
+| `test_rag.py` | 37 | RAG 知识库(文件读取/分块/入库/同步/query/守护) |
+| `test_spider.py` | 28 | @spider 智能爬虫(链接提取/反爬检测/自适应) |
+| `test_ocr.py` | 22 | OCR 文字识别(Vision/PDF/格式检测) |
+| `test_fs.py` | 26 | VFS 文件沙盒(路径解析/读写/../ 逃逸防护) |
+| `test_security.py` | 17 | 4 阶安全确认(manual/sandbox_auto/full_auto) |
+| `test_cron.py` | 15 | CronManager(添加/删除/列表/shlex 安全) |
+| `test_charts.py` | 17 | 控制台图表(bar/pie/line) |
+| `test_network.py` | 13 | 网络探测(ping/port_scan/ip_scan) |
+| `test_web.py` | 16 | WebRaider 搜索 + SSRF 防护 |
+| `test_history.py` | 12 | 会话历史(保存/加载/导出 Markdown) |
+| `test_context.py` | 13 | 上下文记忆(摘要/最近轮) |
+| `test_result.py` | 19 | Result 统一返回风格 |
+| `test_store.py` | 19 | JsonStore 原子持久化 |
+| `test_dataframe.py` | 9 | Excel/CSV 读取 |
+| 其他 | ~450 | 既有测试(MasterAgent/Hermes/Swarm/MCP 等) |
+
+测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
+
 ### 环境变量
 
 | 变量 | 说明 |
@@ -387,6 +412,7 @@ ruff check fr_cli tests
 | `NO_COLOR=1` | 禁用所有 ANSI 颜色输出,适合 CI/管道/日志重定向 |
 | `FR_CLI_DEBUG=1` | 开启调试模式,显示详细 traceback |
 | `FR_CLI_NON_INTERACTIVE=1` | 非交互模式,安全确认默认拒绝 |
+| `FR_CLI_BATCH_CONFIRM=1` | 批量确认模式:跳过所有安全询问(脚本/自动化场景) |
 | `FR_CLI_AUTONOMOUS_MODE` | 自治模式:`manual` / `sandbox_auto` / `full_auto` |
 | `FR_CLI_HERMES_TASK_TIMEOUT` | 单个 Hermes 任务超时秒数(默认 300) |
 
