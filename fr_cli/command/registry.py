@@ -454,6 +454,51 @@ class ToolRegistry:
         if name == "bookmark_import_chrome":
             return {"path": arg1}
 
+        # Web 控制台
+        if name == "console_start":
+            kwargs = {"host": "127.0.0.1", "port": 7777, "token": None, "no_open": False}
+            for tok in parts[1:]:
+                if tok == "--no-open":
+                    kwargs["no_open"] = True
+                elif tok.startswith("--port="):
+                    try:
+                        kwargs["port"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif tok.startswith("--host="):
+                    kwargs["host"] = tok.split("=", 1)[1]
+                elif tok.startswith("--token="):
+                    kwargs["token"] = tok.split("=", 1)[1]
+            return kwargs
+        if name == "console_stop":
+            return {}
+        if name == "console_status":
+            return {}
+
+        # Crypto
+        if name == "crypto_balance":
+            kwargs = {"address": arg1, "chain": "eth", "rpc": None}
+            for tok in parts[2:]:
+                if tok.startswith("--chain="):
+                    kwargs["chain"] = tok.split("=", 1)[1]
+                elif tok.startswith("--rpc="):
+                    kwargs["rpc"] = tok.split("=", 1)[1]
+            return kwargs
+        if name == "crypto_tx":
+            kwargs = {"address": arg1, "chain": "eth", "limit": 10}
+            for tok in parts[2:]:
+                if tok.startswith("--chain="):
+                    kwargs["chain"] = tok.split("=", 1)[1]
+                elif tok.isdigit():
+                    kwargs["limit"] = int(tok)
+            return kwargs
+        if name == "crypto_price":
+            return {"symbol": arg1 or "ETH", "vs": arg2 or "usd"}
+        if name == "crypto_chains":
+            return {}
+        if name == "crypto_apikey":
+            return {"key": arg1}
+
         return {}
 
     def get_tools(self):

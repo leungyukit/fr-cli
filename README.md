@@ -68,6 +68,8 @@
 - **本地 LLM Ollama (v2.8+)**:`/ollama_status` 探测本地 ollama 服务,`/ollama_pull <model>` 流式下载,`/ollama_rm <model>` 删除,`/ollama_use <model>` 切换到 Ollama 作为当前 provider
 - **MCP Streamable HTTP (v2.8+)**:MCP 服务器传输类型从 stdio-only 扩展到支持 Streamable HTTP 和 SSE,基于官方 `mcp.client.streamable_http` SDK
 - **Web Bookmark + RAG (v2.8+)**:`/bookmark <url>` 收藏网页(自动抓取正文为 Markdown),`/bm_list` / `/bm_search` 列表与全文搜索,`/bm_rag [--all]` 同步到 RAG 知识库便于后续 @RAG 查询,`/bm_chrome <html文件>` 从 Chrome 浏览器导入
+- **Web 控制台 (v2.8+)**:`/console [--port=7777]` 启动本地 HTTP 服务,浏览器打开暗色面板查看全局状态 / 会话 / Hermes 任务 / Worktree / Bookmark / 用量统计;Bearer Token 鉴权,默认只绑 127.0.0.1
+- **Crypto Wallet 只读查询 (v2.8+)**:`/crypto_balance 0x... [--chain bsc|polygon|...]` 查询 EVM 链地址余额,`/crypto_tx 0x...` 最近交易,`/crypto_price ETH` CoinGecko 实时价格(完全只读,不接触私钥/助记词)
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -596,7 +598,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:50+ 个测试文件,1336+ 个测试用例**
+**累计:52+ 个测试文件,1384+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -622,6 +624,8 @@ v2.8+ 新增测试:
 | `test_ollama.py` | 11 | Ollama 本地 LLM(探测 / 列模型 / 删除 / 格式化) |
 | `test_bookmark.py` | 27 | Web Bookmark(HTML→MD / CRUD / 搜索 / Chrome 导入) |
 | `test_mcp_streamable.py` | 8 | MCP Streamable HTTP/SSE(server 配置 / 传输类型) |
+| `test_console.py` | 16 | Web 控制台(token / 生命周期 / HTTP 端点 / 鉴权) |
+| `test_crypto.py` | 32 | Crypto 只读查询(余额 / 交易 / 价格 / 多链) |
 
 ### 环境变量
 
