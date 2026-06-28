@@ -499,6 +499,66 @@ class ToolRegistry:
         if name == "crypto_apikey":
             return {"key": arg1}
 
+        # DeFi
+        if name == "defi_protocols":
+            kwargs = {"category": arg1 or None, "limit": 30}
+            for tok in parts[2:]:
+                if tok.startswith("--limit="):
+                    try:
+                        kwargs["limit"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+            return kwargs
+        if name == "defi_tvl":
+            return {"protocol": arg1}
+        if name == "defi_yields":
+            # /defi_yields <chain> <project> [min_tvl] [limit] [sort]
+            kwargs = {"chain": arg1 or None, "project": arg2 or None,
+                     "min_tvl": 0, "limit": 20, "sort": "apy"}
+            rest = parts[3:] if len(parts) > 3 else []
+            for tok in rest:
+                if tok.startswith("--chain="):
+                    kwargs["chain"] = tok.split("=", 1)[1]
+                elif tok.startswith("--project="):
+                    kwargs["project"] = tok.split("=", 1)[1]
+                elif tok.startswith("--min-tvl="):
+                    try:
+                        kwargs["min_tvl"] = float(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif tok.startswith("--limit="):
+                    try:
+                        kwargs["limit"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif tok.startswith("--sort="):
+                    kwargs["sort"] = tok.split("=", 1)[1]
+            return kwargs
+        if name == "defi_pool":
+            return {"pool_id": arg1}
+
+        # 本地 TTS
+        if name == "say":
+            kwargs = {"text": arg1, "voice": None, "rate": None,
+                     "output": None, "async": False}
+            for tok in parts[2:]:
+                if tok.startswith("-v=") or tok.startswith("--voice="):
+                    kwargs["voice"] = tok.split("=", 1)[1]
+                elif tok.startswith("-r=") or tok.startswith("--rate="):
+                    try:
+                        kwargs["rate"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif tok.startswith("-o=") or tok.startswith("--output="):
+                    kwargs["output"] = tok.split("=", 1)[1]
+                elif tok == "--async":
+                    kwargs["async"] = True
+            return kwargs
+        if name == "voices":
+            return {}
+        if name == "tts_status":
+            return {}
+
         return {}
 
     def get_tools(self):

@@ -211,6 +211,45 @@ _console_state = {
     "running": False,
 }
 
+# v2.8+:SSE 事件队列(多客户端)
+_sse_clients: List[threading.Event] = []
+_sse_history: List[Dict[str, Any]] = []  # 最近 50 条事件(供新客户端拉取)
+_sse_history_max = 50
+_sse_lock = threading.Lock()
+
+
+def push_event(event_type: str, data: Dict[str, Any]):
+    """推送一个 SSE 事件给所有连接的客户端
+
+    Args:
+        event_type: 事件类型(status / task / log / custom)
+        data: 事件数据(dict)
+    """
+    global _sse_history
+    event = {
+        "type": event_type,
+        "timestamp": time.time(),
+        "data": data,
+    }
+    with _sse_lock:
+        _sse_history.append(event)
+        if len(_sse_history) > _sse_history_max:
+            _sse_history = _sse_history[-_sse_history_max:]
+        # 通知所有等待中的客户端
+        clients = list(_sse_clients)
+    for ev in clients:
+        try:
+            ev.set()
+        except Exception:
+            pass
+
+
+def get_recent_events(limit: int = 50) -> List[Dict[str, Any]]:
+    """获取最近的事件(给新客户端)"""
+    global _sse_history
+    with _sse_lock:
+        return list(_sse_history[-limit:])
+
 
 def _generate_token() -> str:
     """生成随机 token"""
@@ -253,7 +292,36 @@ def _make_handler(token: str) -> type:
                 return True
             return False
 
-        def do_GET(self):
+        def do_POST(self):
+            parsed = urlparse(self.path)
+            path = parsed.path
+            if not self._check_auth():
+                self.send_response(401)
+                self.end_headers()
+                return
+
+            # 读 body
+            length = int(self.headers.get("Content-Length", 0))
+            body_raw = self.rfile.read(length) if length > 0 else b""
+            try:
+                _body = json.loads(body_raw.decode("utf-8")) if body_raw else {}
+            except Exception:
+                _body = {}
+
+            if path == "/api/command":
+                # 预留:从 web 端发命令(需要额外鉴权)
+                self._send_json({"ok": False, "error": "Web 命令未启用(安全考虑)"}, 403)
+            elif path == "/api/event":
+                # 接收客户端发来的事件(上传日志等)
+                try:
+                    push_event(_body.get("type", "client"), _body.get("data", {}))
+                    self._send_json({"ok": True})
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)})
+            else:
+                self._send_json({"ok": False, "error": f"Unknown endpoint: {path}"}, 404)
+
+        def do_GET(self):  # noqa: F811 — 重复定义是为了保留 SSE 流式实现
             parsed = urlparse(self.path)
             path = parsed.path
             qs = parse_qs(parsed.query)
@@ -261,6 +329,15 @@ def _make_handler(token: str) -> type:
             # 首页(免鉴权)
             if path == "/" or path == "/index.html":
                 self._send_html(_render_homepage(token))
+                return
+
+            # SSE 实时推送
+            if path == "/api/events":
+                if not self._check_auth():
+                    self.send_response(401)
+                    self.end_headers()
+                    return
+                self._handle_sse()
                 return
 
             # 鉴权
@@ -298,27 +375,58 @@ def _make_handler(token: str) -> type:
             else:
                 self._send_json({"ok": False, "error": f"Unknown endpoint: {path}"}, 404)
 
-        def do_POST(self):
-            parsed = urlparse(self.path)
-            path = parsed.path
-            if not self._check_auth():
-                self.send_response(401)
-                self.end_headers()
+        def _handle_sse(self):
+            """SSE 长连接处理器"""
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-cache")
+            self.send_header("Connection", "keep-alive")
+            self.send_header("X-Accel-Buffering", "no")  # 禁用 nginx 缓冲
+            self.end_headers()
+
+            # 先发历史
+            try:
+                for event in get_recent_events(limit=20):
+                    line = f"event: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                    self.wfile.write(line.encode("utf-8"))
+                    self.wfile.flush()
+            except Exception:
                 return
 
-            # 读 body
-            length = int(self.headers.get("Content-Length", 0))
-            body_raw = self.rfile.read(length) if length > 0 else b""
-            try:
-                _body = json.loads(body_raw.decode("utf-8")) if body_raw else {}
-            except Exception:
-                _body = {}
+            # 注册客户端
+            global _sse_clients
+            event_signal = threading.Event()
+            with _sse_lock:
+                _sse_clients.append(event_signal)
 
-            if path == "/api/command":
-                # 预留:从 web 端发命令(需要额外鉴权)
-                self._send_json({"ok": False, "error": "Web 命令未启用(安全考虑)"}, 403)
-            else:
-                self._send_json({"ok": False, "error": f"Unknown endpoint: {path}"}, 404)
+            try:
+                last_ping = time.time()
+                while True:
+                    signaled = event_signal.wait(timeout=15.0)
+                    if signaled:
+                        event_signal.clear()
+                        # 拉取最新事件
+                        try:
+                            for event in get_recent_events(limit=10):
+                                line = f"event: {event['type']}\ndata: {json.dumps(event, ensure_ascii=False)}\n\n"
+                                self.wfile.write(line.encode("utf-8"))
+                                self.wfile.flush()
+                        except Exception:
+                            return
+
+                    # 心跳(防止 proxy 切断)
+                    now = time.time()
+                    if now - last_ping > 10:
+                        try:
+                            self.wfile.write(b": ping\n\n")
+                            self.wfile.flush()
+                        except Exception:
+                            return
+                        last_ping = now
+            finally:
+                with _sse_lock:
+                    if event_signal in _sse_clients:
+                        _sse_clients.remove(event_signal)
 
     return ConsoleHandler
 
@@ -405,13 +513,18 @@ pre {{ background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: aut
 </div>
 
 <nav>
-  <a onclick="load('status')">📊 全局状态</a>
-  <a onclick="load('sessions')">💬 会话</a>
-  <a onclick="load('tasks')">⚙️ Hermes 任务</a>
-  <a onclick="load('worktrees')">🌳 Worktree</a>
-  <a onclick="load('bookmarks')">📚 Bookmark</a>
-  <a onclick="load('stats')">📈 统计</a>
+  <a onclick="document.getElementById('content').dataset.active='status'; load('status')">📊 全局状态</a>
+  <a onclick="document.getElementById('content').dataset.active='sessions'; load('sessions')">💬 会话</a>
+  <a onclick="document.getElementById('content').dataset.active='tasks'; load('tasks')">⚙️ Hermes 任务</a>
+  <a onclick="document.getElementById('content').dataset.active='worktrees'; load('worktrees')">🌳 Worktree</a>
+  <a onclick="document.getElementById('content').dataset.active='bookmarks'; load('bookmarks')">📚 Bookmark</a>
+  <a onclick="document.getElementById('content').dataset.active='stats'; load('stats')">📈 统计</a>
 </nav>
+
+<div class="section" style="max-height:200px;overflow-y:auto;">
+  <h2>📡 实时事件 (SSE)</h2>
+  <div id="event-log"><p class="loading">等待事件...</p></div>
+</div>
 
 <div id="content" class="section">
   <p class="loading">点击上方按钮加载数据...</p>
@@ -534,6 +647,50 @@ async function load(name) {{
     content.innerHTML = '<p style="color:var(--red)">错误: ' + e.message + '</p>';
   }}
 }}
+
+// v2.8+:SSE 实时事件订阅
+let eventSource = null;
+function startSSE() {{
+  if (eventSource) return;
+  eventSource = new EventSource('/api/events?token=' + TOKEN);
+  eventSource.addEventListener('status', (e) => {{
+    const data = JSON.parse(e.data);
+    showEvent('📊 ' + (data.data.message || JSON.stringify(data.data)), data);
+    // 自动刷新 status tab(如果当前在)
+    const content = document.getElementById('content');
+    if (content.dataset.active === 'status') load('status');
+  }});
+  eventSource.addEventListener('task', (e) => {{
+    const data = JSON.parse(e.data);
+    showEvent('⚙️ 任务: ' + (data.data.task_id || '?') + ' → ' + (data.data.status || '?'), data);
+    const content = document.getElementById('content');
+    if (content.dataset.active === 'tasks') load('tasks');
+  }});
+  eventSource.addEventListener('log', (e) => {{
+    const data = JSON.parse(e.data);
+    showEvent('📝 ' + (data.data.message || ''), data);
+  }});
+  eventSource.addEventListener('error', () => {{
+    // 自动重连
+    eventSource.close();
+    eventSource = null;
+    setTimeout(startSSE, 5000);
+  }});
+}}
+
+function showEvent(text, data) {{
+  const log = document.getElementById('event-log');
+  if (!log) return;
+  const ts = new Date(data.timestamp * 1000).toLocaleTimeString();
+  const div = document.createElement('div');
+  div.className = 'event-item';
+  div.innerHTML = '<span style="color:var(--text-2);font-size:11px;">' + ts + '</span> ' +
+                  '<span style="color:var(--accent);">[' + data.type + ']</span> ' +
+                  '<span>' + text + '</span>';
+  log.insertBefore(div, log.firstChild);
+  while (log.children.length > 30) log.removeChild(log.lastChild);
+}}
+startSSE();
 </script>
 </body>
 </html>"""

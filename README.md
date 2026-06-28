@@ -70,6 +70,10 @@
 - **Web Bookmark + RAG (v2.8+)**:`/bookmark <url>` 收藏网页(自动抓取正文为 Markdown),`/bm_list` / `/bm_search` 列表与全文搜索,`/bm_rag [--all]` 同步到 RAG 知识库便于后续 @RAG 查询,`/bm_chrome <html文件>` 从 Chrome 浏览器导入
 - **Web 控制台 (v2.8+)**:`/console [--port=7777]` 启动本地 HTTP 服务,浏览器打开暗色面板查看全局状态 / 会话 / Hermes 任务 / Worktree / Bookmark / 用量统计;Bearer Token 鉴权,默认只绑 127.0.0.1
 - **Crypto Wallet 只读查询 (v2.8+)**:`/crypto_balance 0x... [--chain bsc|polygon|...]` 查询 EVM 链地址余额,`/crypto_tx 0x...` 最近交易,`/crypto_price ETH` CoinGecko 实时价格(完全只读,不接触私钥/助记词)
+- **MCP Resources (v2.8+)**:MCP 协议除了 Tools 还支持 Resources(`/resources/list` + `/resources/read`),fr-cli 现已完整支持两个 API,通过 `MCPServerManager.list_resources/read_resource_sync` 调用
+- **Web 控制台 SSE 实时推送 (v2.8+)**:浏览器面板通过 `/api/events` SSE 长连接接收实时事件,新事件通过 `push_event()` 函数推送,自动重连 + 心跳
+- **DeFi 查询 (v2.8+)**:DeFi Llama API(免 key),`/defi_protocols` 列出协议,`/defi_tvl uniswap` 协议详情,`/defi_yields [--chain eth --project aave]` 收益池 APY,`/defi_pool <uuid>` 单池详情
+- **本地 TTS (v2.8+)**:`/say "你好"` 调用系统朗读(macOS `say` / Linux `espeak`/`spd-say`/`festival` / Windows SAPI),`--voice` 选声音,`-o file.aiff` 保存文件,`--async` 后台播放
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -598,7 +602,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:52+ 个测试文件,1384+ 个测试用例**
+**累计:56+ 个测试文件,1436+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -626,6 +630,10 @@ v2.8+ 新增测试:
 | `test_mcp_streamable.py` | 8 | MCP Streamable HTTP/SSE(server 配置 / 传输类型) |
 | `test_console.py` | 16 | Web 控制台(token / 生命周期 / HTTP 端点 / 鉴权) |
 | `test_crypto.py` | 32 | Crypto 只读查询(余额 / 交易 / 价格 / 多链) |
+| `test_mcp_resources.py` | 8 | MCP Resources(list/read URI,多传输类型) |
+| `test_console_sse.py` | 7 | Web 控制台 SSE(push/get/history,HTTP 集成) |
+| `test_defi.py` | 15 | DeFi Llama(协议 / TVL / 收益池 / 格式化) |
+| `test_local_tts.py` | 14 | 本地 TTS(macOS say / Linux espeak / 声音列表) |
 
 ### 环境变量
 
