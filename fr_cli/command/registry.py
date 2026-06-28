@@ -359,6 +359,56 @@ class ToolRegistry:
         if name == "list_exportable_sessions":
             return {"limit": int(arg1) if arg1.isdigit() else 10}
 
+        # 蜂群 Worktree
+        if name == "swarm_worktree_create":
+            # /swarm_wt_new <prefix> <agent1,agent2,...> [base] [repo]
+            kwargs = {"prefix": arg1, "agents": arg2 or "", "base": "master", "repo": None}
+            rest = ' '.join(parts[3:]) if len(parts) > 3 else ""
+            # 简单解析第三个 token = base
+            if len(parts) > 3:
+                kwargs["base"] = parts[3]
+            if len(parts) > 4:
+                kwargs["repo"] = parts[4]
+            _ = rest  # 未使用,保留接口
+            return kwargs
+        if name == "swarm_worktree_merge":
+            kwargs = {"group_id": arg1, "target": "master", "squash": False}
+            if len(parts) > 2:
+                kwargs["target"] = parts[2]
+            if "--squash" in parts:
+                kwargs["squash"] = True
+            return kwargs
+        if name == "swarm_worktree_discard":
+            return {"group_id": arg1}
+        if name == "swarm_worktree_list":
+            return {}
+
+        # Skill 远程共享
+        if name == "skill_share":
+            kwargs = {"name": arg1, "description": arg2 or "", "public": True}
+            for tok in parts[3:]:
+                if tok in ("--private", "--secret"):
+                    kwargs["public"] = False
+            return kwargs
+        if name == "skill_import":
+            return {"url": arg1, "name": arg2 or None}
+        if name == "skill_browse_shared":
+            return {}
+        if name == "skill_search_gist":
+            return {"query": ' '.join(parts[1:]) if len(parts) > 1 else arg1}
+
+        # 会话导出 HTML
+        if name == "export_session_html":
+            kwargs = {"session_path": arg1, "output_path": None, "title": None, "open": True}
+            for tok in parts[2:]:
+                if tok in ("--no-open",):
+                    kwargs["open"] = False
+                elif tok.startswith("--title="):
+                    kwargs["title"] = tok.split("=", 1)[1]
+                elif not kwargs["output_path"] and not tok.startswith("--"):
+                    kwargs["output_path"] = tok
+            return kwargs
+
         return {}
 
     def get_tools(self):

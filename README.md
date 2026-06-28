@@ -61,6 +61,10 @@
 - **Diff 可视化 (v2.8+)**:彩色 unified diff + 行号对齐 + 上下文折叠 + 双栏并排,集成到 `git_diff` 工具
 - **Streaming Markdown (v2.8+)**:边输出边渲染,状态机跟踪 heading/code/list/quote/table,逐 chunk 渲染不重写
 - **会话导出 PPT (v2.8+)**:`/export_ppt <会话索引或路径>` 导出为 PPTX(python-pptx)或 Markdown 大纲(fallback),每对 user/assistant 转为一张幻灯片
+- **多 Agent 共享 Worktree (v2.8+)**:蜂群协作时每个 Agent 自动分到独立 worktree(`/swarm_wt_new`),避免冲突,完成后统一 merge 到主分支
+- **Skill 远程共享 Gist (v2.8+)**:`/skill_share <name>` 推送本地 skill 到 GitHub Gist(需 GITHUB_TOKEN),`/skill_import <URL>` 导入别人分享的 skill
+- **会话时间线 HTML (v2.8+)**:`/timeline <会话索引>` 生成可视化 HTML 时间线(暗色 GitHub 风格,工具调用折叠面板),自动用浏览器打开
+- **AI 意图可视化 (v2.8+)**:支持 `[AI_INTENT]` 块 / `【理由：...】` 两种格式,AI 可在调用前声明"为什么做这个调用",在执行前展示给用户
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -589,7 +593,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:43+ 个测试文件,1234+ 个测试用例**
+**累计:47+ 个测试文件,1290+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -608,6 +612,10 @@ v2.8+ 新增测试:
 | `test_diff_view.py` | 16 | Diff 可视化(解析 / unified / 双栏 / 统计) |
 | `test_markdown_stream.py` | 19 | Streaming Markdown 渲染(状态机 / code block / 列表) |
 | `test_session_ppt.py` | 15 | 会话导出 PPT(配对提取 / 大纲 / Markdown fallback) |
+| `test_worktree_group.py` | 11 | 多 Agent 共享 Worktree(创建群组 / 列出 / 丢弃) |
+| `test_skill_gist.py` | 14 | Skill Gist 共享(URL 解析 / 分享 / 导入 / 搜索) |
+| `test_session_html.py` | 9 | 会话 HTML 时间线(渲染 / 工具调用 / 导出) |
+| `test_ai_intent.py` | 9 | AI 意图可视化(block 解析 / 理由提取 / 预览格式化) |
 
 ### 环境变量
 
