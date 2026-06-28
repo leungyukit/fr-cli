@@ -14,6 +14,7 @@
 import platform
 import shutil
 import subprocess
+import threading
 from typing import List, Dict, Any, Optional
 
 
@@ -216,3 +217,84 @@ def format_voices(voices: List[Dict[str, str]], lang: str = "zh") -> str:
     if len(voices) > 30:
         lines.append(f"  ... 还有 {len(voices) - 30} 个")
     return "\n".join(lines)
+
+
+def speak_stream(text: str, voice: Optional[str] = None,
+                  rate: Optional[int] = None,
+                  chunk_size: int = 200,
+                  on_chunk: Optional[callable] = None,
+                  async_play: bool = False) -> Dict[str, Any]:
+    """流式 TTS —— 分块朗读长文本
+
+    把长文本按句号/段落拆成多个小块,逐块朗读。优势:
+    - 避免单个 say 命令参数过长被截断
+    - 可以边生成边朗读(传入 on_chunk 回调)
+    - 失败时已经播的部分不会中断
+    - 后台线程顺序播,主线程不阻塞
+
+    Args:
+        text: 要朗读的长文本
+        voice: 声音
+        rate: 语速
+        chunk_size: 每块最大字符数(默认 200)
+        on_chunk: 块播完后回调 fn(chunk_text, index)
+        async_play: True 时不等待播完
+
+    Returns:
+        {"ok": bool, "chunks": int, "engine": str, "errors": [...]}
+    """
+    det = detect_tts_engine()
+    if not det["ok"]:
+        return det
+
+    # 分块:优先按句子分(。!?\n),再按 chunk_size
+    import re
+    chunks = []
+    remaining = text.strip()
+
+    while remaining:
+        if len(remaining) <= chunk_size:
+            chunks.append(remaining)
+            remaining = ""
+        else:
+            # 在 chunk_size 范围内找最近的句末标点
+            best_end = chunk_size
+            for m in re.finditer(r"[。.!?\n]", remaining[:chunk_size + 50]):
+                if m.end() > best_end:
+                    continue  # 跳过超过 chunk_size 的
+                best_end = m.end()
+            if best_end <= 0:
+                best_end = chunk_size  # 没找到标点,硬切
+            chunks.append(remaining[:best_end])
+            remaining = remaining[best_end:].lstrip()
+
+    if not chunks:
+        return {"ok": False, "error": "空文本", "chunks": 0}
+
+    def _play_all():
+        errors = []
+        for i, chunk in enumerate(chunks):
+            try:
+                speak(chunk, voice=voice, rate=rate, async_play=False)
+                if on_chunk:
+                    try:
+                        on_chunk(chunk, i)
+                    except Exception:
+                        pass
+            except Exception as e:
+                errors.append({"chunk": i, "error": str(e)})
+        return errors
+
+    if async_play:
+        thread = threading.Thread(target=_play_all, daemon=True, name="fr-cli-tts-stream")
+        thread.start()
+        return {"ok": True, "chunks": len(chunks), "engine": det["engine"],
+                "async": True, "thread": thread.name}
+
+    errors = _play_all()
+    return {
+        "ok": len(errors) == 0,
+        "chunks": len(chunks),
+        "engine": det["engine"],
+        "errors": errors,
+    }

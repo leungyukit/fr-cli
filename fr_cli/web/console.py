@@ -280,6 +280,28 @@ def _make_handler(token: str) -> type:
             self.end_headers()
             self.wfile.write(body)
 
+        def _serve_static(self, filename: str, content_type: str,
+                          cache_max_age: int = 3600):
+            """服务 PWA 静态文件"""
+            from pathlib import Path as _P
+            static_file = _P(__file__).parent / "static" / filename
+            if not static_file.exists():
+                self.send_response(404)
+                self.end_headers()
+                return
+            try:
+                body = static_file.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", content_type)
+                self.send_header("Content-Length", str(len(body)))
+                self.send_header("Cache-Control", f"max-age={cache_max_age}")
+                self.send_header("Service-Worker-Allowed", "/")
+                self.end_headers()
+                self.wfile.write(body)
+            except Exception:
+                self.send_response(500)
+                self.end_headers()
+
         def _check_auth(self) -> bool:
             """Bearer Token 鉴权"""
             auth = self.headers.get("Authorization", "")
@@ -325,6 +347,18 @@ def _make_handler(token: str) -> type:
             parsed = urlparse(self.path)
             path = parsed.path
             qs = parse_qs(parsed.query)
+
+            # PWA 静态资源(免鉴权)
+            if path == "/manifest.json":
+                self._serve_static("manifest.json", "application/manifest+json")
+                return
+            if path == "/icon.svg":
+                self._serve_static("icon.svg", "image/svg+xml")
+                return
+            if path == "/sw.js":
+                self._serve_static("sw.js", "application/javascript",
+                                   cache_max_age=0)
+                return
 
             # 首页(免鉴权)
             if path == "/" or path == "/index.html":
@@ -432,12 +466,17 @@ def _make_handler(token: str) -> type:
 
 
 def _render_homepage(token: str) -> str:
-    """渲染首页 HTML(包含导航 + token 提示)"""
+    """渲染首页 HTML(包含导航 + token 提示 + PWA)"""
     return f"""<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
 <title>fr-cli 控制台</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#58a6ff">
+<link rel="icon" type="image/svg+xml" href="/icon.svg">
+<link rel="apple-touch-icon" href="/icon.svg">
+<meta name="apple-mobile-web-app-capable" content="yes">
 <style>
 :root {{
   --bg: #0d1117;
@@ -691,6 +730,11 @@ function showEvent(text, data) {{
   while (log.children.length > 30) log.removeChild(log.lastChild);
 }}
 startSSE();
+
+// 注册 service worker(PWA 离线)
+if ('serviceWorker' in navigator) {{
+  navigator.serviceWorker.register('/sw.js').catch(() => {{}});
+}}
 </script>
 </body>
 </html>"""

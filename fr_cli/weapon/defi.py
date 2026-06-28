@@ -19,7 +19,7 @@ import json
 import urllib.error
 import urllib.parse
 import urllib.request
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 
 DEFILLAMA_API = "https://api.llama.fi"
@@ -171,6 +171,179 @@ def get_pool(pool_id: str) -> Dict[str, Any]:
         if p.get("pool") == pool_id:
             return {"ok": True, "pool": p}
     return {"ok": False, "error": f"未找到 pool: {pool_id}"}
+
+
+def get_pool_chart(pool_uuid: str, period: str = "1Y") -> Dict[str, Any]:
+    """获取池子历史 APY/TVL 图表数据
+
+    Args:
+        pool_uuid: DeFi Llama pool uuid
+        period: 时间段(1W / 1M / 3M / 6M / 1Y / All)
+
+    Returns:
+        {"ok": bool, "data": {status, symbol, apy, tvl, price, points: [...]}, "error": str?}
+    """
+    r = _http_get(f"https://yields.llama.fi/chart/{pool_uuid}",
+                 params={"period": period})
+    if not r["ok"]:
+        return {"ok": False, "error": r.get("error", "查询失败")}
+    data = r.get("data") or {}
+    return {"ok": True, "data": data}
+
+
+def render_ascii_chart(values: List[float], labels: Optional[List[str]] = None,
+                       width: int = 50, height: int = 12,
+                       title: str = "") -> str:
+    """渲染 ASCII 图表(类似 sparkline)
+
+    Args:
+        values: 数据点列表
+        labels: 可选标签(与 values 等长)
+        width: 输出宽度(默认 50 字符)
+        height: 输出高度(默认 12 行)
+        title: 图表标题
+
+    Returns:
+        多行字符串
+    """
+    if not values:
+        return f"{title}\n(no data)" if title else "(no data)"
+
+    # 归一化
+    v_min = min(values)
+    v_max = max(values)
+    rng = v_max - v_min if v_max > v_min else 1
+
+    # 对每个 height 行,扫描 width 列
+    lines = []
+    if title:
+        lines.append(title)
+    lines.append(f"min: {v_min:.2f}  max: {v_max:.2f}  range: {rng:.2f}")
+    lines.append("─" * width)
+
+    # 简化为 sparkline(单行 unicode block)
+    # 用 ▁▂▃▄▅▆▇█ 表示高低
+    spark = "▁▂▃▄▅▆▇█"
+    spark_chars = []
+    for v in values:
+        idx = int((v - v_min) / rng * (len(spark) - 1)) if rng else 0
+        spark_chars.append(spark[idx])
+    lines.append("".join(spark_chars))
+    lines.append("─" * width)
+
+    # 完整 ASCII bar chart
+    n = len(values)
+    if n > width:
+        # 降采样
+        step = n / width
+        sampled = [values[int(i * step)] for i in range(width)]
+    else:
+        sampled = values
+
+    # 对每个 height 行
+    bar_height = height - 4  # 减掉 header/footer/spark/separator
+    if bar_height < 1:
+        bar_height = 1
+
+    for row in range(bar_height, 0, -1):
+        threshold = v_min + (v_max - v_min) * row / bar_height
+        line = ""
+        for v in sampled:
+            if v >= threshold:
+                line += "█"
+            elif v >= threshold - (v_max - v_min) / bar_height * 0.4:
+                line += "▓"
+            elif v >= threshold - (v_max - v_min) / bar_height * 0.7:
+                line += "▒"
+            else:
+                line += " "
+        lines.append(line)
+    lines.append("─" * width)
+
+    # 显示范围标签
+    if labels and len(labels) >= 2:
+        first = labels[0]
+        last = labels[-1]
+        lines.append(f"{first}{' ' * (width - len(first) - len(last))}{last}")
+    elif n > 1:
+        lines.append(f"point 1{(' ' * (width - 14))}point {n}")
+
+    return "\n".join(lines)
+
+
+def format_pool_chart(result: Dict[str, Any], width: int = 50,
+                      lang: str = "zh") -> str:
+    """格式化池子历史图表为可读字符串"""
+    if not result["ok"]:
+        return f"❌ {result.get('error', '查询失败')}"
+
+    data = result["data"]
+    symbol = data.get("symbol", "?")
+    project = data.get("project", "?")
+    chain = data.get("chain", "?")
+    status = data.get("status", "?")
+
+    if status == "INACTIVE":
+        return f"⏸️ 池 {symbol} ({project}/{chain}) 已下线"
+
+    # 解析时间序列数据
+    apy_data = data.get("apy", {}) or {}
+    tvl_data = data.get("tvl", {}) or {}
+
+    apy_points = apy_data.get("data", []) if isinstance(apy_data, dict) else []
+    tvl_points = tvl_data.get("data", []) if isinstance(tvl_data, dict) else []
+
+    lines = []
+    if lang == "zh":
+        lines.append(f"📈 {project} - {symbol} ({chain}) 历史")
+    else:
+        lines.append(f"📈 {project} - {symbol} ({chain}) History")
+
+    lines.append(f"  状态: {status}")
+
+    if apy_points:
+        # APY 时间序列:[[timestamp, value], ...]
+        apy_values = [p[1] if len(p) > 1 else 0 for p in apy_points if isinstance(p, list)]
+        apy_dates = [
+            p[0].split("T")[0] if isinstance(p, list) and len(p) > 0 and isinstance(p[0], str)
+            else ""
+            for p in apy_points
+        ]
+        if apy_values:
+            current_apy = apy_values[-1] if apy_values else 0
+            if lang == "zh":
+                lines.append(f"  当前 APY: {current_apy:.2f}%")
+            else:
+                lines.append(f"  Current APY: {current_apy:.2f}%")
+
+            chart_text = render_ascii_chart(
+                apy_values, labels=apy_dates, width=width, height=14,
+                title="APY (%)"
+            )
+            lines.append(chart_text)
+
+    if tvl_points:
+        tvl_values = [p[1] if len(p) > 1 else 0 for p in tvl_points if isinstance(p, list)]
+        tvl_dates = [
+            p[0].split("T")[0] if isinstance(p, list) and len(p) > 0 and isinstance(p[0], str)
+            else ""
+            for p in tvl_points
+        ]
+        if tvl_values:
+            current_tvl = tvl_values[-1] if tvl_values else 0
+            lines.append("")
+            if lang == "zh":
+                lines.append(f"  当前 TVL: {_human_tvl(current_tvl)}")
+            else:
+                lines.append(f"  Current TVL: {_human_tvl(current_tvl)}")
+
+            chart_text = render_ascii_chart(
+                tvl_values, labels=tvl_dates, width=width, height=14,
+                title="TVL (USD)"
+            )
+            lines.append(chart_text)
+
+    return "\n".join(lines)
 
 
 # --------------------------- 价格 ---------------------------

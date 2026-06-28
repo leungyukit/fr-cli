@@ -90,3 +90,23 @@ def _register_defi_pool(deps, **kwargs):
         f"  TVL: ${pool.get('tvlUsd', 0):,.0f}\n"
         f"  Pool: {pool.get('pool')}"
     )
+
+
+@register(
+    name="defi_pool_chart",
+    triggers=["DeFi APY 图表", "defi pool chart", "apy 图表"],
+    description="查询 DeFi 池历史 APY/TVL 图表(ASCII 渲染)",
+    params={"pool_id": str, "period": str, "width": int},
+    aliases=["/defi_chart", "/apy_chart"],
+)
+def _register_defi_pool_chart(deps, **kwargs):
+    pool_id = kwargs.get("pool_id") or ""
+    period = kwargs.get("period") or "1Y"
+    width = int(kwargs.get("width", 50))
+
+    if not pool_id:
+        return Result.fail("需要提供 pool ID")
+
+    from fr_cli.weapon.defi import get_pool_chart, format_pool_chart
+    result = get_pool_chart(pool_id, period=period)
+    return Result.ok(format_pool_chart(result, width=width, lang="zh"))

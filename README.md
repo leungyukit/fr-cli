@@ -74,6 +74,10 @@
 - **Web 控制台 SSE 实时推送 (v2.8+)**:浏览器面板通过 `/api/events` SSE 长连接接收实时事件,新事件通过 `push_event()` 函数推送,自动重连 + 心跳
 - **DeFi 查询 (v2.8+)**:DeFi Llama API(免 key),`/defi_protocols` 列出协议,`/defi_tvl uniswap` 协议详情,`/defi_yields [--chain eth --project aave]` 收益池 APY,`/defi_pool <uuid>` 单池详情
 - **本地 TTS (v2.8+)**:`/say "你好"` 调用系统朗读(macOS `say` / Linux `espeak`/`spd-say`/`festival` / Windows SAPI),`--voice` 选声音,`-o file.aiff` 保存文件,`--async` 后台播放
+- **MCP Prompts (v2.8+)**:MCP 协议的第三个核心 API(prompts/list + prompts/get),fr-cli 现已完整支持,与 Tools/Resources 并列
+- **Web 控制台 PWA (v2.8+)**:manifest.json + service-worker.js + icon.svg,支持离线访问,iOS 添加到主屏变 PWA 应用
+- **DeFi 历史 APY 图表 (v2.8+)**:`/defi_chart <pool_uuid>` 显示 APY/TVL 随时间变化的 ASCII sparkline + bar chart
+- **TTS 流式合成 (v2.8+)**:`/say_stream "长文本"` 自动按句号/段落分块朗读,避免单个 say 命令被截断,支持回调逐块同步
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -602,7 +606,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:56+ 个测试文件,1436+ 个测试用例**
+**累计:59+ 个测试文件,1459+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -634,6 +638,9 @@ v2.8+ 新增测试:
 | `test_console_sse.py` | 7 | Web 控制台 SSE(push/get/history,HTTP 集成) |
 | `test_defi.py` | 15 | DeFi Llama(协议 / TVL / 收益池 / 格式化) |
 | `test_local_tts.py` | 14 | 本地 TTS(macOS say / Linux espeak / 声音列表) |
+| `test_mcp_prompts.py` | 7 | MCP Prompts(list / get / 多传输) |
+| `test_defi_chart.py` | 8 | DeFi 历史 APY 图表(ASCII chart / 格式化) |
+| `test_tts_stream.py` | 6 | TTS 流式合成(分块 / 回调 / 失败容错) |
 
 ### 环境变量
 

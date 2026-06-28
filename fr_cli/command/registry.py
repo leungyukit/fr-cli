@@ -559,6 +559,40 @@ class ToolRegistry:
         if name == "tts_status":
             return {}
 
+        # TTS 流式
+        if name == "say_stream":
+            kwargs = {"text": arg1, "voice": None, "rate": None,
+                     "chunk_size": 200, "async": True}
+            for tok in parts[2:]:
+                if tok.startswith("-v=") or tok.startswith("--voice="):
+                    kwargs["voice"] = tok.split("=", 1)[1]
+                elif tok.startswith("-r=") or tok.startswith("--rate="):
+                    try:
+                        kwargs["rate"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif tok.startswith("--chunk="):
+                    try:
+                        kwargs["chunk_size"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif tok == "--sync":
+                    kwargs["async"] = False
+            return kwargs
+
+        # DeFi 图表
+        if name == "defi_pool_chart":
+            kwargs = {"pool_id": arg1, "period": "1Y", "width": 50}
+            for tok in parts[2:]:
+                if tok.startswith("--period="):
+                    kwargs["period"] = tok.split("=", 1)[1]
+                elif tok.startswith("--width="):
+                    try:
+                        kwargs["width"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+            return kwargs
+
         return {}
 
     def get_tools(self):

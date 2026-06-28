@@ -78,3 +78,48 @@ def _register_tts_status(deps, **kwargs):
         f"  平台: {det['platform']}\n"
         f"  引擎: {det['engine']}"
     )
+
+
+@register(
+    name="say_stream",
+    triggers=["流式朗读", "stream say"],
+    description="流式朗读长文本(自动分块,避免单个命令过长被截断)",
+    params={"text": str, "voice": str, "rate": int, "chunk_size": int, "async": bool},
+    aliases=["/say_stream", "/stream_say"],
+)
+def _register_say_stream(deps, **kwargs):
+    text = kwargs.get("text") or ""
+    voice = kwargs.get("voice") or None
+    rate = kwargs.get("rate") or None
+    if rate is not None:
+        try:
+            rate = int(rate)
+        except (ValueError, TypeError):
+            rate = None
+    chunk_size = int(kwargs.get("chunk_size", 200))
+    async_play = bool(kwargs.get("async", True))
+
+    if not text:
+        return Result.fail("需要提供文本")
+
+    from fr_cli.weapon.local_tts import speak_stream
+    result = speak_stream(
+        text, voice=voice, rate=rate,
+        chunk_size=chunk_size, async_play=async_play,
+    )
+    if not result["ok"]:
+        return Result.fail(result.get("error", "TTS 流式失败"))
+
+    extra = ""
+    if result.get("async"):
+        extra = f" (后台线程: {result.get('thread')})"
+    err_lines = ""
+    if result.get("errors"):
+        err_lines = "\n⚠️ 部分失败:\n" + "\n".join(
+            f"  chunk {e['chunk']}: {e['error']}" for e in result["errors"]
+        )
+    return Result.ok(
+        f"🔊 流式朗读 ({result['engine']}) {result['chunks']} 块{extra}\n"
+        f"  文本: {text[:60]}{'...' if len(text) > 60 else ''}"
+        f"{err_lines}"
+    )
