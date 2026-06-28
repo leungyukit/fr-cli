@@ -28,6 +28,19 @@ try:
 except ImportError:
     _MCP_AVAILABLE = False
 
+# v2.8+:Streamable HTTP + SSE 支持
+try:
+    from mcp.client.streamable_http import streamablehttp_client
+    _STREAMABLE_HTTP_AVAILABLE = True
+except ImportError:
+    _STREAMABLE_HTTP_AVAILABLE = False
+
+try:
+    from mcp.client.sse import sse_client
+    _SSE_AVAILABLE = True
+except ImportError:
+    _SSE_AVAILABLE = False
+
 
 @dataclass
 class MCPServer:
@@ -182,23 +195,52 @@ class MCPServerManager:
         )
 
     async def _get_tools_async(self, srv: MCPServer) -> List[Dict]:
-        """异步获取某服务器的工具列表"""
-        params = self._server_to_params(srv)
-        if params is None:
-            return []
-        async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.list_tools()
-                tools = []
-                for tool in result.tools:
-                    tools.append({
-                        "name": tool.name,
-                        "description": tool.description or "",
-                        "inputSchema": tool.inputSchema,
-                        "server": srv.name,
-                    })
-                return tools
+        """异步获取某服务器的工具列表(支持 stdio / streamable_http / sse)"""
+        if srv.transport == "stdio":
+            params = self._server_to_params(srv)
+            if params is None:
+                return []
+            async with stdio_client(params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await self._list_tools(session, srv.name)
+        elif srv.transport in ("streamable_http", "http"):
+            if not _STREAMABLE_HTTP_AVAILABLE:
+                return [{"name": f"{srv.name}_error",
+                         "description": "streamable_http 不可用,请升级 mcp SDK",
+                         "inputSchema": {"type": "object"},
+                         "server": srv.name, "_error": True}]
+            headers = srv.headers or {}
+            async with streamablehttp_client(srv.url, headers=headers) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await self._list_tools(session, srv.name)
+        elif srv.transport == "sse":
+            if not _SSE_AVAILABLE:
+                return [{"name": f"{srv.name}_error",
+                         "description": "SSE 不可用,请升级 mcp SDK",
+                         "inputSchema": {"type": "object"},
+                         "server": srv.name, "_error": True}]
+            headers = srv.headers or {}
+            async with sse_client(srv.url, headers=headers) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await self._list_tools(session, srv.name)
+        return []
+
+    @staticmethod
+    async def _list_tools(session, server_name: str) -> List[Dict]:
+        """内部工具:从 session 拿 tools"""
+        result = await session.list_tools()
+        tools = []
+        for tool in result.tools:
+            tools.append({
+                "name": tool.name,
+                "description": tool.description or "",
+                "inputSchema": tool.inputSchema,
+                "server": server_name,
+            })
+        return tools
 
     def get_tools(self, name: str) -> List[Dict]:
         """获取 MCP 工具列表（真实调用 tools/list）"""
@@ -209,7 +251,8 @@ class MCPServerManager:
         srv = self.servers[name]
         if not srv.enabled:
             return []
-        if srv.transport != "stdio":
+        # v2.8+:支持所有传输类型
+        if srv.transport not in ("stdio", "streamable_http", "http", "sse"):
             return []
         try:
             import asyncio
@@ -246,21 +289,44 @@ class MCPServerManager:
         return "\n".join(lines)
 
     async def _call_tool_async(self, srv: MCPServer, tool_name: str, arguments: Dict) -> Any:
-        """异步调用 MCP 工具"""
-        params = self._server_to_params(srv)
-        if params is None:
-            return None, f"MCP server [{srv.name}] 缺少启动命令"
-        async with stdio_client(params) as (read, write):
-            async with ClientSession(read, write) as session:
-                await session.initialize()
-                result = await session.call_tool(tool_name, arguments=arguments or {})
-                texts = []
-                for content in result.content:
-                    if isinstance(content, TextContent):
-                        texts.append(content.text)
-                    else:
-                        texts.append(str(content))
-                return "\n".join(texts), None
+        """异步调用 MCP 工具(支持 stdio / streamable_http / sse)"""
+        if srv.transport == "stdio":
+            params = self._server_to_params(srv)
+            if params is None:
+                return None, f"MCP server [{srv.name}] 缺少启动命令"
+            async with stdio_client(params) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await self._do_call(session, tool_name, arguments)
+        elif srv.transport in ("streamable_http", "http"):
+            if not _STREAMABLE_HTTP_AVAILABLE:
+                return None, "streamable_http 不可用,请升级 mcp SDK (pip install --upgrade mcp)"
+            headers = srv.headers or {}
+            async with streamablehttp_client(srv.url, headers=headers) as (read, write, _):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await self._do_call(session, tool_name, arguments)
+        elif srv.transport == "sse":
+            if not _SSE_AVAILABLE:
+                return None, "SSE 不可用,请升级 mcp SDK"
+            headers = srv.headers or {}
+            async with sse_client(srv.url, headers=headers) as (read, write):
+                async with ClientSession(read, write) as session:
+                    await session.initialize()
+                    return await self._do_call(session, tool_name, arguments)
+        return None, f"MCP server [{srv.name}] 传输类型 '{srv.transport}' 不支持"
+
+    @staticmethod
+    async def _do_call(session, tool_name: str, arguments: Dict) -> Any:
+        """内部:实际调用 tool"""
+        result = await session.call_tool(tool_name, arguments=arguments or {})
+        texts = []
+        for content in result.content:
+            if isinstance(content, TextContent):
+                texts.append(content.text)
+            else:
+                texts.append(str(content))
+        return "\n".join(texts), None
 
     def call_tool_sync(self, server_name: str, tool_name: str, arguments: Dict) -> Any:
         """同步调用 MCP 工具"""
@@ -271,11 +337,9 @@ class MCPServerManager:
         srv = self.servers[server_name]
         if not srv.enabled:
             return None, f"MCP server [{server_name}] 已禁用"
-        if srv.transport != "stdio":
-            return None, (
-                f"MCP server [{server_name}] 传输类型 '{srv.transport}' 暂不支持同步调用。"
-                "当前仅支持 stdio 传输。"
-            )
+        # v2.8+:支持 stdio / streamable_http / http / sse
+        if srv.transport not in ("stdio", "streamable_http", "http", "sse"):
+            return None, f"MCP server [{server_name}] 传输类型 '{srv.transport}' 不支持"
         try:
             import asyncio
             return asyncio.run(self._call_tool_async(srv, tool_name, arguments))

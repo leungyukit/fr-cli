@@ -65,6 +65,9 @@
 - **Skill 远程共享 Gist (v2.8+)**:`/skill_share <name>` 推送本地 skill 到 GitHub Gist(需 GITHUB_TOKEN),`/skill_import <URL>` 导入别人分享的 skill
 - **会话时间线 HTML (v2.8+)**:`/timeline <会话索引>` 生成可视化 HTML 时间线(暗色 GitHub 风格,工具调用折叠面板),自动用浏览器打开
 - **AI 意图可视化 (v2.8+)**:支持 `[AI_INTENT]` 块 / `【理由：...】` 两种格式,AI 可在调用前声明"为什么做这个调用",在执行前展示给用户
+- **本地 LLM Ollama (v2.8+)**:`/ollama_status` 探测本地 ollama 服务,`/ollama_pull <model>` 流式下载,`/ollama_rm <model>` 删除,`/ollama_use <model>` 切换到 Ollama 作为当前 provider
+- **MCP Streamable HTTP (v2.8+)**:MCP 服务器传输类型从 stdio-only 扩展到支持 Streamable HTTP 和 SSE,基于官方 `mcp.client.streamable_http` SDK
+- **Web Bookmark + RAG (v2.8+)**:`/bookmark <url>` 收藏网页(自动抓取正文为 Markdown),`/bm_list` / `/bm_search` 列表与全文搜索,`/bm_rag [--all]` 同步到 RAG 知识库便于后续 @RAG 查询,`/bm_chrome <html文件>` 从 Chrome 浏览器导入
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -593,7 +596,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:47+ 个测试文件,1290+ 个测试用例**
+**累计:50+ 个测试文件,1336+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -616,6 +619,9 @@ v2.8+ 新增测试:
 | `test_skill_gist.py` | 14 | Skill Gist 共享(URL 解析 / 分享 / 导入 / 搜索) |
 | `test_session_html.py` | 9 | 会话 HTML 时间线(渲染 / 工具调用 / 导出) |
 | `test_ai_intent.py` | 9 | AI 意图可视化(block 解析 / 理由提取 / 预览格式化) |
+| `test_ollama.py` | 11 | Ollama 本地 LLM(探测 / 列模型 / 删除 / 格式化) |
+| `test_bookmark.py` | 27 | Web Bookmark(HTML→MD / CRUD / 搜索 / Chrome 导入) |
+| `test_mcp_streamable.py` | 8 | MCP Streamable HTTP/SSE(server 配置 / 传输类型) |
 
 ### 环境变量
 

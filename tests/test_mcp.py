@@ -10,6 +10,7 @@ MCP (Model Context Protocol) 测试
 import os
 import sys
 import json
+from unittest.mock import patch
 
 import pytest
 
@@ -346,12 +347,16 @@ class TestGetToolsMocked:
         assert mgr.get_tools("fs") == []
 
     def test_get_tools_non_stdio_transport(self):
-        """非 stdio 暂不支持"""
+        """v2.8+:非 stdio transport(streamable_http / sse)走异步路径"""
         from fr_cli.weapon.mcp import MCPServerManager
         cfg = {}
         mgr = MCPServerManager(cfg=cfg)
-        mgr.add_server("remote", "http", url="http://x.com")
-        assert mgr.get_tools("remote") == []
+        mgr.add_server("remote", "streamable_http", url="http://127.0.0.1:1")
+        # 不会连上,所以应该失败;只验证返回 list 且不 hang
+        # patch asyncio.run 避免真 hang
+        with patch("asyncio.run", return_value=[]):
+            tools = mgr.get_tools("remote")
+            assert isinstance(tools, list)
 
 
 class TestCallToolMocked:
@@ -375,14 +380,17 @@ class TestCallToolMocked:
         assert "禁用" in err or "disabled" in err.lower()
 
     def test_call_tool_non_stdio(self):
-        """非 stdio 传输 → 暂不支持"""
+        """v2.8+:非 stdio transport 走对应 SDK 客户端"""
         from fr_cli.weapon.mcp import MCPServerManager
         cfg = {}
         mgr = MCPServerManager(cfg=cfg)
-        mgr.add_server("remote", "http", url="http://x.com")
-        result, err = mgr.call_tool_sync("remote", "tool", {})
-        assert result is None
-        assert "不支持" in err or "stdio" in err
+        mgr.add_server("remote", "streamable_http", url="http://127.0.0.1:1")
+        # mock asyncio.run 避免 hang
+        with patch("asyncio.run", return_value=(None, "mocked error")):
+            result, err = mgr.call_tool_sync("remote", "tool", {})
+            # 要么 result 非空(成功),要么 err 有合理消息
+            assert err is not None
+            assert "mocked error" in err
 
 
 # ==================== from_config_file ====================

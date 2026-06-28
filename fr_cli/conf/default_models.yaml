@@ -343,3 +343,30 @@ ernie:
   token_plan_base_url: null
   is_token_plan: false
   env_key: ERNIE_API_KEY
+
+# 本地 Ollama (OpenAI 兼容协议,无需 API Key)
+ollama:
+  name: Ollama (本地 LLM)
+  model: llama3.2
+  models:
+  - llama3.2
+  - llama3.1
+  - llama3
+  - qwen2.5
+  - qwen2
+  - mistral
+  - mixtral
+  - phi3
+  - gemma2
+  - codellama
+  - deepseek-coder-v2
+  client: OpenAICompatibleClient
+  compat: openai
+  base_url: http://localhost:11434/v1
+  token_plan_base_url: null
+  is_token_plan: false
+  env_key: ""
+  auto_detect: true
+  auto_detect_url: http://localhost:11434/api/tags
+  # Ollama 不需要 API key,但 OpenAI 客户端要求非空,填 "ollama"
+  default_key: ollama

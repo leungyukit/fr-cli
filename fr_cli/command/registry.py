@@ -409,6 +409,51 @@ class ToolRegistry:
                     kwargs["output_path"] = tok
             return kwargs
 
+        # Ollama 本地 LLM
+        if name == "ollama_status":
+            return {"url": arg1 or None}
+        if name == "ollama_pull":
+            return {"model": arg1, "url": arg2 or None}
+        if name == "ollama_rm":
+            return {"model": arg1, "url": arg2 or None}
+        if name == "ollama_use":
+            return {"model": arg1 or "llama3.2"}
+
+        # Bookmark 书签
+        if name == "bookmark_add":
+            # /bookmark <url> [tags] [desc] [--rag] [--no-fetch]
+            kwargs = {"url": arg1, "tags": "", "desc": "", "fetch": True, "rag": False}
+            for tok in parts[2:]:
+                if tok == "--rag":
+                    kwargs["rag"] = True
+                elif tok == "--no-fetch":
+                    kwargs["fetch"] = False
+                elif tok.startswith("--desc="):
+                    kwargs["desc"] = tok.split("=", 1)[1]
+            # 解析 tags:逗号分隔
+            if len(parts) >= 3 and not parts[2].startswith("--"):
+                kwargs["tags"] = parts[2]
+            return kwargs
+        if name == "bookmark_list":
+            kwargs = {"tag": arg1 or None, "limit": 50}
+            for tok in parts[2:]:
+                if tok.isdigit():
+                    kwargs["limit"] = int(tok)
+            return kwargs
+        if name == "bookmark_get":
+            return {"id": arg1}
+        if name == "bookmark_search":
+            return {"query": ' '.join(parts[1:]) if len(parts) > 1 else arg1}
+        if name == "bookmark_rm":
+            return {"id": arg1}
+        if name == "bookmark_sync_rag":
+            kwargs = {"id": arg1 or None, "all": False}
+            if "--all" in parts:
+                kwargs["all"] = True
+            return kwargs
+        if name == "bookmark_import_chrome":
+            return {"path": arg1}
+
         return {}
 
     def get_tools(self):
