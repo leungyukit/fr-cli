@@ -82,6 +82,9 @@ def git_diff(cwd: Optional[str] = None, path: Optional[str] = None, staged: bool
         cwd: 工作目录
         path: 限定某个文件
         staged: 查看已暂存(staged)的变更,默认 working tree
+
+    Returns:
+        {"ok": bool, "diff": str, "colored_diff": str, "stats": {...}, "error": str?}
     """
     args = ["diff"]
     if staged:
@@ -90,9 +93,24 @@ def git_diff(cwd: Optional[str] = None, path: Optional[str] = None, staged: bool
         args.append("--")
         args.append(path)
     result = _run_git(args, cwd=cwd, timeout=15)
+    diff_text = result["stdout"]
+
+    # v2.8+:彩色渲染
+    colored = diff_text
+    stats = {"added": 0, "deleted": 0, "hunks": 0, "files": 0}
+    if diff_text.strip():
+        try:
+            from fr_cli.ui.diff_view import render_diff_unified, diff_stats
+            colored = render_diff_unified(diff_text)
+            stats = diff_stats(diff_text)
+        except Exception:
+            pass
+
     return {
         "ok": result["ok"],
-        "diff": result["stdout"],
+        "diff": diff_text,
+        "colored_diff": colored,
+        "stats": stats,
         "error": result["stderr"] if not result["ok"] else None,
     }
 

@@ -337,6 +337,28 @@ class ToolRegistry:
                 "language": arg2 if arg2 and arg2.isalpha() and len(arg2) <= 3 else "zh",
             }
 
+        # 会话导出 PPT
+        if name == "export_session_ppt":
+            # /export_ppt <session_path_or_index> [output_path] [format]
+            kwargs = {"session_path": arg1, "output_path": None, "format": "auto"}
+            for tok in parts[2:]:
+                if tok in ("pptx", "markdown", "md", "auto"):
+                    kwargs["format"] = "markdown" if tok in ("md",) else tok
+                elif tok.startswith("--format="):
+                    kwargs["format"] = tok.split("=", 1)[1]
+                elif tok.startswith("--title="):
+                    kwargs["title"] = tok.split("=", 1)[1]
+                elif tok.startswith("--max="):
+                    try:
+                        kwargs["max_slides"] = int(tok.split("=", 1)[1])
+                    except Exception:
+                        pass
+                elif not kwargs["output_path"] and not tok.startswith("--"):
+                    kwargs["output_path"] = tok
+            return kwargs
+        if name == "list_exportable_sessions":
+            return {"limit": int(arg1) if arg1.isdigit() else 10}
+
         return {}
 
     def get_tools(self):

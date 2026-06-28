@@ -58,6 +58,9 @@
 - **Plan mode 撤销栈 (v2.8+)**:保存 20 步历史 plan,`undo_plan` / `redo_plan` 回退/重做,持久化到 `~/.fr_cli/plan_history/`
 - **Worktree 自动清理 (v2.8+)**:空闲 7 天的 worktree 自动加入清理列表,`clean_idle_worktrees` 支持 `--dry-run` / `--force`
 - **RAG 跨会话缓存 (v2.8+)**:可选持久化模式,缓存写到 `~/.fr_cli/rag_cache.json`,重启后还能命中
+- **Diff 可视化 (v2.8+)**:彩色 unified diff + 行号对齐 + 上下文折叠 + 双栏并排,集成到 `git_diff` 工具
+- **Streaming Markdown (v2.8+)**:边输出边渲染,状态机跟踪 heading/code/list/quote/table,逐 chunk 渲染不重写
+- **会话导出 PPT (v2.8+)**:`/export_ppt <会话索引或路径>` 导出为 PPTX(python-pptx)或 Markdown 大纲(fallback),每对 user/assistant 转为一张幻灯片
 - **思维模式**:`direct / CoT / ToT / ReAct / Plan` 五种推理模式切换
 - **文件沙盒**:安全的虚拟文件系统(VFS),支持读写/目录操作、`../` 防逃逸
 - **联网搜索**:内置 Web 搜索与网页内容提取(SSRF 防护)
@@ -586,7 +589,7 @@ ruff check fr_cli tests
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 
-**累计:40+ 个测试文件,1184+ 个测试用例**
+**累计:43+ 个测试文件,1234+ 个测试用例**
 
 v2.8+ 新增测试:
 
@@ -602,6 +605,9 @@ v2.8+ 新增测试:
 | `test_plan_undo.py` | 13 | Plan 撤销栈(push / undo / redo / 清空 / 深度限制) |
 | `test_worktree_cleanup.py` | 14 | Worktree 自动清理(注册 / touch / 找空闲 / dry-run / 实际清理) |
 | `test_rag_persistent.py` | 7 | RAG 跨会话持久化(写盘 / 读盘 / 过期跳过 / 删除) |
+| `test_diff_view.py` | 16 | Diff 可视化(解析 / unified / 双栏 / 统计) |
+| `test_markdown_stream.py` | 19 | Streaming Markdown 渲染(状态机 / code block / 列表) |
+| `test_session_ppt.py` | 15 | 会话导出 PPT(配对提取 / 大纲 / Markdown fallback) |
 
 ### 环境变量
 

@@ -60,7 +60,11 @@ def _register_git_diff(deps, **kwargs):
         return Result.fail(result.get("error", "git diff 失败"))
     if not result["diff"]:
         return Result.ok("无变更")
-    return Result.ok(result["diff"])
+
+    # v2.8+:返回彩色 diff + 统计
+    stats = result.get("stats", {})
+    header = f"📊 Diff: +{stats.get('added', 0)} -{stats.get('deleted', 0)} 修改块 {stats.get('hunks', 0)} 文件 {stats.get('files', 0)}\n\n"
+    return Result.ok(header + result.get("colored_diff", result["diff"]))
 
 
 @register(
