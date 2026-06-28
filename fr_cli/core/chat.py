@@ -262,17 +262,56 @@ def handle_ai_chat(state, u):
 
     # 流式调用 AI
     from fr_cli.core.errors import friendly_print
+    # v3.0+:广播 llm.requested
+    try:
+        from fr_cli.core.events import dispatch_event, V2Events
+        dispatch_event(
+            V2Events.LLM_REQUESTED,
+            data={
+                "provider": getattr(state, "provider", None),
+                "model": state.model_name,
+                "messages_count": len(updated_messages),
+                "prompt_preview": prompt[:200],
+            },
+            source="chat",
+        )
+    except Exception:
+        pass
     try:
         txt, usage, response_time, _ = stream_cnt(
             state.client, state.model_name, updated_messages, lang,
             max_tokens=state.limit
         )
     except Exception as e:
+        try:
+            from fr_cli.core.events import dispatch_event, V2Events
+            dispatch_event(
+                V2Events.LLM_FAILED,
+                data={"model": state.model_name, "error": str(e)},
+                source="chat",
+            )
+        except Exception:
+            pass
         print(f"{RED}{friendly_print(e)}{RESET}")
         return
     if usage:
         _record_usage(state, usage)
     updated_messages.append({"role": "assistant", "content": txt})
+    # v3.0+:广播 llm.responded
+    try:
+        from fr_cli.core.events import dispatch_event, V2Events
+        dispatch_event(
+            V2Events.LLM_RESPONDED,
+            data={
+                "model": state.model_name,
+                "usage": usage,
+                "response_time": response_time,
+                "output_len": len(txt) if txt else 0,
+            },
+            source="chat",
+        )
+    except Exception:
+        pass
 
     # 自动执行 AI 响应中的命令
     try:

@@ -8,6 +8,7 @@ def run_agent(name, state, **kwargs):
     if not agent_exists(name):
         return Result.fail("Agent not found. Use /agent_create <name> <description>")
     if load_workflow(name):
+        # 工作流模式:委托给 workflow 引擎(workflow 内部仍会触发 agent.invoked)
         wf_result = run_workflow(name, state, user_input=kwargs.get("pipeline_input"), **kwargs)
         if wf_result.is_fail():
             return Result.fail(wf_result.error)
@@ -45,7 +46,43 @@ def run_agent(name, state, **kwargs):
     }
     # v2.4.4 变更：tool 调用由 Agent 内部代码用 context["executor"].invoke_tool(..., client=client, model=model) 显式传
     # —— 取代了之前的 push_agent_context 栈式覆盖
-    result = mod.run(context, **kwargs)
+    # v3.0+:广播 agent.invoked / agent.responded / agent.failed
+    try:
+        from fr_cli.core.events import dispatch_event, V2Events
+        dispatch_event(
+            V2Events.AGENT_INVOKED,
+            data={"name": name, "provider": provider, "model": model, "kwargs": kwargs},
+            source="agent_executor",
+        )
+    except Exception:
+        pass
+    try:
+        result = mod.run(context, **kwargs)
+    except Exception as e:
+        try:
+            from fr_cli.core.events import dispatch_event, V2Events
+            dispatch_event(
+                V2Events.AGENT_FAILED,
+                data={"name": name, "error": str(e)},
+                source="agent_executor",
+            )
+        except Exception:
+            pass
+        raise
+    try:
+        from fr_cli.core.events import dispatch_event, V2Events
+        ok = (not isinstance(result, Result)) or result.is_ok()
+        dispatch_event(
+            V2Events.AGENT_RESPONDED,
+            data={
+                "name": name,
+                "ok": ok,
+                "result_preview": str(result)[:200] if result is not None else "",
+            },
+            source="agent_executor",
+        )
+    except Exception:
+        pass
     if isinstance(result, Result):
         return result
     return Result.ok(result)

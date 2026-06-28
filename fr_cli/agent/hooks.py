@@ -39,15 +39,8 @@ from pathlib import Path
 from typing import Dict, List, Optional, Any
 
 
-# Hook 事件类型
-HOOK_EVENTS = [
-    "PreToolUse",
-    "PostToolUse",
-    "UserPromptSubmit",
-    "SessionStart",
-    "SessionEnd",
-    "Notification",
-]
+# Hook 事件类型 —— 向后兼容:HOOK_EVENTS 也从 fr_cli.core.events 导出
+from fr_cli.core.events import HOOK_EVENTS  # noqa: E402,F401
 
 # 阻止工具执行的特殊退出码(Claude Code 风格)
 EXIT_CODE_BLOCK = 2
@@ -153,6 +146,10 @@ class HookManager:
 
         Returns:
             HookResult(blocked, modified_args, messages)
+
+        Side effects:
+            - 匹配到 hook 时,通过 v3 EventBus 发布 "PreToolUse" 事件(供解耦的观察者监听)
+            - 若 v3 EventBus 返回 stop_propagation,仍以本地结果为准(向后兼容)
         """
         hooks = [h for h in self.get_hooks("PreToolUse") if h.matches(tool_name=tool_name)]
         if not hooks:
@@ -173,6 +170,25 @@ class HookManager:
             # 修改参数(如果 hook 有 stdout)
             if hook_result.modified_args:
                 result.modified_args.update(hook_result.modified_args)
+
+        # v3 bus 通知(解耦的观察者用,不参与控制流)
+        try:
+            from fr_cli.core.events import dispatch_event, V2HookEvents
+            dispatch_event(
+                V2HookEvents.PRE_TOOL_USE,
+                data={
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "blocked": result.blocked,
+                    "reason": result.reason,
+                    "modified_args": result.modified_args,
+                    "matched_count": len(hooks),
+                },
+                source="hook_manager",
+            )
+        except Exception:
+            pass
+
         return result
 
     def run_post_tool_use(self, tool_name: str, tool_args: Dict[str, Any],
@@ -200,6 +216,23 @@ class HookManager:
             # 如果 hook 输出了 JSON 包含 tool_result,替换之
             if hook_result.modified_args.get("tool_result"):
                 result.modified_args["tool_result"] = hook_result.modified_args["tool_result"]
+
+        # v3 bus 通知
+        try:
+            from fr_cli.core.events import dispatch_event, V2HookEvents
+            dispatch_event(
+                V2HookEvents.POST_TOOL_USE,
+                data={
+                    "tool_name": tool_name,
+                    "tool_args": tool_args,
+                    "tool_result_modified": result.modified_args.get("tool_result"),
+                    "matched_count": len(hooks),
+                },
+                source="hook_manager",
+            )
+        except Exception:
+            pass
+
         return result
 
     def run_user_prompt_submit(self, user_input: str, timeout: int = 5) -> "HookResult":
@@ -218,6 +251,23 @@ class HookManager:
                 result.blocked = True
                 result.reason = hook_result.reason
                 break
+
+        # v3 bus 通知
+        try:
+            from fr_cli.core.events import dispatch_event, V2HookEvents
+            dispatch_event(
+                V2HookEvents.USER_PROMPT_SUBMIT,
+                data={
+                    "user_input": user_input,
+                    "blocked": result.blocked,
+                    "reason": result.reason,
+                    "matched_count": len(hooks),
+                },
+                source="hook_manager",
+            )
+        except Exception:
+            pass
+
         return result
 
     def _run_command_hook(self, hook: Hook, payload: Dict[str, Any],

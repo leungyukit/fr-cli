@@ -241,6 +241,13 @@ def bootstrap(show_logo: bool = False, show_banner: bool = True):
         show_logo: True 时显示佛像 ASCII art，False 时显示简洁 banner
         show_banner: False 时跳过启动画面（用于批处理 / 非交互模式）
     """
+    # v3.0+:app.starting 事件
+    try:
+        from fr_cli.core.events import dispatch_event, V2Events
+        dispatch_event(V2Events.APP_STARTING, data={"show_logo": show_logo, "show_banner": show_banner}, source="bootstrap")
+    except Exception:
+        pass
+
     try:
         cfg = init_config()
     except ConfigError:
@@ -264,4 +271,21 @@ def bootstrap(show_logo: bool = False, show_banner: bool = True):
             from fr_cli.ui.ui import YELLOW, RESET
             print(f"  {YELLOW}⚠️ {state._fallback_notice}{RESET}")
             print()
+
+    # v3.0+:app.started 事件
+    try:
+        from fr_cli.core.events import dispatch_event, V2Events
+        dispatch_event(
+            V2Events.APP_STARTED,
+            data={
+                "provider": cfg.get("provider"),
+                "model": cfg.get("model"),
+                "session": getattr(state, "sn", None),
+                "interactive": show_banner,
+            },
+            source="bootstrap",
+        )
+    except Exception:
+        pass
+
     return cfg, state

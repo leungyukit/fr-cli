@@ -98,11 +98,32 @@ class CommandExecutor:
                 hook_mgr = get_hook_manager(cfg=cfg)
                 pre_result = hook_mgr.run_pre_tool_use(tool_name, kwargs)
                 if pre_result.blocked:
+                    # v3 事件总线:被 hook 阻止
+                    try:
+                        from fr_cli.core.events import dispatch_event, V2Events
+                        dispatch_event(
+                            V2Events.TOOL_BLOCKED,
+                            data={"name": tool_name, "args": kwargs, "reason": pre_result.reason},
+                            source="command_executor",
+                        )
+                    except Exception:
+                        pass
                     return Result.fail(f"工具被 hook 阻止: {pre_result.reason}")
                 if pre_result.modified_args:
                     kwargs.update(pre_result.modified_args)
             except Exception:
                 pass  # hook 失败不影响主流程
+
+        # v3.0+:工具被调用事件(广播,不影响控制流)
+        try:
+            from fr_cli.core.events import dispatch_event, V2Events
+            dispatch_event(
+                V2Events.TOOL_INVOKED,
+                data={"name": tool_name, "args": kwargs},
+                source="command_executor",
+            )
+        except Exception:
+            pass
 
         data, err = self._reg.dispatch(
             self._get_deps(client=client, model_name=model_name),
@@ -117,6 +138,24 @@ class CommandExecutor:
             post_result = hook_mgr.run_post_tool_use(tool_name, kwargs, data)
             if post_result.modified_args.get("tool_result"):
                 data = post_result.modified_args["tool_result"]
+        except Exception:
+            pass
+
+        # v3.0+:事件总线广播(解耦观察者:日志/监控/Web Console 推送等)
+        try:
+            from fr_cli.core.events import dispatch_event, V2Events
+            if err is None:
+                dispatch_event(
+                    V2Events.TOOL_SUCCEEDED,
+                    data={"name": tool_name, "args": kwargs, "result": data},
+                    source="command_executor",
+                )
+            else:
+                dispatch_event(
+                    V2Events.TOOL_FAILED,
+                    data={"name": tool_name, "args": kwargs, "error": err},
+                    source="command_executor",
+                )
         except Exception:
             pass
 
