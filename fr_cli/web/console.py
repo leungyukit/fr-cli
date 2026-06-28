@@ -477,6 +477,31 @@ def _make_handler(token: str) -> type:
                 self._send_json({"ok": True, "data": _get_stats()})
             elif path == "/api/health":
                 self._send_json({"ok": True, "service": "fr-cli-console"})
+            elif path == "/api/metrics":
+                # 指标查询(Prometheus / JSON / 摘要)
+                fmt = qs.get("format", ["json"])[0]
+                try:
+                    from fr_cli.core.metrics import get_metrics
+                    plugin = get_metrics()
+                    if plugin is None:
+                        self._send_json({"ok": False, "error": "metrics 未安装(应用未启用)"}, 503)
+                        return
+                    if fmt == "prom" or fmt == "prometheus":
+                        text = plugin.metrics_text()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/plain; charset=utf-8")
+                        self.end_headers()
+                        self.wfile.write(text.encode("utf-8"))
+                    elif fmt == "summary":
+                        text = plugin.metrics_summary()
+                        self.send_response(200)
+                        self.send_header("Content-Type", "text/plain; charset=utf-8")
+                        self.end_headers()
+                        self.wfile.write(text.encode("utf-8"))
+                    else:
+                        self._send_json({"ok": True, "data": plugin.metrics_json()})
+                except Exception as e:
+                    self._send_json({"ok": False, "error": str(e)}, 500)
             else:
                 self._send_json({"ok": False, "error": f"Unknown endpoint: {path}"}, 404)
 

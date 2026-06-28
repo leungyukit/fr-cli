@@ -119,6 +119,13 @@ class AppState:
         except Exception:
             pass
 
+        # v3.0+:安装 MetricsPlugin,自动收集应用指标(counter/histogram/timer/gauge)
+        try:
+            from fr_cli.core.metrics import install_metrics
+            self.metrics = install_metrics()
+        except Exception:
+            self.metrics = None
+
         # 主控 Agent（自我进化型）
         from fr_cli.agent.master import MasterAgent
         self.master_agent = MasterAgent(self)
