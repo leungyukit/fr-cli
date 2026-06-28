@@ -105,6 +105,20 @@ class AppState:
         # LLM 调用用量统计
         self.usage = UsageTracker(cfg=cfg)
 
+        # v3.0+:订阅 v3 EventBus,自动从 llm.responded 事件记录用量
+        try:
+            self.usage.install_listener()
+        except Exception:
+            pass
+
+        # v3.0+:订阅 v3 EventBus,把 failed 类事件自动写入 ErrorLedger
+        try:
+            from fr_cli.core.error_ledger import get_error_ledger, install_bus_listeners
+            get_error_ledger()  # 触发单例初始化
+            install_bus_listeners()
+        except Exception:
+            pass
+
         # 主控 Agent（自我进化型）
         from fr_cli.agent.master import MasterAgent
         self.master_agent = MasterAgent(self)

@@ -3,9 +3,12 @@ Token 与费用统计持久化 —— 记录每次 LLM 调用的用量，支持�
 
 存储位置：~/.fr_cli/usage.json
 权限：0o600
+
+v3.0+:可订阅 v3 EventBus,自动从 llm.responded 事件中提取 usage 并记录。
 """
 import time
 from pathlib import Path
+from typing import Callable, Optional
 
 from fr_cli.conf.paths import USAGE_FILE
 from fr_cli.core.store import JsonStore
@@ -21,6 +24,8 @@ class UsageTracker:
         self._records = self._store.read()
         if not isinstance(self._records, list):
             self._records = []
+        self._bus_listener: Optional[Callable] = None  # 防止 GC
+        self._bus = None
 
     def _save(self):
         self._store.write(self._records)
@@ -85,3 +90,82 @@ class UsageTracker:
         """清空所有记录"""
         self._records = []
         self._save()
+
+    # ---------------- v3 EventBus 集成 ----------------
+
+    def install_listener(self, bus=None, event_type: str = "llm.responded"):
+        """订阅 v3 EventBus,自动从 llm.responded 事件记录用量
+
+        Args:
+            bus: v3 EventBus 实例,默认全局单例
+            event_type: 监听的事件类型,默认 llm.responded
+
+        Returns:
+            True 成功安装, False 失败(已安装 / 缺依赖 / 事件格式不对)
+
+        Note:
+            - 每个 tracker 实例只安装一次,重复调用直接返回 True
+            - 自动从 event.data 中提取 provider / model / usage(prompt_tokens / completion_tokens / total_tokens)
+            - 不影响现有的 record() 显式调用(可叠加)
+        """
+        if self._bus_listener is not None:
+            return True  # 已经安装
+
+        try:
+            from fr_cli.v3.core.events import EventBus
+        except Exception:
+            return False
+
+        if bus is None:
+            bus = EventBus.instance()
+        self._bus = bus
+
+        def _on_llm_responded(event):
+            """监听器:从 llm.responded 事件提取 usage 并 record"""
+            try:
+                data = event.data or {}
+                usage = data.get("usage") or {}
+                if not usage:
+                    return  # 没 usage 数据,跳过
+
+                # provider / model 从 data 或 usage 中取
+                provider = (data.get("provider")
+                            or usage.get("provider")
+                            or getattr(self, "_current_provider", None)
+                            or "unknown")
+                model = (data.get("model")
+                         or usage.get("model")
+                         or getattr(self, "_current_model", None)
+                         or "unknown")
+
+                prompt_tokens = usage.get("prompt_tokens", 0)
+                completion_tokens = usage.get("completion_tokens", 0)
+                total_tokens = usage.get("total_tokens")
+
+                self.record(
+                    provider=provider,
+                    model=model,
+                    prompt_tokens=prompt_tokens,
+                    completion_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                )
+            except Exception:
+                # 监听器异常不影响主流程
+                pass
+
+        try:
+            self._bus_listener = bus.on(event_type, _on_llm_responded, priority=0)
+            return True
+        except Exception:
+            return False
+
+    def uninstall_listener(self):
+        """解除 v3 EventBus 监听"""
+        if self._bus_listener is None or self._bus is None:
+            return False
+        try:
+            self._bus.off("llm.responded", self._bus_listener)
+            self._bus_listener = None
+            return True
+        except Exception:
+            return False
