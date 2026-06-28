@@ -217,6 +217,9 @@ _sse_history: List[Dict[str, Any]] = []  # 最近 50 条事件(供新客户端�
 _sse_history_max = 50
 _sse_lock = threading.Lock()
 
+# v3.0+:console 与 v3 EventBus 的桥接
+_console_event_handler = None  # 防止 GC 释放 handler
+
 
 def push_event(event_type: str, data: Dict[str, Any]):
     """推送一个 SSE 事件给所有连接的客户端
@@ -242,6 +245,74 @@ def push_event(event_type: str, data: Dict[str, Any]):
             ev.set()
         except Exception:
             pass
+
+
+def _on_event_to_sse(event):
+    """v3 EventBus → SSE 桥接
+
+    把所有 v3/v2 事件自动推到 console 的 SSE 流上。
+    来源作为前缀加入 type,便于前端按来源过滤。
+    """
+    try:
+        # 简化事件 type,把 v2 dotted 风格映射到 SSE channel
+        # 例如 "tool.invoked" → channel="tool", sub="invoked"
+        etype = event.type
+        if "." in etype:
+            channel, sub = etype.split(".", 1)
+        else:
+            channel, sub = etype, ""
+        # 转换 data 中的非 JSON 类型为字符串(防御)
+        safe_data = {}
+        for k, v in (event.data or {}).items():
+            try:
+                json.dumps(v)
+                safe_data[k] = v
+            except (TypeError, ValueError):
+                safe_data[k] = str(v)
+        safe_data["_source"] = event.source or ""
+        safe_data["_sub"] = sub
+        push_event(channel, safe_data)
+    except Exception:
+        # bridge 永远不抛错
+        pass
+
+
+def attach_event_bus(bus=None):
+    """把 v3 EventBus 接到 console SSE
+
+    Args:
+        bus: v3 EventBus 实例,默认用全局 EventBus.instance()
+
+    Returns:
+        True 成功, False 失败
+    """
+    global _console_event_handler
+    try:
+        from fr_cli.v3.core.events import EventBus
+        if bus is None:
+            bus = EventBus.instance()
+        # wildcard 监听全部事件
+        handler = bus.on("*", _on_event_to_sse, priority=-100)  # 低优先级,放最后跑
+        _console_event_handler = handler
+        return True
+    except Exception:
+        return False
+
+
+def detach_event_bus(bus=None):
+    """解除 console 与 v3 EventBus 的桥接"""
+    global _console_event_handler
+    try:
+        from fr_cli.v3.core.events import EventBus
+        if bus is None:
+            bus = EventBus.instance()
+        if _console_event_handler is not None:
+            bus.off("*", _console_event_handler)
+            _console_event_handler = None
+            return True
+    except Exception:
+        pass
+    return False
 
 
 def get_recent_events(limit: int = 50) -> List[Dict[str, Any]]:
@@ -689,9 +760,28 @@ async function load(name) {{
 
 // v2.8+:SSE 实时事件订阅
 let eventSource = null;
+const _EVENT_ICONS = {{
+  tool: '🛠️', llm: '🧠', agent: '🤖', command: '⌨️',
+  session: '💬', app: '🚀', config: '⚙️', error: '❌',
+  usage: '📊', status: '📊', task: '⚙️', log: '📝',
+}};
 function startSSE() {{
   if (eventSource) return;
   eventSource = new EventSource('/api/events?token=' + TOKEN);
+  // 通用 channel 监听器:v3 EventBus 桥接过来的所有事件
+  ['tool', 'llm', 'agent', 'command', 'session', 'app', 'config', 'error', 'usage'].forEach(ch => {{
+    eventSource.addEventListener(ch, (e) => {{
+      const data = JSON.parse(e.data);
+      const sub = data.data._sub || '';
+      const src = data.data._source || '';
+      const icon = _EVENT_ICONS[ch] || '•';
+      const detail = Object.entries(data.data)
+        .filter(([k, _]) => !k.startsWith('_'))
+        .map(([k, v]) => k + '=' + (typeof v === 'string' && v.length > 30 ? v.slice(0, 27) + '...' : v))
+        .join(' ');
+      showEvent(icon + ' ' + (sub ? ch + '.' + sub : ch) + (src ? ' (' + src + ')' : '') + ': ' + detail, data);
+    }});
+  }});
   eventSource.addEventListener('status', (e) => {{
     const data = JSON.parse(e.data);
     showEvent('📊 ' + (data.data.message || JSON.stringify(data.data)), data);
@@ -782,6 +872,12 @@ def start_console(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
         "running": True,
     })
 
+    # v3.0+:桥接 v3 EventBus → SSE(全应用事件实时推送)
+    try:
+        attach_event_bus()
+    except Exception:
+        pass
+
     url = f"http://{host}:{port}"
 
     # 自动打开浏览器
@@ -813,6 +909,12 @@ def stop_console() -> Dict[str, Any]:
     global _console_state
     if not _console_state["running"]:
         return {"ok": False, "error": "控制台未运行"}
+
+    # v3.0+:解除 EventBus 桥接
+    try:
+        detach_event_bus()
+    except Exception:
+        pass
 
     try:
         _console_state["server"].shutdown()
