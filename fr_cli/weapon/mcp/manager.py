@@ -1,174 +1,156 @@
 """
-MCP 工具管理器
+MCP Server Manager —— 单例 + 配置管理 + tools/resources/prompts 统一调度
 
-基于官方 `mcp` SDK 实现 JSON-RPC over stdio，支持：
-- 启动/停止 MCP 子进程服务器
-- tools/list 获取真实工具列表
-- tools/call 同步调用工具
-
-配置统一收敛到 ~/.fr_cli/config.json 的 mcp.servers 字段，
-旧独立配置文件 ~/.fr_cli/mcp/servers.json 会在加载时一次性迁移。
+模块拆分:
+- fr_cli.weapon.mcp.models  MCPServer dataclass + SDK 可用性
+- fr_cli.weapon.mcp.manager 本文件(MCPServerManager + 全局单例)
+- fr_cli.weapon.mcp        re-export(向后兼容)
 """
+from __future__ import annotations
 
-import os
 import json
+import os
 import threading
-from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from typing import Any, Dict, List, Optional
 
-from fr_cli.conf.paths import MCP_SERVERS_FILE
 from fr_cli.conf.config import save_config
+from fr_cli.conf.paths import MCP_SERVERS_FILE
 
+from fr_cli.weapon.mcp.models import (
+    MCPServer,
+    _MCP_AVAILABLE,
+    _SSE_AVAILABLE,
+    _STREAMABLE_HTTP_AVAILABLE,
+)
 
+# 延迟 import SDK(仅在调用时 import,避免无 MCP 时启动失败)
 try:
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
     from mcp.types import TextContent
-    _MCP_AVAILABLE = True
 except ImportError:
-    _MCP_AVAILABLE = False
+    ClientSession = None
+    StdioServerParameters = None
+    stdio_client = None
+    TextContent = None
 
-# v2.8+:Streamable HTTP + SSE 支持
 try:
     from mcp.client.streamable_http import streamablehttp_client
-    _STREAMABLE_HTTP_AVAILABLE = True
 except ImportError:
-    _STREAMABLE_HTTP_AVAILABLE = False
+    streamablehttp_client = None
 
 try:
     from mcp.client.sse import sse_client
-    _SSE_AVAILABLE = True
 except ImportError:
-    _SSE_AVAILABLE = False
-
-
-@dataclass
-class MCPServer:
-    """MCP 服务器配置"""
-    name: str
-    transport: str  # stdio, http, sse
-    command: Optional[str] = None
-    args: Optional[List[str]] = None
-    url: Optional[str] = None
-    headers: Optional[Dict[str, str]] = None
-    auth_type: Optional[str] = None  # oauth, api_key
-    enabled: bool = True
-
-    def to_dict(self) -> Dict:
-        return asdict(self)
+    sse_client = None
 
 
 class MCPServerManager:
-    """MCP 服务器管理器（基于 mcp SDK）"""
+    """MCP 服务器管理器(基于 mcp SDK)
+
+    功能覆盖:
+    - 配置管理(load/save/add_server/del_server/enable/disable/list)
+    - Tools 列表与调用(get_tools / list_all_tools / call_tool_sync / call_tool)
+    - Resources(list_resources / list_all_resources / read_resource_sync)
+    - Prompts(list_prompts / list_all_prompts / get_prompt_sync)
+    """
 
     def __init__(self, cfg: dict = None):
-        """初始化管理器，cfg 为 ~/.fr_cli/config.json 的内容。
+        """初始化管理器,cfg 为 ~/.fr_cli/config.json 的内容。
 
-        未传入 cfg 时创建一个空管理器（仅用于一次性从文件加载的场景）。
+        未传入 cfg 时创建一个空管理器(仅用于一次性从文件加载的场景)。
         """
         self.cfg = cfg or {}
         self.servers: Dict[str, MCPServer] = {}
         self._load()
 
-    def _load(self):
-        """加载配置：优先从主配置 cfg["mcp"]["servers"] 读取；
-        若旧文件 ~/.fr_cli/mcp/servers.json 仍存在，则做一次迁移合并。
-        """
-        # 1. 主配置为真相源
-        self._load_from_cfg(self.cfg)
+    # ==================== 配置管理 ====================
 
-        # 2. 一次性迁移旧独立配置文件
-        old_path = str(MCP_SERVERS_FILE)
-        if os.path.exists(old_path):
+    def _load(self):
+        """加载配置:优先从主配置 cfg["mcp"]["servers"] 读取;
+        若旧文件 ~/.fr_cli/mcp/servers.json 仍存在,则做一次迁移合并。
+        """
+        servers_data: List[Dict] = []
+        # 主配置优先
+        mcp_cfg = self.cfg.get("mcp") if self.cfg else None
+        if isinstance(mcp_cfg, dict) and "servers" in mcp_cfg:
+            servers_data = mcp_cfg["servers"]
+        # 旧文件兜底迁移
+        elif MCP_SERVERS_FILE.exists():
             try:
-                with open(old_path, 'r', encoding='utf-8') as f:
-                    data = json.load(f)
-                for name, cfg in data.items():
-                    if name not in self.servers:
-                        self.servers[name] = MCPServer(name=name, **cfg)
-                # 把旧文件内容合并到主配置并落盘
-                self._save_to_cfg()
-                try:
-                    os.rename(old_path, old_path + ".migrated")
-                except Exception:
-                    pass
+                with open(MCP_SERVERS_FILE, "r", encoding="utf-8") as f:
+                    legacy = json.load(f)
+                if isinstance(legacy, list):
+                    servers_data = legacy
             except Exception:
                 pass
+
+        for srv_data in servers_data:
+            if not isinstance(srv_data, dict):
+                continue
+            try:
+                srv = MCPServer(**srv_data)
+                self.servers[srv.name] = srv
+            except Exception:
+                # 跳过错误项
+                continue
 
     def _load_from_cfg(self, cfg: dict):
-        """从主配置字典加载 MCP 服务器列表"""
-        mcp_cfg = (cfg or {}).get("mcp") or {}
-        servers = mcp_cfg.get("servers") or []
-        if not isinstance(servers, list):
-            return
-        for srv in servers:
-            if not isinstance(srv, dict):
-                continue
-            name = srv.get("name")
-            if not name:
-                continue
-            try:
-                self.servers[name] = MCPServer(
-                    name=name,
-                    transport=srv.get("transport", "stdio"),
-                    command=srv.get("command"),
-                    args=srv.get("args"),
-                    url=srv.get("url"),
-                    headers=srv.get("headers"),
-                    auth_type=srv.get("auth_type"),
-                    enabled=srv.get("enabled", True),
-                )
-            except Exception:
-                pass
+        """从外部 cfg 强制重载(主要供 reset_mcp_manager 后从最新 cfg 重建)"""
+        self.cfg = cfg or {}
+        self.servers = {}
+        self._load()
 
     def _save_to_cfg(self):
-        """把当前 servers 写回主配置的 mcp.servers 字段"""
+        """把当前 servers 同步到 self.cfg["mcp"]["servers"]"""
         if not self.cfg:
             return
         mcp_cfg = self.cfg.setdefault("mcp", {})
         mcp_cfg["servers"] = [srv.to_dict() for srv in self.servers.values()]
 
     def _save(self):
-        """持久化：更新主配置并调用 save_config 原子写入"""
+        """持久化:更新主配置并调用 save_config 原子写入"""
         self._save_to_cfg()
         if self.cfg:
             save_config(self.cfg)
 
     def add_server(self, name: str, transport: str,
                    command: str = None, args: List[str] = None,
-                   url: str = None, headers: Dict = None, auth_type: str = None):
-        """添加 MCP 服务器"""
-        server = MCPServer(
+                   url: str = None, headers: Optional[Dict[str, str]] = None,
+                   auth_type: Optional[str] = None, enabled: bool = True) -> bool:
+        """添加一个 MCP 服务器"""
+        if name in self.servers:
+            return False
+        srv = MCPServer(
             name=name,
             transport=transport,
             command=command,
-            args=args or [],
+            args=args,
             url=url,
             headers=headers,
             auth_type=auth_type,
+            enabled=enabled,
         )
-        self.servers[name] = server
+        self.servers[name] = srv
         self._save()
         return True
 
-    def del_server(self, name: str):
-        """删除 MCP 服务器"""
+    def del_server(self, name: str) -> bool:
+        """删除一个 MCP 服务器"""
         if name not in self.servers:
             return False
-        self.servers.pop(name)
+        del self.servers[name]
         self._save()
         return True
 
-    def enable_server(self, name: str):
-        """启用 MCP 服务器"""
+    def enable_server(self, name: str) -> bool:
         if name not in self.servers:
             return False
         self.servers[name].enabled = True
         self._save()
         return True
 
-    def disable_server(self, name: str):
-        """禁用 MCP 服务器"""
+    def disable_server(self, name: str) -> bool:
         if name not in self.servers:
             return False
         self.servers[name].enabled = False
@@ -176,14 +158,14 @@ class MCPServerManager:
         return True
 
     def list_servers(self) -> List[Dict]:
-        """列出所有 MCP 服务器"""
         return [srv.to_dict() for srv in self.servers.values()]
 
     def get_server(self, name: str) -> Optional[MCPServer]:
-        """获取指定服务器配置"""
         return self.servers.get(name)
 
-    def _server_to_params(self, srv: MCPServer) -> Optional[StdioServerParameters]:
+    # ==================== Tools ====================
+
+    def _server_to_params(self, srv: MCPServer) -> Optional["StdioServerParameters"]:
         """将内部 MCPServer 转换为 mcp SDK 的 StdioServerParameters"""
         if not srv.command:
             return None
@@ -243,7 +225,7 @@ class MCPServerManager:
         return tools
 
     def get_tools(self, name: str) -> List[Dict]:
-        """获取 MCP 工具列表（真实调用 tools/list）"""
+        """获取 MCP 工具列表(真实调用 tools/list)"""
         if not _MCP_AVAILABLE:
             return []
         if name not in self.servers:
@@ -251,7 +233,6 @@ class MCPServerManager:
         srv = self.servers[name]
         if not srv.enabled:
             return []
-        # v2.8+:支持所有传输类型
         if srv.transport not in ("stdio", "streamable_http", "http", "sse"):
             return []
         try:
@@ -274,7 +255,7 @@ class MCPServerManager:
         return all_tools
 
     def get_server_tools_desc(self) -> str:
-        """生成所有 MCP 服务器的描述文本（注入到 system prompt）"""
+        """生成所有 MCP 服务器的描述文本(注入到 system prompt)"""
         if not self.servers:
             return ""
         lines = ["[MCP servers]"]
@@ -328,7 +309,7 @@ class MCPServerManager:
                 texts.append(str(content))
         return "\n".join(texts), None
 
-    # ==================== v2.8+:Resources 支持 ====================
+    # ==================== v2.8+:Resources ====================
 
     async def _list_resources_async(self, srv: MCPServer) -> List[Dict]:
         """异步获取某服务器的资源列表"""
@@ -471,7 +452,7 @@ class MCPServerManager:
         except Exception as e:
             return None, f"MCP read_resource 失败: {e}"
 
-    # ==================== v2.8+:Prompts 支持 ====================
+    # ==================== v2.8+:Prompts ====================
 
     async def _list_prompts_async(self, srv: MCPServer) -> List[Dict]:
         """异步获取某服务器的 prompts 列表"""
@@ -626,13 +607,12 @@ class MCPServerManager:
     def call_tool_sync(self, server_name: str, tool_name: str, arguments: Dict) -> Any:
         """同步调用 MCP 工具"""
         if not _MCP_AVAILABLE:
-            return None, "MCP SDK 未安装，请执行: pip install mcp"
+            return None, "MCP SDK 未安装,请执行: pip install mcp"
         if server_name not in self.servers:
             return None, f"Unknown MCP server: {server_name}"
         srv = self.servers[server_name]
         if not srv.enabled:
             return None, f"MCP server [{server_name}] 已禁用"
-        # v2.8+:支持 stdio / streamable_http / http / sse
         if srv.transport not in ("stdio", "streamable_http", "http", "sse"):
             return None, f"MCP server [{server_name}] 传输类型 '{srv.transport}' 不支持"
         try:
@@ -682,15 +662,16 @@ class MCPServerManager:
         return manager
 
 
-# 全局实例（线程安全单例）
+# ==================== 全局单例 ====================
+
 _mcp_manager: Optional[MCPServerManager] = None
 _mcp_manager_lock = threading.Lock()
 
 
 def get_mcp_manager(cfg: dict = None) -> MCPServerManager:
-    """获取 MCP 管理器（线程安全单例）"""
+    """获取 MCP 管理器(线程安全单例)"""
     global _mcp_manager
-    # 双重检查：避免每次调用都加锁
+    # 双重检查:避免每次调用都加锁
     if _mcp_manager is None:
         with _mcp_manager_lock:
             if _mcp_manager is None:
@@ -699,7 +680,7 @@ def get_mcp_manager(cfg: dict = None) -> MCPServerManager:
 
 
 def reset_mcp_manager():
-    """重置全局单例（仅用于测试或热加载新配置）"""
+    """重置全局单例(仅用于测试或热加载新配置)"""
     global _mcp_manager
     with _mcp_manager_lock:
         _mcp_manager = None
@@ -710,4 +691,5 @@ def load_from_config_file(config_file: str) -> MCPServerManager:
     return MCPServerManager.from_config_file(config_file)
 
 
+# 向后兼容别名
 MCPManager = MCPServerManager
