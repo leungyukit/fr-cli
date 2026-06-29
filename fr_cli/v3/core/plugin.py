@@ -305,59 +305,10 @@ def reset_global_plugin_manager():
         _global_pm = None
 
 
-# ---------------- 内置插件 ----------------
-
-class LoggingPlugin(Plugin):
-    """默认日志插件:把关键事件记到 logger"""
-
-    name = "logging"
-    version = "1.0.0"
-    description = "把关键事件记录到 logger"
-
-    @hook("tool.invoked")
-    def on_tool_invoked(self, event):
-        log.debug(f"[plugin:logging] tool invoked: {event.data.get('name')}")
-
-    @hook("tool.failed")
-    def on_tool_failed(self, event):
-        log.warning(f"[plugin:logging] tool failed: {event.data.get('name')}: {event.data.get('error')}")
-
-    @hook("llm.failed")
-    def on_llm_failed(self, event):
-        log.error(f"[plugin:logging] llm failed: {event.data.get('error')}")
-
-    @hook("app.started")
-    def on_app_started(self, event):
-        log.info("[plugin:logging] app started")
-
-
-class MetricsPlugin(Plugin):
-    """示例:指标收集插件
-
-    实际生产中可以接到 Prometheus / StatsD / 自家系统。
-    """
-
-    name = "metrics"
-    version = "1.0.0"
-    description = "指标收集(示例)"
-
-    def __init__(self):
-        self.counters: Dict[str, int] = {}
-
-    @hook("tool.invoked")
-    def count_tool(self, event):
-        name = event.data.get("name", "unknown")
-        self.counters[f"tool.{name}.invoked"] = self.counters.get(f"tool.{name}.invoked", 0) + 1
-
-    @hook("tool.succeeded")
-    def count_success(self, event):
-        name = event.data.get("name", "unknown")
-        self.counters[f"tool.{name}.success"] = self.counters.get(f"tool.{name}.success", 0) + 1
-
-    @hook("tool.failed")
-    def count_failure(self, event):
-        name = event.data.get("name", "unknown")
-        self.counters[f"tool.{name}.failure"] = self.counters.get(f"tool.{name}.failure", 0) + 1
-
-    def metrics_text(self) -> str:
-        return "\n".join(f"{k}: {v}" for k, v in sorted(self.counters.items()))
+# ---------------- 内置插件(已迁移到 v3/core/builtin_plugins.py) ----------------
+# 旧的 LoggingPlugin / MetricsPlugin 类已拆到 v3/core/builtin_plugins.py
+# 这里只保留向后兼容的 re-export(import 时自动可用)
+try:
+    from fr_cli.v3.core.builtin_plugins import LoggingPlugin, MetricsPlugin  # noqa: F401
+except Exception:
+    pass

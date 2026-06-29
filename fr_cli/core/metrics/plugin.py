@@ -1,31 +1,17 @@
 """
-统一指标收集 —— MetricsPlugin 增强版
+MetricsPlugin 类 —— 4 类指标(counter/histogram/timer/gauge) + 事件钩子 + 多格式导出
 
-通过 v3 EventBus 自动收集应用指标,无需在每个调用点埋点。
-
-四类指标:
-  - Counter:    单调递增计数(如 tool.invoked.total)
-  - Histogram:  数值分布(桶 + p50/p95/p99),如 llm.response_time
-  - Timer:      操作耗时统计(count/total/min/max/avg),如 tool.duration
-  - Gauge:      瞬时值(可增可减,如当前 token 使用)
-
-事件覆盖:
-  - tool.* / llm.* / agent.* / command.* / session.* / app.*
-
-导出格式:
-  - metrics_text()  : Prometheus 风格(文本)
-  - metrics_json()  : JSON 快照
-  - metrics_summary(): 人类可读摘要
-
-持久化(可选):
-  - snapshot()/restore():把当前指标状态序列化到 JSON
+这是核心类,负责:
+- 内部状态存储(thread-safe)
+- 监听 v3 EventBus 自动收 16 类事件
+- 3 种导出格式:Prometheus 文本 / JSON / 人类可读摘要
 """
 from __future__ import annotations
 
 import threading
 import time
 from collections import defaultdict
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, FrozenSet, List, Optional, Tuple
 
 from fr_cli.v3.core.plugin import Plugin, hook
 
@@ -62,7 +48,7 @@ class MetricsPlugin(Plugin):
         self._buckets = buckets
         self._lock = threading.RLock()
         # Counter: (name, frozenset(labels)) -> int
-        self._counters: Dict[Tuple[str, frozenset], int] = defaultdict(int)
+        self._counters: Dict[Tuple[str, FrozenSet], int] = defaultdict(int)
         # Histogram: name -> {buckets: [(le, count)], sum, count, labels_variants}
         self._histograms: Dict[str, Dict[str, Any]] = {}
         # Timer: name -> {count, total, min, max, labels_variants}
@@ -497,68 +483,3 @@ class MetricsPlugin(Plugin):
 
     def _label_set_to_dict(self, label_set: frozenset) -> Dict[str, str]:
         return dict(label_set)
-
-
-# ---------------- 单例与安装 ----------------
-
-_global_metrics: Optional[MetricsPlugin] = None
-_global_lock = threading.Lock()
-
-
-def get_metrics() -> Optional[MetricsPlugin]:
-    """获取全局 MetricsPlugin 实例(已注册过则返回,否则 None)"""
-    return _global_metrics
-
-
-def install_metrics(bus=None, plugin_manager=None,
-                    buckets: Tuple[float, ...] = DEFAULT_BUCKETS) -> MetricsPlugin:
-    """安装 MetricsPlugin 到 v3 bus(幂等)
-
-    Args:
-        bus: v3 EventBus,默认全局单例
-        plugin_manager: v3 PluginManager,可选。如果提供则注册到该 manager;
-                       默认创建一个新的并绑定全局 EventBus
-        buckets: 直方图桶(秒)
-
-    Returns:
-        已安装(或已存在)的 MetricsPlugin 实例
-    """
-    global _global_metrics
-    if _global_metrics is not None:
-        return _global_metrics
-
-    with _global_lock:
-        if _global_metrics is not None:
-            return _global_metrics
-
-        try:
-            from fr_cli.v3.core.events import EventBus
-            from fr_cli.v3.core.plugin import PluginManager
-        except Exception:
-            # 没 v3 时退化:返回独立实例(不挂事件总线)
-            _global_metrics = MetricsPlugin(buckets=buckets)
-            return _global_metrics
-
-        if bus is None:
-            bus = EventBus.instance()
-        if plugin_manager is None:
-            plugin_manager = PluginManager()
-        # 总是确保 plugin_manager 绑定了 bus,否则 register 时 hook 不会生效
-        try:
-            if getattr(plugin_manager, "_event_bus", None) is None:
-                plugin_manager.set_event_bus(bus)
-        except Exception:
-            pass
-
-        plugin = MetricsPlugin(buckets=buckets)
-        plugin_manager.register(plugin)
-
-        _global_metrics = plugin
-        return plugin
-
-
-def reset_metrics_for_testing():
-    """重置全局 metrics 引用(测试用)"""
-    global _global_metrics
-    with _global_lock:
-        _global_metrics = None

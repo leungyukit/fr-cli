@@ -83,6 +83,10 @@ class ProviderError(FrCliError):
     severity = "error"
 
 
+class APIKeyError(ProviderError):
+    """API Key 缺失或无效(v2 兼容)"""
+
+
 class LLMError(ProviderError):
     """LLM 调用错误"""
     pass

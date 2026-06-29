@@ -1,10 +1,14 @@
 """
-友好错误处理 —— 把异常转换为可操作的提示
+fr-cli 用户面错误处理
 
-设计：
-- 每种错误给一个 Emoji 头 + 一句话解释 + 一个可执行的建议
-- 错误日志写入 ~/.fr_cli/logs/errors.log（开发时排查用）
-- 用户看不到 traceback（除非显式 /debug）
+v3.0+ 重构说明:
+- v2 历史上的 10+ 错误子类(NetworkError / RateLimitError 等)从未被引用 → 已删除
+- 真正在用的只有:
+  - FrCliError:基类(带 emoji/hint/log 用户体验)
+  - APIKeyError:被外部 import 唯一保留的子类
+  - friendly_print / safe_run:用户面错误格式化
+  - set_debug / is_debug:全局调试开关
+- 完整的 Provider/Tool/MCP 错误族在 fr_cli.v3.core.errors,这里不再重复定义
 """
 import os
 import traceback
@@ -23,10 +27,14 @@ if not _logger.handlers:
     _logger.addHandler(_fh)
 
 
-# ==================== 错误分类 ====================
-
 class FrCliError(Exception):
-    """所有 fr-cli 错误的基类"""
+    """所有 fr-cli 错误的基类
+
+    Attributes:
+        emoji: 终端显示用 emoji
+        hint:  给用户的可执行建议
+        original: 包装的原始异常(可选)
+    """
     emoji = "❌"
     hint = ""
 
@@ -44,156 +52,78 @@ class FrCliError(Exception):
         return "\n".join(lines)
 
     def log(self):
-        """记录到日志（含 traceback）"""
+        """记录到日志(含 traceback)"""
         msg = f"[{self.__class__.__name__}] {self.message}"
         if self.original:
             msg += f"\n  Original: {type(self.original).__name__}: {self.original}"
-            msg += "\n" + "".join(traceback.format_exception(type(self.original), self.original, self.original.__traceback__))
+            msg += "\n" + "".join(traceback.format_exception(
+                type(self.original), self.original, self.original.__traceback__
+            ))
         _logger.error(msg)
 
 
 class APIKeyError(FrCliError):
     """API Key 无效或缺失"""
     emoji = "🔑"
-    hint = "用 /key <your-key> 设置，或 /providers use <提供商> 切换"
+    hint = "用 /key <your-key> 设置,或 /providers use <提供商> 切换"
 
 
-class NetworkError(FrCliError):
-    """网络连接失败"""
-    emoji = "🌐"
-    hint = "检查网络/代理设置；可设环境变量 HTTPS_PROXY"
-
-
-class RateLimitError(FrCliError):
-    """API 限流"""
-    emoji = "⏱️"
-    hint = "等 30 秒再试；或切到其他提供商（/providers use deepseek）"
-
-
-class TokenLimitError(FrCliError):
-    """上下文超长"""
-    emoji = "📏"
-    hint = "/undo 删几轮，或 /session_load 换个新 session，或 /limit 调小上限"
-
-
-class ModelNotFoundError(FrCliError):
-    """模型不存在"""
-    emoji = "🔮"
-    hint = "用 /model <name> 切到支持的模型；/providers list 看所有提供商"
-
-
-class ConfigError(FrCliError):
-    """配置文件问题"""
-    emoji = "⚙️"
-    hint = "检查 ~/.fr_cli/config.json 是否合法 JSON；删了会自动用默认配置"
-
-
-class FilePermissionError(FrCliError):
-    """文件权限不足"""
-    emoji = "🚫"
-    hint = "用 /dir 确认文件在允许目录里；或 chmod 改文件权限"
-
-
-class FileNotFoundError(FrCliError):
-    """文件不存在"""
-    emoji = "🔍"
-    hint = "用 /ls 看当前目录文件；用 /dir <path> 加允许目录"
-
-
-class ShellExecError(FrCliError):
-    """Shell 命令执行失败"""
-    emoji = "💥"
-    hint = "检查命令语法；非交互 shell 限制（管道/重定向）"
-
-
-class TimeoutError(FrCliError):
-    """执行超时"""
-    emoji = "⏰"
-    hint = "命令超过 30s；可调整 cron 任务的 interval，或检查网络"
-
-
-class ArgumentError(FrCliError):
-    """参数错误"""
-    emoji = "📝"
-    hint = "用 /help <cmd> 查看用法"
-
-
-# ==================== 异常转换器 ====================
+# ==================== 用户面辅助 ====================
 
 def _is_truthy(s: str) -> bool:
-    return s.lower() in ("1", "true", "yes", "on")
+    return s.strip().lower() in ("1", "true", "yes", "on")
 
 
 def friendly_print(exc: Exception, debug: bool = False) -> str:
-    """把异常转换为友好提示并返回字符串
+    """把异常格式化为用户友好字符串
 
     Args:
         exc: 任意异常
-        debug: True 时附带 traceback（默认 False）
+        debug: True 时输出 traceback,默认 False
+
+    Returns:
+        用户可读的字符串(可能多行)
     """
-    # 1. 已知错误类型
     if isinstance(exc, FrCliError):
-        if debug:
-            return exc.format() + "\n" + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-        exc.log()
-        return exc.format()
-
-    # 2. 已知 Python 内置异常的分类映射
-    msg = str(exc) or type(exc).__name__
-
-    if isinstance(exc, FileNotFoundError):
-        e = FileNotFoundError(msg)
-    elif isinstance(exc, PermissionError):
-        e = FilePermissionError(msg)
-    elif isinstance(exc, TimeoutError):
-        e = TimeoutError(msg)
-    elif isinstance(exc, (ConnectionError, OSError)) and "api" in msg.lower() or "network" in msg.lower():
-        e = NetworkError(msg)
-    elif "api key" in msg.lower() or "unauthorized" in msg.lower() or "401" in msg:
-        e = APIKeyError(msg)
-    elif "rate limit" in msg.lower() or "429" in msg:
-        e = RateLimitError(msg)
-    elif "model" in msg.lower() and "not found" in msg.lower() or "404" in msg:
-        e = ModelNotFoundError(msg)
-    elif "context length" in msg.lower() or "max tokens" in msg.lower() or "token" in msg.lower():
-        e = TokenLimitError(msg)
-    elif isinstance(exc, KeyError):
-        e = ArgumentError(f"缺少参数: {msg}")
-    else:
-        # 3. 未知错误
-        e = FrCliError(f"{type(exc).__name__}: {msg}", hint="用 /debug 看详细 traceback")
-
-    if debug:
-        return e.format() + "\n" + "".join(traceback.format_exception(type(exc), exc, exc.__traceback__))
-    e.log()
-    return e.format()
+        text = exc.format()
+        if debug or is_debug():
+            text += "\n" + traceback.format_exc()
+        return text
+    # 第三方 / 标准库异常
+    name = type(exc).__name__
+    msg = str(exc) or repr(exc)
+    text = f"❌ {name}: {msg}"
+    if debug or is_debug():
+        text += "\n" + traceback.format_exc()
+    return text
 
 
 def safe_run(fn, *args, **kwargs):
-    """运行 fn(*args, **kwargs)，捕所有异常并返回 (result, friendly_msg)
+    """运行 fn,捕获所有异常并返回 None + 错误日志(永不抛)
 
-    用于 main.py 的命令处理：
-        result, err = safe_run(my_command, state, parts)
-        if err:
-            print(err)
+    用于 background daemon / retry loop,异常绝不能冒泡。
     """
     try:
-        return fn(*args, **kwargs), None
+        return fn(*args, **kwargs)
     except Exception as e:
-        return None, friendly_print(e, debug=_is_truthy(os.environ.get("FR_CLI_DEBUG", "")))
+        if isinstance(e, FrCliError):
+            e.log()
+        else:
+            _logger.error(f"safe_run {fn}: {type(e).__name__}: {e}", exc_info=True)
+        return None
 
 
-# ==================== 调试模式 ====================
+# ==================== Debug 开关 ====================
 
-DEBUG = _is_truthy(os.environ.get("FR_CLI_DEBUG", ""))
+_debug_on = _is_truthy(os.environ.get("FR_CLI_DEBUG", ""))
 
 
 def set_debug(on: bool):
-    """切换调试模式"""
-    global DEBUG
-    DEBUG = on
-    os.environ["FR_CLI_DEBUG"] = "1" if on else "0"
+    """开启/关闭调试模式(影响 friendly_print 是否带 traceback)"""
+    global _debug_on
+    _debug_on = bool(on)
 
 
 def is_debug() -> bool:
-    return DEBUG
+    """当前是否处于调试模式"""
+    return _debug_on
