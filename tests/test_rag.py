@@ -321,7 +321,7 @@ class TestSyncDirectory:
         f = tmp_kb / "a.txt"
         f.write_text("v1", encoding="utf-8")
         rag_manager.sync_directory()
-        first_count = rag_manager.collection.count()
+        _ = rag_manager.collection.count()
 
         # 修改文件
         f.write_text("v2 with much more content " * 20, encoding="utf-8")
@@ -411,7 +411,7 @@ class TestRAGWatcherManager:
 
     def test_not_running_initially(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "fr_cli.agent.builtins.rag.RAG_WATCHER_PID_FILE",
+            "fr_cli.agent.builtins.rag_watcher.RAG_WATCHER_PID_FILE",
             tmp_path / "nonexistent.pid",
         )
         from fr_cli.agent.builtins.rag import RAGWatcherManager
@@ -419,7 +419,7 @@ class TestRAGWatcherManager:
 
     def test_read_pid_missing_returns_none(self, tmp_path, monkeypatch):
         monkeypatch.setattr(
-            "fr_cli.agent.builtins.rag.RAG_WATCHER_PID_FILE",
+            "fr_cli.agent.builtins.rag_watcher.RAG_WATCHER_PID_FILE",
             tmp_path / "nonexistent.pid",
         )
         from fr_cli.agent.builtins.rag import RAGWatcherManager
@@ -429,7 +429,7 @@ class TestRAGWatcherManager:
         pid_file = tmp_path / "watcher.pid"
         pid_file.write_text("not-a-number\n", encoding="utf-8")
         monkeypatch.setattr(
-            "fr_cli.agent.builtins.rag.RAG_WATCHER_PID_FILE", pid_file
+            "fr_cli.agent.builtins.rag_watcher.RAG_WATCHER_PID_FILE", pid_file
         )
         from fr_cli.agent.builtins.rag import RAGWatcherManager
         assert RAGWatcherManager._read_pid() is None
