@@ -86,7 +86,7 @@ ZH_DICT = {
   "help_extra": "【神通】",
   "help_shell": "【破界】",
   "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
-  "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+  "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, m365, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, hermes, build, context, status, stock, all",
   "empty": "空空如也…",
   "none": "无",
   "no_sess": "无记忆。",
@@ -175,5 +175,109 @@ ZH_DICT = {
   "help_detail_status": "📜 【系统状态与错误报告】\n\n/status           人类可读的系统状态面板\n/status json      输出 JSON 格式状态\n/status errors    输出集中式错误报告\n\n错误报告聚合:\n  • Hermes 任务失败与失败模式\n  • 动态构建自测失败记录\n  • 安全审核被拒绝的操作\n  • MasterAgent 失败模式\n",
   "help_detail_stock": "📜 【股票助手】\n\n配置:\n  /stock_config setup               交互式配置数据源\n  /stock_config source akshare|mairui|tushare|trade\n  /stock_config key mairui <key>\n  /stock_config token tushare <token>\n\n使用:\n  @stock 查询茅台股价\n  @stock 买入 600519 1500.00 100    # 模拟交易\n\n说明:\n  • 数据源支持 akshare（免 key）、麦蕊 API（需 token）、tushare（需 token）\n  • 交易能力当前为模拟记录，真实交易 API 需自行扩展\n",
   "help_detail_mcp": "📜 【MCP 外部神通】\n\nMCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。\n\n管理命令:\n  /mcp_list                列出所有服务器及其可用法宝\n  /mcp_add <名> <命令> [参数...]  添加 stdio 服务器\n  /mcp_del <名>             删除服务器\n  /mcp_enable <名>          启用服务器\n  /mcp_disable <名>         禁用服务器\n  /mcp_refresh              刷新法宝列表\n\nAI 调用格式:\n  【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n\n示例:\n  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp\n  /mcp_refresh\n",
-  "help_detail_security": "📜 【安全机制】\n\n四阶安全确认 (Y/A/F/N):\n  [Y]仅此    仅允许本次操作\n  [A]本轮    本次会话内允许同类操作\n  [F]永世    永久允许同类操作 (写入配置)\n  [N]拒绝    拒绝本次操作\n\n受保护操作:\n  sec_read(读文件) sec_write(写文件) sec_exec(执行)\n  sec_mount(加目录) sec_gen_img(画图) sec_send_mail(发邮件)\n  sec_fetch_web(抓取) sec_upload_disk(上传) sec_download_disk(下载)\n  sec_shell(Shell命令)\n\n目录穿越防护:\n  VFS通过Path.resolve()检查路径, 禁止 ../ 逃逸出 allowed_dirs\n\n非交互环境:\n  • 设置 FR_CLI_NON_INTERACTIVE=1 时，安全确认默认拒绝（用于脚本/CI环境）\n\n自治模式 (v2.5.1):\n  /autonomous manual       — 默认：每次 sec_* 都询问\n  /autonomous sandbox_auto — 沙盒内读/写/网络自动放行，系统级仍询问\n  /autonomous full_auto    — 所有操作自动放行（危险，请谨慎）\n  /autonomous off          — 等同于 manual\n\n分级永久放行 (v2.4.4):\n  按 [F] 仅对当前 sec_* 类别永久放行，不会波及其他类别。\n  撤销全部永久放行: /unconfirm\n"
+  "help_detail_security": "📜 【安全机制】\n\n四阶安全确认 (Y/A/F/N):\n  [Y]仅此    仅允许本次操作\n  [A]本轮    本次会话内允许同类操作\n  [F]永世    永久允许同类操作 (写入配置)\n  [N]拒绝    拒绝本次操作\n\n受保护操作:\n  sec_read(读文件) sec_write(写文件) sec_exec(执行)\n  sec_mount(加目录) sec_gen_img(画图) sec_send_mail(发邮件)\n  sec_fetch_web(抓取) sec_upload_disk(上传) sec_download_disk(下载)\n  sec_shell(Shell命令)\n\n目录穿越防护:\n  VFS通过Path.resolve()检查路径, 禁止 ../ 逃逸出 allowed_dirs\n\n非交互环境:\n  • 设置 FR_CLI_NON_INTERACTIVE=1 时，安全确认默认拒绝（用于脚本/CI环境）\n\n自治模式 (v2.5.1):\n  /autonomous manual       — 默认：每次 sec_* 都询问\n  /autonomous sandbox_auto — 沙盒内读/写/网络自动放行，系统级仍询问\n  /autonomous full_auto    — 所有操作自动放行（危险，请谨慎）\n  /autonomous off          — 等同于 manual\n\n分级永久放行 (v2.4.4):\n  按 [F] 仅对当前 sec_* 类别永久放行，不会波及其他类别。\n  撤销全部永久放行: /unconfirm\n",
+
+  # ---------- Tutorial 交互式新手教程 ----------
+  "tutorial_title": "🎓 fr-cli 交互式新手教程",
+  "tutorial_prompt_next": "按 Enter 继续下一步...",
+  "tutorial_skipped": "教程已跳过。",
+  "tutorial_complete": "🎉 教程完成!输入 /help 查看更多命令。",
+  "tutorial_hint": "提示:首次使用建议运行 /dir <你的工作目录> 设置工作空间。",
+
+  "tutorial_step1_title": "🎯 第一步:与 AI 对话",
+  "tutorial_step1_content":
+    "直接输入文字即可与 AI 对话。\n"
+    "示例:\"请解释什么是递归\"\n"
+    "按 Enter 发送,Shift+Enter 或 Ctrl+J 换行。\n"
+    "AI 会自动识别意图并调用工具(搜索、读写文件等)。",
+
+  "tutorial_step2_title": "⚙️ 第二步:配置模型与 API Key",
+  "tutorial_step2_content":
+    "fr-cli 支持智谱、DeepSeek、Kimi、Qwen、StepFun、MiniMax 等 25+ 提供商:\n"
+    "  /model                    查看当前模型和可用提供商\n"
+    "  /model config             交互式配置向导(推荐新手)\n"
+    "  /model <模型名>            按模型名切换,如 /model deepseek-chat\n"
+    "  /model <provider>:<model>  同时切换,如 /model deepseek:deepseek-chat\n"
+    "  /providers use <provider>  切换到指定提供商\n"
+    "  /key <your-key>            为当前提供商设置 API Key\n"
+    "未配置模型时,对话会被拦截并提示你先配置。",
+
+  "tutorial_step3_title": "📁 第三步:工作目录与文件操作",
+  "tutorial_step3_content":
+    "使用 / 命令操作文件(受 VFS 沙盒保护):\n"
+    "  /dir <path>     添加并列出工作目录\n"
+    "  /open <file>    查看文件内容\n"
+    "  /dirs           列出已挂载目录\n"
+    "  /write <f>      写入文件(多行输入,Ctrl+D 结束)\n"
+    "  /delete <f>     删除文件\n"
+    "AI 也可以自动读写文件,危险操作会经过安全确认。",
+
+  "tutorial_step4_title": "💾 第四步:会话管理",
+  "tutorial_step4_content":
+    "每个会话有唯一 UUID,自动存档到 ~/.fr_cli/sessions/auto/:\n"
+    "  /new              开启新会话,重置上下文并显示启动画面\n"
+    "  /save <name>      手动保存当前会话\n"
+    "  /load             加载历史会话\n"
+    "  /export           导出当前会话为 Markdown\n"
+    "  /session_list     查看自动存档\n"
+    "  /session_load <n> 加载指定自动存档",
+
+  "tutorial_step5_title": "🌐 第五步:联网与多模态",
+  "tutorial_step5_content":
+    "  /web <query>         联网搜索\n"
+    "  /see <img>           图片分析\n"
+    "  /read_excel <f>      读取 Excel\n"
+    "  /read_csv <f>        读取 CSV\n"
+    "  /ocr <img/pdf>       OCR 文字识别\n"
+    "  !<cmd>               执行系统命令(如 !ls -la)\n"
+    "  !<cmd> | <prompt>    将命令输出管道给 AI 分析",
+
+  "tutorial_step6_title": "🤖 第六步:Agent 分身",
+  "tutorial_step6_content":
+    "创建独立 Agent,每个 Agent 有独立的设定、记忆和技能:\n"
+    "  /agent_create <name> <desc>   自动生成 Agent\n"
+    "  /agent_list                   列出 Agent\n"
+    "  /agent_show <name>            查看 Agent 详情\n"
+    "  /agent_run <name>             运行 Agent\n"
+    "  /agent_model <name> <cfg>     为 Agent 绑定专属模型\n"
+    "内置 Agent:@local @remote @db @RAG @spider @stock",
+
+  "tutorial_step7_title": "📚 第七步:RAG 本地知识库",
+  "tutorial_step7_content":
+    "把本地文档向量化,让 AI 基于知识库回答:\n"
+    "  /rag_dir <dir>       设置知识库目录并首次同步\n"
+    "  /rag_sync [dir]      手动同步\n"
+    "  /rag_watch start     启动后台文件监控\n"
+    "  @RAG <问题>          基于知识库问答",
+
+  "tutorial_step8_title": "🔌 第八步:MCP 外部工具",
+  "tutorial_step8_content":
+    "通过 MCP 协议连接外部工具服务器:\n"
+    "  /mcp_list            列出 MCP 服务器\n"
+    "  /mcp_add <n> <cmd>   添加服务器\n"
+    "  /mcp_enable <name>   启用服务器\n"
+    "  /mcp_refresh         刷新工具列表",
+
+  "tutorial_step9_title": "🧠 第九步:思维模式、主控与 Hermes",
+  "tutorial_step9_content":
+    "  /mode <direct|cot|tot|react|plan>   切换思维模式\n"
+    "  /master on|off                      启用/禁用 MasterAgent 主控\n"
+    "  /hermes goal <目标>                 创建目标并自动分解\n"
+    "  /hermes task <描述>                 创建后台自治任务\n"
+    "  /mode react 会展示 AI 的推理过程。",
+
+  "tutorial_step10_title": "🚀 第十步:更多探索",
+  "tutorial_step10_content":
+    "  /build <需求>        动态构建新工具\n"
+    "  /context             管理上下文压缩\n"
+    "  /status errors       查看集中式错误报告\n"
+    "  /usage [days]        查看 LLM 用量\n"
+    "  /stock_config setup  配置股票数据源\n"
+    "  /cron_add <s> <cmd>  添加定时任务\n"
+    "  /gatekeeper start    启动守护进程\n"
+    "  /autostart           一键启动所有后台服务\n"
+    "  /tutorial            重新查看本教程\n"
+    "  /help <topic>        查看主题帮助\n"
+    "  /queue               查看对话队列状态\n"
+    "  /exit                退出"
 }

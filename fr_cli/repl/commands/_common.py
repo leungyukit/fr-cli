@@ -295,9 +295,9 @@ def _print_help(state, topic):
 
     # 底部提示
     if is_zh:
-        print(f"{_dim('详情: /help <主题>  主题: config, model, fs, session, agent, mail, m365, tools, mcp, all')}")
+        print(f"{_dim('详情: /help <主题>  主题: config, fs, session, plugin, mail, m365, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, hermes, build, context, status, stock, all')}")
     else:
-        print(f"{_dim('Details: /help <topic>  Topics: config, model, fs, session, agent, mail, m365, tools, mcp, all')}")
+        print(f"{_dim('Details: /help <topic>  Topics: config, fs, session, plugin, mail, m365, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, hermes, build, context, status, stock, all')}")
     print()
 
 

@@ -43,7 +43,8 @@ def _open_browser(url: str):
 
 def start_console(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
                   token: Optional[str] = None,
-                  open_browser: bool = True) -> Dict[str, Any]:
+                  open_browser: bool = True,
+                  reuse_port: bool = True) -> Dict[str, Any]:
     """启动 Web 控制台
 
     Args:
@@ -51,6 +52,7 @@ def start_console(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
         port: 端口
         token: Bearer Token(默认随机生成)
         open_browser: 是否自动打开浏览器
+        reuse_port: 启用 SO_REUSEADDR,允许 TIME_WAIT 状态下立即重用端口(测试用)
 
     Returns:
         {"ok": bool, "url": str, "token": str, ...}
@@ -63,6 +65,10 @@ def start_console(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
 
     token = token or generate_token()
     handler_cls = make_handler(token)
+
+    # 允许端口 TIME_WAIT 状态下立即重用(测试场景)
+    if reuse_port:
+        ThreadingHTTPServer.allow_reuse_address = True
 
     try:
         server = ThreadingHTTPServer((host, port), handler_cls)

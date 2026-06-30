@@ -87,7 +87,7 @@ EN_DICT = {
   "help_shell": "[Matrix]",
   "help_usage": "💡 Usage: /help [topic]  Topics: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
   "help_detail_mcp": "📜 [MCP External Tools]\n\nMCP (Model Context Protocol) connects external servers and makes their tools available to AI.\n\nManagement:\n  /mcp_list                List all servers and their tools\n  /mcp_add <name> <cmd> [args...]  Add a stdio server\n  /mcp_del <name>          Remove server\n  /mcp_enable <name>       Enable server\n  /mcp_disable <name>      Disable server\n  /mcp_refresh             Refresh tool list\n\nAI call format:\n  【调用：mcp_call({\"server\": \"server_name\", \"tool\": \"tool_name\", \"arguments\": {...}})】\n\nExample:\n  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp\n  /mcp_refresh\n",
-  "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+  "help_not_found": "❌ Unknown topic: {}  Available: config, fs, session, plugin, mail, m365, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, hermes, build, context, status, stock, all",
   "empty": "(Empty)",
   "none": "None",
   "no_sess": "No sess.",
@@ -175,5 +175,109 @@ EN_DICT = {
   "help_detail_context": "📜 [Context Compression]\n\n/context status                 Show current estimated tokens and config\n/context compress               Compress early conversation now\n/context threshold [N]          View/set auto-compress threshold (0 to disable)\n/context keep [N]               View/set recent turns to keep\n\nConfig (~/.fr_cli/config.json memory namespace):\n  memory.compress_threshold     default 4000\n  memory.compress_keep_recent   default 5\n\nNotes:\n  • When session tokens exceed threshold, early conversation is summarized\n  • Keeps last N turns intact to preserve current context\n  • Reduces prompt cost and context window pressure for long sessions\n",
   "help_detail_status": "📜 [System Status & Error Report]\n\n/status           Human-readable system status panel\n/status json      Output JSON status\n/status errors    Output centralized error report\n\nError report aggregates:\n  • Hermes task failures and failure patterns\n  • Dynamic builder self-test failures\n  • Security review denied operations\n  • MasterAgent failure patterns\n",
   "help_detail_stock": "📜 [Stock Assistant]\n\nConfig:\n  /stock_config setup               Interactive data source config\n  /stock_config source akshare|mairui|tushare|trade\n  /stock_config key mairui <key>\n  /stock_config token tushare <token>\n\nUsage:\n  @stock query Kweichow Moutai price\n  @stock buy 600519 1500.00 100    # simulated trading\n\nNotes:\n  • Data sources: akshare (no key), mairui API (key required), tushare (token required)\n  • Trading is currently simulated; real trading API needs custom extension\n",
-  "help_detail_security": "📜 [Security]\n\n4-level confirmation (Y/A/F/N):\n  [Y]Once     Allow this operation only\n  [A]Session  Allow this session\n  [F]Forever  Allow forever (saved to config)\n  [N]Deny     Deny this operation\n\nProtected operations:\n  sec_read sec_write sec_exec sec_mount sec_gen_img\n  sec_send_mail sec_fetch_web sec_upload_disk sec_download_disk\n  sec_shell\n\nPath traversal protection:\n  VFS checks via Path.resolve(), blocks ../ escaping allowed_dirs\n\nNon-interactive mode:\n  • Set FR_CLI_NON_INTERACTIVE=1 to default-deny (for scripts/CI)\n\nAutonomous mode (v2.5.1):\n  /autonomous manual       — Default: ask for every sec_* operation\n  /autonomous sandbox_auto — Auto-allow sandbox read/write/web; system ops still ask\n  /autonomous full_auto    — Auto-allow all operations (dangerous)\n  /autonomous off          — Same as manual\n\nPer-category Forever (v2.4.4):\n  Pressing [F] only whitelists the current sec_* category. It no longer\n  bleeds into other categories (e.g. confirming read_file does NOT silently\n  allow delete_file).\n  Revoke all permanent allowances: /unconfirm\n"
+  "help_detail_security": "📜 [Security]\n\n4-level confirmation (Y/A/F/N):\n  [Y]Once     Allow this operation only\n  [A]Session  Allow this session\n  [F]Forever  Allow forever (saved to config)\n  [N]Deny     Deny this operation\n\nProtected operations:\n  sec_read sec_write sec_exec sec_mount sec_gen_img\n  sec_send_mail sec_fetch_web sec_upload_disk sec_download_disk\n  sec_shell\n\nPath traversal protection:\n  VFS checks via Path.resolve(), blocks ../ escaping allowed_dirs\n\nNon-interactive mode:\n  • Set FR_CLI_NON_INTERACTIVE=1 to default-deny (for scripts/CI)\n\nAutonomous mode (v2.5.1):\n  /autonomous manual       — Default: ask for every sec_* operation\n  /autonomous sandbox_auto — Auto-allow sandbox read/write/web; system ops still ask\n  /autonomous full_auto    — Auto-allow all operations (dangerous)\n  /autonomous off          — Same as manual\n\nPer-category Forever (v2.4.4):\n  Pressing [F] only whitelists the current sec_* category. It no longer\n  bleeds into other categories (e.g. confirming read_file does NOT silently\n  allow delete_file).\n  Revoke all permanent allowances: /unconfirm\n",
+
+  # ---------- Tutorial ----------
+  "tutorial_title": "🎓 fr-cli Interactive Tutorial",
+  "tutorial_prompt_next": "Press Enter for next step...",
+  "tutorial_skipped": "Tutorial skipped.",
+  "tutorial_complete": "🎉 Tutorial complete! Type /help for more commands.",
+  "tutorial_hint": "Tip: First run /dir <your_workspace> to set working directory.",
+
+  "tutorial_step1_title": "🎯 Step 1: Chat with AI",
+  "tutorial_step1_content":
+    "Type any text to chat with AI.\n"
+    "Example: \"Explain what recursion is\"\n"
+    "Press Enter to send, Shift+Enter or Ctrl+J for newline.\n"
+    "AI auto-detects intent and invokes tools (search, file IO, etc).",
+
+  "tutorial_step2_title": "⚙️ Step 2: Configure Model & API Key",
+  "tutorial_step2_content":
+    "fr-cli supports Zhipu, DeepSeek, Kimi, Qwen, StepFun, MiniMax and 25+ providers:\n"
+    "  /model                    Show current model and available providers\n"
+    "  /model config             Interactive config wizard (recommended)\n"
+    "  /model <model_name>       Switch by name (e.g. /model deepseek-chat)\n"
+    "  /model <provider>:<model> Switch with provider (e.g. /model deepseek:deepseek-chat)\n"
+    "  /providers use <provider> Switch provider\n"
+    "  /key <your-key>           Set API key for current provider\n"
+    "Without a configured model, chat is blocked and prompts for setup.",
+
+  "tutorial_step3_title": "📁 Step 3: Working Directories & File Operations",
+  "tutorial_step3_content":
+    "Use / commands for file operations (protected by VFS sandbox):\n"
+    "  /dir <path>     Add and list working directory\n"
+    "  /open <file>    View file contents\n"
+    "  /dirs           List mounted directories\n"
+    "  /write <f>      Write file (multi-line, Ctrl+D to finish)\n"
+    "  /delete <f>     Delete file\n"
+    "AI can also auto read/write files. Risky ops trigger security confirm.",
+
+  "tutorial_step4_title": "💾 Step 4: Session Management",
+  "tutorial_step4_content":
+    "Each session has a unique UUID, auto-archived to ~/.fr_cli/sessions/auto/:\n"
+    "  /new              New session, reset context\n"
+    "  /save <name>      Manual save\n"
+    "  /load             Load history\n"
+    "  /export           Export current session to Markdown\n"
+    "  /session_list     List auto archives\n"
+    "  /session_load <n> Load specific auto archive",
+
+  "tutorial_step5_title": "🌐 Step 5: Web & Multimodal",
+  "tutorial_step5_content":
+    "  /web <query>         Web search\n"
+    "  /see <img>           Image analysis\n"
+    "  /read_excel <f>      Read Excel\n"
+    "  /read_csv <f>        Read CSV\n"
+    "  /ocr <img/pdf>       OCR text recognition\n"
+    "  !<cmd>               Run system command (e.g. !ls -la)\n"
+    "  !<cmd> | <prompt>    Pipe command output to AI",
+
+  "tutorial_step6_title": "🤖 Step 6: Agent Avatars",
+  "tutorial_step6_content":
+    "Create independent agents with own persona, memory, and skills:\n"
+    "  /agent_create <name> <desc>   Auto-generate agent\n"
+    "  /agent_list                   List agents\n"
+    "  /agent_show <name>            Show agent details\n"
+    "  /agent_run <name>             Run agent\n"
+    "  /agent_model <name> <cfg>     Bind dedicated model\n"
+    "Built-in: @local @remote @db @RAG @spider @stock",
+
+  "tutorial_step7_title": "📚 Step 7: RAG Local Knowledge Base",
+  "tutorial_step7_content":
+    "Vectorize local docs, let AI answer based on knowledge base:\n"
+    "  /rag_dir <dir>       Set knowledge base dir and initial sync\n"
+    "  /rag_sync [dir]      Manual sync\n"
+    "  /rag_watch start     Start background file monitor\n"
+    "  @RAG <question>      Q&A based on knowledge base",
+
+  "tutorial_step8_title": "🔌 Step 8: MCP External Tools",
+  "tutorial_step8_content":
+    "Connect external tool servers via MCP protocol:\n"
+    "  /mcp_list            List MCP servers\n"
+    "  /mcp_add <n> <cmd>   Add server\n"
+    "  /mcp_enable <name>   Enable server\n"
+    "  /mcp_refresh         Refresh tool list",
+
+  "tutorial_step9_title": "🧠 Step 9: Thinking Mode, Master & Hermes",
+  "tutorial_step9_content":
+    "  /mode <direct|cot|tot|react|plan>   Switch thinking mode\n"
+    "  /master on|off                      Enable/disable MasterAgent\n"
+    "  /hermes goal <goal>                 Create goal and decompose\n"
+    "  /hermes task <desc>                 Create background autonomous task\n"
+    "  /mode react will show AI reasoning.",
+
+  "tutorial_step10_title": "🚀 Step 10: More Exploration",
+  "tutorial_step10_content":
+    "  /build <req>         Dynamic tool builder\n"
+    "  /context             Manage context compression\n"
+    "  /status errors       View centralized error report\n"
+    "  /usage [days]        View LLM usage\n"
+    "  /stock_config setup  Configure stock data source\n"
+    "  /cron_add <s> <cmd>  Add cron task\n"
+    "  /gatekeeper start    Start daemon\n"
+    "  /autostart           One-click start all background services\n"
+    "  /tutorial            Re-show this tutorial\n"
+    "  /help <topic>        View topic help\n"
+    "  /queue               View dialog queue\n"
+    "  /exit                Exit"
 }

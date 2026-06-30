@@ -192,108 +192,33 @@ def _cmd_banner(state, parts):
 
 
 def _cmd_tutorial(state, parts):
-    """交互式新手教程"""
+    """交互式新手教程(从 i18n 加载)"""
     from fr_cli.ui.ui import CYAN, GREEN, YELLOW, DIM, RESET
 
-    steps = [
-        ("🎯 第一步：与 AI 对话",
-         "直接输入文字即可与 AI 对话。\n"
-         "示例：\"请解释什么是递归\"\n"
-         "按 Enter 发送，Shift+Enter 或 Ctrl+J 换行。\n"
-         "AI 会自动识别意图并调用工具（搜索、读写文件等）。"),
-
-        ("⚙️ 第二步：配置模型与 API Key",
-         "fr-cli 支持智谱、DeepSeek、Kimi、Qwen、StepFun、MiniMax 等 25+ 提供商：\n"
-         "  /model                    查看当前模型和可用提供商\n"
-         "  /model config             交互式配置向导（推荐新手）\n"
-         "  /model <模型名>            按模型名切换，如 /model deepseek-chat\n"
-         "  /model <provider>:<model>  同时切换，如 /model deepseek:deepseek-chat\n"
-         "  /providers use <provider>  切换到指定提供商\n"
-         "  /key <your-key>            为当前提供商设置 API Key\n"
-         "未配置模型时，对话会被拦截并提示你先配置。"),
-
-        ("📁 第三步：工作目录与文件操作",
-         "使用 / 命令操作文件（受 VFS 沙盒保护）：\n"
-         "  /dir <path>     添加并列出工作目录\n"
-         "  /open <file>    查看文件内容\n"
-         "  /dirs           列出已挂载目录\n"
-         "  /write <f>      写入文件（多行输入，Ctrl+D 结束）\n"
-         "  /delete <f>     删除文件\n"
-         "AI 也可以自动读写文件，危险操作会经过安全确认。"),
-
-        ("💾 第四步：会话管理",
-         "每个会话有唯一 UUID，自动存档到 ~/.fr_cli/sessions/auto/：\n"
-         "  /new              开启新会话，重置上下文并显示启动画面\n"
-         "  /save <name>      手动保存当前会话\n"
-         "  /load             加载历史会话\n"
-         "  /export           导出当前会话为 Markdown\n"
-         "  /session_list     查看自动存档\n"
-         "  /session_load <n> 加载指定自动存档"),
-
-        ("🌐 第五步：联网与多模态",
-         "  /web <query>         联网搜索\n"
-         "  /see <img>           图片分析\n"
-         "  /read_excel <f>      读取 Excel\n"
-         "  /read_csv <f>        读取 CSV\n"
-         "  !<cmd>               执行系统命令（如 !ls -la）\n"
-         "  !<cmd> | <prompt>    将命令输出管道给 AI 分析"),
-
-        ("🤖 第六步：Agent 分身",
-         "创建独立 Agent，每个 Agent 有独立的设定、记忆和技能：\n"
-         "  /agent_create <name> <desc>   自动生成 Agent\n"
-         "  /agent_list                   列出 Agent\n"
-         "  /agent_show <name>            查看 Agent 详情\n"
-         "  /agent_run <name>             运行 Agent\n"
-         "  /agent_model <name> <cfg>     为 Agent 绑定专属模型\n"
-         "内置 Agent：@local @remote @db @RAG @spider @stock"),
-
-        ("📚 第七步：RAG 本地知识库",
-         "把本地文档向量化，让 AI 基于知识库回答：\n"
-         "  /rag_dir <dir>       设置知识库目录并首次同步\n"
-         "  /rag_sync [dir]      手动同步\n"
-         "  /rag_watch start     启动后台文件监控\n"
-         "  @RAG <问题>          基于知识库问答"),
-
-        ("🔌 第八步：MCP 外部工具",
-         "通过 MCP 协议连接外部工具服务器：\n"
-         "  /mcp_list            列出 MCP 服务器\n"
-         "  /mcp_add <n> <cmd>   添加服务器\n"
-         "  /mcp_enable <name>   启用服务器\n"
-         "  /mcp_refresh         刷新工具列表"),
-
-        ("🧠 第九步：思维模式、主控与 Hermes",
-         "  /mode <direct|cot|tot|react|plan>   切换思维模式\n"
-         "  /master on|off                      启用/禁用 MasterAgent 主控\n"
-         "  /hermes goal <目标>                 创建目标并自动分解\n"
-         "  /hermes task <描述>                 创建后台自治任务\n"
-         "  /mode react 会展示 AI 的推理过程。"),
-
-        ("🚀 第十步：更多探索",
-         "  /build <需求>        动态构建新工具\n"
-         "  /context             管理上下文压缩\n"
-         "  /status errors       查看集中式错误报告\n"
-         "  /usage [days]        查看 LLM 用量\n"
-         "  /tutorial            重新查看本教程\n"
-         "  /help <topic>        查看主题帮助（config/fs/session/agent/hermes/build/context/status/all）\n"
-         "  /queue               查看对话队列状态\n"
-         "  /exit                退出"),
-    ]
+    lang = state.lang
+    steps = []
+    for i in range(1, 11):
+        title = T(f"tutorial_step{i}_title", lang)
+        content = T(f"tutorial_step{i}_content", lang)
+        if title and content:
+            steps.append((title, content))
 
     print(f"{CYAN}{'='*50}{RESET}")
-    print(f"{CYAN}  🎓 fr-cli 交互式新手教程{RESET}")
+    print(f"{CYAN}  {T('tutorial_title', lang)}{RESET}")
     print(f"{CYAN}{'='*50}{RESET}\n")
 
+    total = len(steps)
     for i, (title, content_step) in enumerate(steps, 1):
         print(f"{GREEN}{title}{RESET}")
         print(f"{DIM}{content_step}{RESET}")
-        if i < len(steps):
-            print(f"\n{YELLOW}按 Enter 继续下一步...{RESET}")
+        if i < total:
+            print(f"\n{YELLOW}{T('tutorial_prompt_next', lang)}{RESET}")
             try:
                 input()
             except (EOFError, KeyboardInterrupt):
-                print(f"\n{YELLOW}教程已跳过。{RESET}")
+                print(f"\n{YELLOW}{T('tutorial_skipped', lang)}{RESET}")
                 return False
 
-    print(f"\n{GREEN}🎉 教程完成！输入 /help 查看更多命令。{RESET}")
-    print(f"{DIM}提示：首次使用建议运行 /dir <你的工作目录> 设置工作空间。{RESET}")
+    print(f"\n{GREEN}{T('tutorial_complete', lang)}{RESET}")
+    print(f"{DIM}{T('tutorial_hint', lang)}{RESET}")
     return False

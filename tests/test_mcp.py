@@ -150,13 +150,15 @@ class TestAddDelEnableDisable:
         assert "fs" in mgr.servers
 
     def test_add_overwrites(self):
-        """同名 server 应覆盖"""
+        """同名 server 不应被覆盖(返回 False),保持原 server 配置不变"""
         from fr_cli.weapon.mcp import MCPServerManager
         cfg = {}
         mgr = MCPServerManager(cfg=cfg)
-        mgr.add_server("fs", "stdio", command="old_cmd")
-        mgr.add_server("fs", "stdio", command="new_cmd")
-        assert mgr.servers["fs"].command == "new_cmd"
+        ok1 = mgr.add_server("fs", "stdio", command="old_cmd")
+        ok2 = mgr.add_server("fs", "stdio", command="new_cmd")
+        assert ok1 is True
+        assert ok2 is False  # 同名拒绝,保护原配置
+        assert mgr.servers["fs"].command == "old_cmd"
 
     def test_del_existing(self):
         from fr_cli.weapon.mcp import MCPServerManager
@@ -324,8 +326,10 @@ class TestGetToolsMocked:
     def test_get_tools_mcp_unavailable(self, monkeypatch):
         """MCP SDK 未装 → 返回空列表"""
         from fr_cli.weapon.mcp import MCPServerManager
-        import fr_cli.weapon.mcp as mcp_mod
-        monkeypatch.setattr(mcp_mod, "_MCP_AVAILABLE", False)
+        # 注意:from import 会把 _MCP_AVAILABLE 复制到 manager_tools 的命名空间,
+        # 所以 monkeypatch 必须打到导入方模块,而不是源模块
+        import fr_cli.weapon.mcp.manager_tools as mcp_tools_mod
+        monkeypatch.setattr(mcp_tools_mod, "_MCP_AVAILABLE", False)
 
         cfg = {}
         mgr = MCPServerManager(cfg=cfg)
