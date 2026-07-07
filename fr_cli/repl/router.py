@@ -338,7 +338,13 @@ def handle_smart_cmd(state, cmd, u, parts):
 
     # 3. 其他未知命令 → 先尝试执行引擎
     skip_sec = bool(getattr(state, "_batch_mode", False))
-    exec_result = state.executor.execute(u, state.messages, skip_security=skip_sec)
+    try:
+        exec_result = state.executor.execute(u, state.messages, skip_security=skip_sec)
+    except AttributeError:
+        # state 没有 executor（如极简批处理模式），直接走智能提示
+        print(f"{RED}未知命令: {cmd}{RESET}")
+        _print_similar_cmds(cmd, all_cmds)
+        return False
     if exec_result.is_fail():
         print(f"{RED}未知命令: {cmd}{RESET}")
         _print_similar_cmds(cmd, all_cmds)

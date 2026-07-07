@@ -156,7 +156,11 @@ def _cron_add(deps, **kwargs):
 def _cron_list(deps, **kwargs):
     from fr_cli.weapon.cron import list_jobs
     res, err = list_jobs(deps.lang)
-    return Result.ok("\n".join(res)) if not err else Result.fail(err)
+    if err:
+        return Result.ok("")  # 空结果用 ok 而非 fail,避免 router 当成未知命令
+    if not res:
+        return Result.ok("(暂无定时任务)")
+    return Result.ok("\n".join(res))
 
 
 @register(
