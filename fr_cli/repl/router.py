@@ -337,7 +337,8 @@ def handle_smart_cmd(state, cmd, u, parts):
         return False
 
     # 3. 其他未知命令 → 先尝试执行引擎
-    exec_result = state.executor.execute(u, state.messages)
+    skip_sec = bool(getattr(state, "_batch_mode", False))
+    exec_result = state.executor.execute(u, state.messages, skip_security=skip_sec)
     if exec_result.is_fail():
         print(f"{RED}未知命令: {cmd}{RESET}")
         _print_similar_cmds(cmd, all_cmds)

@@ -53,7 +53,14 @@ def run_batch(state, text: str, is_command: bool = False, quiet: bool = False) -
     try:
         if is_command or u.startswith("/"):
             from fr_cli.repl.router import dispatch
-            should_exit = dispatch(state, u)
+            # v2.4.4: REPL 用户输入默认走 sec_* 确认；
+            # 但批处理模式（非交互）下应当跳过交互式确认
+            # 通过临时标记让 router 内部把 skip_security=True 透传
+            state._batch_mode = True
+            try:
+                should_exit = dispatch(state, u)
+            finally:
+                state._batch_mode = False
             # /exit /quit 等命令在批处理模式下直接退出即可
             if should_exit:
                 return 0

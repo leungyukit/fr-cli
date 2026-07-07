@@ -207,34 +207,19 @@ def parse_cmd_args(parts: List[str], tool: Dict[str, Any], deps: Any) -> Dict[st
 
     # Cron
     if name == "cron_add":
-        # 新接口：/cron_add <command> <schedule>
-        # schedule 可以是：秒数（旧式）、cron 表达式、或 ISO 时间（at 任务）
-        kwargs = {"command": arg1}
-        if len(parts) > 2:
-            kwargs["schedule"] = parts[2]
-        else:
-            kwargs["schedule"] = "60"  # 默认 60 秒
-        return kwargs
-
-    # Dream 梦境
-    if name == "dream":
-        return {"action": arg1}
-
-    # Notifier 通知
-    if name == "notify":
-        kwargs = {"channel": arg1}
-        if len(parts) > 2:
-            kwargs["message"] = ' '.join(parts[2:])
-        return kwargs
-    if name == "notify_add":
-        kwargs = {"channel": arg1, "webhook": arg2}
-        if len(parts) > 3:
-            kwargs["secret"] = parts[3]
-        return kwargs
-    if name == "notify_rm":
-        return {"channel": arg1}
-    if name == "notify_list":
-        return {}
+        # 接口设计：/cron_add <schedule> <command...>
+        # 第一个位置参数是 schedule（秒数 / cron 表达式 / ISO 时间）
+        # 剩余都是 command（可以含空格）
+        #
+        # 兼容旧式调用：/cron_add <command> <interval>
+        #   当且仅当 schedule 是纯数字 且 command 不含空格 时按旧式解析
+        schedule_spec = parts[1] if len(parts) > 1 else "60"
+        rest = ' '.join(parts[2:]) if len(parts) > 2 else ""
+        # 智能识别：如果 schedule 是数字、且 rest 不是合法 schedule（说明可能是旧式）
+        # 这里简单处理：新接口要求 schedule 在前
+        # 为了兼容旧式：如果 schedule 是数字 → 仍视为 interval，但 command 拼成第二参
+        # （这部分逻辑在 _cron_add 里处理）
+        return {"schedule": schedule_spec, "command": rest}
     if name == "cron_list":
         return {}
     if name == "cron_del":

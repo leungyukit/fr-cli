@@ -111,11 +111,14 @@ def _ensure_mail(deps):
 def _cron_add(deps, **kwargs):
     """添加定时任务。
 
-    schedule 参数支持：
-      - 数字（秒）        → interval 模式（旧式兼容）
-      - "every 60s"       → interval 60 秒
-      - "0 9 * * *"       → cron 表达式（每天 9 点）
-      - "2026-12-31 23:59" → at 一次性任务
+    新接口（推荐）：/cron_add <schedule> <command...>
+      schedule 可以是：
+        - 数字（秒）        → interval 模式
+        - "every 60s"       → interval 60 秒
+        - "0 9 * * *"       → cron 表达式
+        - "2026-12-31 23:59" → at 一次性任务
+    旧接口（向后兼容）：/cron_add <command> <interval>
+      当 command 是纯文本且 schedule 是数字时，自动按旧式解析
     """
     from fr_cli.weapon.cron import _default_manager
     from fr_cli.gatekeeper.manager import sync_gatekeeper_cron_jobs
@@ -123,7 +126,13 @@ def _cron_add(deps, **kwargs):
     cmd = kwargs.get("command", "")
     schedule = kwargs.get("schedule", "")
 
-    # 直接调 manager.add_job,避免模块级包装的参数限制
+    if not cmd:
+        return Result.fail("用法: /cron_add <schedule> <command...>\n"
+                            "示例: /cron_add 60 echo hello")
+    if not schedule:
+        schedule = "60"  # 默认 60 秒
+
+    # 直接调 manager.add_job
     try:
         # 兼容旧式：schedule 是纯数字 → interval
         interval_val = float(schedule)
