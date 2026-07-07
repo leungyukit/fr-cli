@@ -17,10 +17,10 @@ def temp_agents_dir(tmp_path, monkeypatch):
     d = tmp_path / "agents"
     d.mkdir(parents=True, exist_ok=True)
     import fr_cli.agent
-    import fr_cli.conf.paths
-    monkeypatch.setattr(fr_cli.agent, "AGENTS_DIR", d)
-    monkeypatch.setattr(fr_cli.conf.paths, "AGENTS_DIR", d)
-    return d
+    # 通过改 _root_holder.value 让所有路径都指向 tmp_path
+    # AGENTS_DIR = ROOT / "agents",所以 ROOT = tmp_path 时自然指向 tmp_path/agents
+    monkeypatch.setattr(fr_cli.conf.paths._root_holder, "value", tmp_path)
+    return tmp_path / "agents"
 
 
 class TestAgentManager:

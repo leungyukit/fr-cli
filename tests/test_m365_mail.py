@@ -9,6 +9,7 @@ Microsoft 365 邮件模块测试
 """
 import json
 import stat
+from pathlib import Path
 from unittest import mock
 
 import pytest
@@ -27,14 +28,31 @@ from fr_cli.weapon.m365 import (
 
 @pytest.fixture(autouse=True)
 def _isolate_m365_cfg(tmp_path, monkeypatch):
-    """每个测试使用独立 M365 配置文件，避免污染用户主目录"""
-    cfg_file = tmp_path / "m365.json"
-    monkeypatch.setattr(m365_mod, "M365_CONFIG_FILE", cfg_file)
-    # 如果 m365.py 中引用了 M365_FILE 常量，也一并替换
-    monkeypatch.setattr(m365_mod, "M365_FILE", cfg_file)
-    # 清理可能残留的 mock
+    """每个测试使用独立的 HOME（隔离主配置）+ 老 m365.json 路径"""
+    fake_home = tmp_path / "home"
+    fake_home.mkdir(parents=True, exist_ok=True)
+    monkeypatch.setenv("HOME", str(fake_home))
+
+    fake_fr_cli = fake_home / ".fr_cli"
+    fake_fr_cli.mkdir(parents=True, exist_ok=True)
+    old_cfg = fake_fr_cli / "m365.json"
+
+    monkeypatch.setattr(m365_mod, "M365_CONFIG_FILE", old_cfg)
+    monkeypatch.setattr(m365_mod, "M365_FILE", old_cfg)
+    # 通过 _root_holder 改路径
+    import fr_cli.conf.paths as _paths_mod
+    monkeypatch.setattr(_paths_mod._root_holder, "value", fake_fr_cli)
     yield
     m365_logout()
+
+
+def test_cfg_file_permissions(tmp_path):
+    """主配置 config.json 应保持 0o600 权限"""
+    _save_m365_cfg({"client_id": "x"})
+    config_file = Path.home() / ".fr_cli" / "config.json"
+    assert config_file.exists()
+    mode = stat.S_IMODE(config_file.stat().st_mode)
+    assert mode == 0o600
 
 
 # ------------------------------------------------------------------
@@ -50,13 +68,6 @@ def test_save_and_load_cfg(tmp_path):
     _save_m365_cfg(cfg)
     loaded = _load_m365_cfg()
     assert loaded == cfg
-
-
-def test_cfg_file_permissions(tmp_path):
-    """敏感 token 文件应设置为 0o600"""
-    _save_m365_cfg({"client_id": "x"})
-    mode = stat.S_IMODE(m365_mod.M365_CONFIG_FILE.stat().st_mode)
-    assert mode == 0o600
 
 
 # ------------------------------------------------------------------

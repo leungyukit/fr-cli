@@ -103,15 +103,33 @@ def _ensure_mail(deps):
 @register(
     name="cron_add",
     triggers=_TRIGGERS_CRON,
-    description="添加定时任务",
-    params={"command": str, "interval": int},
+    description="添加定时任务（支持 interval/cron/at 三种调度）",
+    params={"command": str, "schedule": str},
     security="sec_exec",
     aliases=["/cron_add"],
 )
 def _cron_add(deps, **kwargs):
+    """添加定时任务。
+
+    schedule 参数支持：
+      - 数字（秒）        → interval 模式（旧式兼容）
+      - "every 60s"       → interval 60 秒
+      - "0 9 * * *"       → cron 表达式（每天 9 点）
+      - "2026-12-31 23:59" → at 一次性任务
+    """
     from fr_cli.weapon.cron import add_job, _default_manager
     from fr_cli.gatekeeper.manager import sync_gatekeeper_cron_jobs
-    jid, m = add_job(kwargs["command"], kwargs["interval"], deps.lang)
+
+    cmd = kwargs.get("command", "")
+    schedule = kwargs.get("schedule", "")
+
+    # 兼容旧式：schedule 是纯数字 → interval
+    try:
+        interval_val = float(schedule)
+        jid, m = add_job(cmd=cmd, interval=interval_val, lang=deps.lang)
+    except ValueError:
+        jid, m = add_job(cmd=cmd, schedule=schedule, lang=deps.lang)
+
     if jid is not None:
         sync_gatekeeper_cron_jobs(cron_jobs=_default_manager.export_jobs())
         return Result.ok(m)
@@ -146,6 +164,140 @@ def _cron_del(deps, **kwargs):
         sync_gatekeeper_cron_jobs(cron_jobs=_default_manager.export_jobs())
         return Result.ok(m)
     return Result.fail(m)
+
+
+# ============== 通知推送（Notifier） ==============
+
+@register(
+    name="notify_add",
+    description="添加一个通知通道（飞书/钉钉/企微/Slack/Discord/Telegram）",
+    params={"channel": str, "webhook": str, "secret": str},
+    aliases=["/notify_add"],
+)
+def _notify_add(deps, **kwargs):
+    """添加通知通道。示例：/notify_add lark https://open.feishu.cn/hook/xxx [secret]"""
+    from fr_cli.weapon.notifier import add_channel
+    channel = (kwargs.get("channel") or "").strip()
+    webhook = (kwargs.get("webhook") or "").strip()
+    secret = (kwargs.get("secret") or "").strip() or None
+    if not channel or not webhook:
+        return Result.fail("用法: /notify_add <channel> <webhook_url> [secret]")
+    return add_channel(channel, webhook, secret=secret)
+
+
+@register(
+    name="notify_rm",
+    description="删除一个通知通道",
+    params={"channel": str},
+    aliases=["/notify_rm"],
+)
+def _notify_rm(deps, **kwargs):
+    from fr_cli.weapon.notifier import remove_channel
+    return remove_channel(kwargs.get("channel", ""))
+
+
+@register(
+    name="notify_list",
+    description="列出所有通知通道",
+    params={},
+    aliases=["/notify_list"],
+)
+def _notify_list(deps, **kwargs):
+    from fr_cli.weapon.notifier import list_channels
+    channels = list_channels()
+    if not channels:
+        return Result.ok("暂无通知通道。用 /notify_add 添加。")
+    lines = []
+    for c in channels:
+        secret_mark = " 🔐" if c["has_secret"] else ""
+        lines.append(f"  • {c['channel']:12} {c['webhook']}{secret_mark}")
+    return Result.ok("📡 已配置的通知通道:\n" + "\n".join(lines))
+
+
+@register(
+    name="notify",
+    description="向指定通道发送通知（飞书/钉钉/企微/Slack/Discord/Telegram）",
+    params={"channel": str, "message": str},
+    aliases=["/notify"],
+)
+def _notify(deps, **kwargs):
+    """发送通知。示例：/notify lark 任务完成"""
+    from fr_cli.weapon.notifier import notify, notify_all
+
+    channel = (kwargs.get("channel") or "").strip()
+    message = (kwargs.get("message") or "").strip()
+    if not channel or not message:
+        return Result.fail("用法: /notify <channel|all> <消息内容>")
+
+    if channel.lower() == "all":
+        results = notify_all(message)
+        ok_count = sum(1 for r in results.values() if r.is_ok())
+        fail = [ch for ch, r in results.items() if r.is_fail()]
+        msg = f"📡 群发 {ok_count}/{len(results)} 通道成功"
+        if fail:
+            msg += f"\n  失败: {', '.join(fail)}"
+        return Result.ok(msg) if not fail else Result.fail(msg)
+
+    return notify(channel, message)
+
+
+# ============== 梦境整理（Dream） ==============
+
+@register(
+    name="dream",
+    description="手动触发 MasterAgent 梦境整理（提炼长期记忆）",
+    params={"action": str},
+    aliases=["/dream"],
+)
+def _dream(deps, **kwargs):
+    """手动触发梦境整理。
+
+    子命令：
+      /dream            立即整理一次
+      /dream search <关键词>  搜索长期记忆
+      /dream status     显示梦境统计
+    """
+    from fr_cli.agent.dream import (
+        DreamEngine, get_dream_summary,
+    )
+
+    action = (kwargs.get("action") or "").strip()
+    engine = DreamEngine(client=deps.client, model_name=deps.model_name, lang=deps.lang)
+
+    if action == "search":
+        # /dream search <query>
+        return Result.ok("用法: /dream search <关键词>")
+    if action == "status":
+        s = get_dream_summary()
+        msg = "🌙 梦境档案\n"
+        msg += f"  总次数: {s['total_dreams']}\n"
+        msg += f"  最近: {s['last_dream'] or '从未'}\n"
+        if s["top_themes"]:
+            msg += "  热门主题:\n"
+            for t in s["top_themes"]:
+                msg += f"    - {t['name']}: {t['count']} 次\n"
+        return Result.ok(msg)
+
+    # 立即整理一次
+    try:
+        result = engine.dream_now()
+    except Exception as e:
+        return Result.fail(f"梦境整理失败: {e}")
+    if result.get("skipped"):
+        return Result.ok(f"⏭ 跳过梦境整理: {result.get('reason', '?')}")
+    data = result.get("data", {})
+    summary = data.get("summary", "")
+    themes = data.get("themes", [])
+    msg = f"🌙 梦境整理完成 ({result.get('saved_at', '?')[:16]})\n"
+    if summary:
+        msg += f"  摘要: {summary}\n"
+    if themes:
+        msg += "  提炼主题:\n"
+        for t in themes:
+            if isinstance(t, dict):
+                msg += f"    - {t.get('name', '?')} ({t.get('frequency', '?')}): {t.get('description', '')}\n"
+    msg += "  档案已写入 ~/.fr_cli/master/dream_log.md"
+    return Result.ok(msg)
 
 
 # ============== 云盘 ==============

@@ -7,6 +7,9 @@ Hermes 独立守护进程管理器 —— 在主进程中控制 Hermes 后台子
     manager.stop()
     manager.is_running()
     manager.status()
+
+Hermes 守护进程配置统一收敛到 ~/.fr_cli/config.json 的 hermes.daemon 命名空间。
+旧文件 ~/.fr_cli/hermes/daemon.json 会在首次加载时一次性迁移。
 """
 
 import os
@@ -21,16 +24,29 @@ from fr_cli.conf.paths import (
     HERMES_DAEMON_STOP_FILE,
     HERMES_DAEMON_CONFIG_FILE,
 )
+from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.core.result import Result
-from fr_cli.core.store import JsonStore
 
 PID_FILE = HERMES_DAEMON_PID_FILE
 STOP_FILE = HERMES_DAEMON_STOP_FILE
+# 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 CONFIG_FILE = HERMES_DAEMON_CONFIG_FILE
+
+_HERMES_DAEMON_NS = "hermes.daemon"
+
+
+class _HermesDaemonStore:
+    """JsonStore 兼容接口，对应 hermes.daemon 命名空间"""
+
+    def read(self):
+        return load_namespace(_HERMES_DAEMON_NS, default={}, old_path=CONFIG_FILE)
+
+    def write(self, cfg):
+        save_namespace(_HERMES_DAEMON_NS, cfg)
 
 
 def _config_store():
-    return JsonStore(CONFIG_FILE, default=dict)
+    return _HermesDaemonStore()
 
 
 def _write_pid(pid):

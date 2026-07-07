@@ -70,12 +70,10 @@ def test_real_config_load_save():
     from fr_cli.conf.config import load_config, save_config
 
     env = RealTestEnv()
-    # 重定向配置路径到临时目录（save_config 使用模块级常量）
-    import fr_cli.conf.config as conf_mod
-    orig_file = conf_mod.CONFIG_FILE
-    orig_backup = conf_mod.CONFIG_BACKUP
-    conf_mod.CONFIG_FILE = env.config_file
-    conf_mod.CONFIG_BACKUP = env.tmpdir / "config.json.bak"
+    # 重定向配置路径到临时目录（通过 patch paths._root_holder 让所有路径都指向 tmp）
+    from fr_cli.conf import paths
+    orig_root = paths.ROOT
+    paths._root_holder.value = env.tmpdir
 
     try:
         # 首次加载应返回默认配置（provider/model 默认不写，由用户显式配置）
@@ -95,16 +93,15 @@ def test_real_config_load_save():
         # 第二次保存，此时 CONFIG_FILE 已存在，应触发备份机制
         cfg2["providers"]["deepseek"]["model"] = "deepseek-coder"
         assert save_config(cfg2) is True
-        assert conf_mod.CONFIG_BACKUP.exists(), "第二次保存应生成备份文件"
+        assert paths.CONFIG_BACKUP.exists(), "第二次保存应生成备份文件"
         # 验证备份内容正确
-        backup_data = json.loads(conf_mod.CONFIG_BACKUP.read_text(encoding="utf-8"))
+        backup_data = json.loads(paths.CONFIG_BACKUP.read_text(encoding="utf-8"))
         assert backup_data["providers"]["deepseek"]["model"] == "deepseek-chat"
 
         print("✅ test_real_config_load_save 通过")
     finally:
         # 无论测试是否通过，都必须恢复全局常量
-        conf_mod.CONFIG_FILE = orig_file
-        conf_mod.CONFIG_BACKUP = orig_backup
+        paths._root_holder.value = orig_root
         env.cleanup()
 
 

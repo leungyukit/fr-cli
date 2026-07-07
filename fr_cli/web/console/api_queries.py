@@ -60,10 +60,15 @@ def get_global_status(state=None) -> Dict[str, Any]:
     if data:
         status["hermes_tasks"] = len(data.get("tasks", []))
 
-    # Cron jobs
-    data = _try_load_json(FR_CLI_DIR / "cron.json")
-    if data:
-        status["cron_jobs"] = len(data.get("jobs", []))
+    # Cron jobs（统一从主配置 cron 命名空间读取）
+    try:
+        from fr_cli.conf.config import load_namespace
+        from fr_cli.weapon.cron import CRON_STORE_FILE
+        cron_data = load_namespace("cron", default=list, old_path=CRON_STORE_FILE)
+        if isinstance(cron_data, list):
+            status["cron_jobs"] = len(cron_data)
+    except Exception:
+        pass
 
     # Agent 数量
     try:

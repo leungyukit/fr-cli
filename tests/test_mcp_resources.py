@@ -1,10 +1,9 @@
 """MCP Resources 测试"""
-import json
 import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
+from unittest.mock import patch
 
 from fr_cli.weapon.mcp import (
-    MCPServer, MCPServerManager, _STREAMABLE_HTTP_AVAILABLE, _SSE_AVAILABLE,
+    MCPServer, MCPServerManager,
 )
 
 

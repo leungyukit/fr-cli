@@ -12,8 +12,9 @@ from fr_cli.agent.builtins.rag import RAGManager
 class TestPersistentCache(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="test_rag_persist_")
-        # patch ROOT 让缓存写到 tmp
-        self.patcher = patch("fr_cli.conf.paths.ROOT", Path(self.tmp))
+        # patch _root_holder 让缓存写到 tmp
+        from fr_cli.conf.paths import _root_holder
+        self.patcher = patch.object(_root_holder, "value", Path(self.tmp))
 
     def tearDown(self):
         self.patcher.stop()

@@ -63,7 +63,7 @@ class TestSSEEndpoint(unittest.TestCase):
         if not result["ok"]:
             self.skipTest(f"无法启动控制台: {result.get('error')}")
         time.sleep(0.6)  # 让 server 完全起来
-        self.base_url = f"http://127.0.0.1:17781"
+        self.base_url = "http://127.0.0.1:17781"
 
     def tearDown(self):
         stop_console()

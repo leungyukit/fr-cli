@@ -1060,14 +1060,14 @@ class TestBoundaryAndEdgeCases:
         """保存到无效路径时应返回 False"""
         from fr_cli.conf.config import save_config
         # 尝试保存到不存在的只读目录
-        import fr_cli.conf.config as conf_mod
-        orig_file = conf_mod.CONFIG_FILE
+        from fr_cli.conf import paths
+        orig_root = paths.ROOT
         try:
-            conf_mod.CONFIG_FILE = Path("/nonexistent_dir_xyz/config.json")
+            paths._root_holder.value = Path("/nonexistent_dir_xyz_root")
             result = save_config({"test": "data"})
             assert result is False
         finally:
-            conf_mod.CONFIG_FILE = orig_file
+            paths._root_holder.value = orig_root
 
     # ---- conf/config.py: init_config ----
 

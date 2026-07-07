@@ -1,16 +1,14 @@
 """Worktree 群组测试"""
-import json
 import os
 import shutil
 import subprocess
 import tempfile
-import time
 import unittest
 from pathlib import Path
 
 from fr_cli.weapon.worktree_group import (
     create_worktree_group, get_group, list_groups,
-    merge_group, discard_group, format_group,
+    discard_group, format_group,
 )
 
 

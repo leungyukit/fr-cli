@@ -1,5 +1,4 @@
 """Diff 可视化测试"""
-import os
 import unittest
 
 from fr_cli.ui.diff_view import (

@@ -1,7 +1,5 @@
 """Worktree 自动清理测试"""
-import os
 import shutil
-import subprocess
 import tempfile
 import time
 import unittest
@@ -11,7 +9,7 @@ from fr_cli.weapon.worktree_cleanup import (
     register_worktree, unregister_worktree, touch_worktree,
     list_worktrees_for_cleanup, find_idle_worktrees,
     clean_idle_worktrees, _find_repo_root_for_wt,
-    format_cleanup_report, DEFAULT_IDLE_DAYS,
+    format_cleanup_report,
 )
 
 

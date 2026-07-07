@@ -1,10 +1,8 @@
 """MCP Streamable HTTP 测试"""
-import json
 import unittest
-from unittest.mock import patch, MagicMock, AsyncMock
 
 from fr_cli.weapon.mcp import (
-    MCPServer, MCPServerManager, _STREAMABLE_HTTP_AVAILABLE, _SSE_AVAILABLE,
+    MCPServer, MCPServerManager, _STREAMABLE_HTTP_AVAILABLE,
 )
 
 

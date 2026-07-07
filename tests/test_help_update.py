@@ -12,7 +12,7 @@ class TestHelpAndModelDocs:
         from fr_cli.core.core import AppState
         from fr_cli.conf import paths
         # 把配置目录指向临时目录，避免污染真实配置
-        monkeypatch.setattr(paths, "ROOT", tmp_path)
+        monkeypatch.setattr(paths._root_holder, "value", tmp_path)
         cfg = {
             "provider": "zhipu",
             "key": "top-key",

@@ -139,7 +139,6 @@ class TestListShared(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="test_list_")
         # 写一个 records
-        from fr_cli.weapon.skill_gist import SKILLS_DIR
         self.patcher = patch("fr_cli.weapon.skill_gist.SKILLS_DIR", Path(self.tmp))
         self.patcher.start()
 

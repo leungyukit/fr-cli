@@ -16,7 +16,9 @@ from fr_cli.memory.session import (
 def _isolate_history_dir(tmp_path, monkeypatch):
     hist_dir = tmp_path / "sessions" / "manual"
     monkeypatch.setattr(history_module, "HIST_DIR", hist_dir)
-    monkeypatch.setattr(conf_module.paths, "SESSIONS_MANUAL_DIR", hist_dir)
+    # SESSIONS_MANUAL_DIR = ROOT / "sessions" / "manual"
+    # 通过设置 _root_holder.value 让整个根目录都指向 tmp_path
+    monkeypatch.setattr(conf_module.paths._root_holder, "value", tmp_path)
     yield
 
 
@@ -24,7 +26,7 @@ def _isolate_history_dir(tmp_path, monkeypatch):
 def _isolate_session_dir(tmp_path, monkeypatch):
     auto_dir = tmp_path / "sessions" / "auto"
     monkeypatch.setattr(session_module, "SESSION_DIR", auto_dir)
-    monkeypatch.setattr(conf_module.paths, "SESSIONS_AUTO_DIR", auto_dir)
+    # 已经在 _isolate_history_dir 里设过,这里无需重复
     yield
 
 

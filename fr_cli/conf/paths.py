@@ -9,65 +9,200 @@ fr-cli 配置文件路径集中管理 —— 单一真相源
 2. 旧路径自动迁移 → 新路径（用户无感切换）
 3. 旧路径兼容层：read 仍能从旧路径读（迁移没完成时不丢数据）
 4. 一次迁移后置位标志，避免重复 IO
+5. 所有路径都通过 __getattr__ 动态计算，方便测试 monkeypatch ROOT
 """
 import shutil
 from pathlib import Path
 
 # =================================================================
-# 单一根目录
+# 单一根目录（可被 monkeypatch 改写）
 # =================================================================
-ROOT = Path.home() / ".fr_cli"
+class _RootHolder:
+    """轻量级 ROOT 容器，方便测试 monkeypatch.setattr 修改 value"""
+    __slots__ = ("value",)
 
-# 运行时用量统计
-USAGE_FILE = ROOT / "usage.json"
+    def __init__(self, value):
+        self.value = value
+
+
+_root_holder = _RootHolder(Path.home() / ".fr_cli")
+
+
+def __getattr__(name):
+    """所有路径都通过 __getattr__ 动态计算 ROOT / xxx。
+
+    这样测试可以 monkeypatch _root_holder 后立即看到新路径，
+    而不必逐个 patch 几十个路径常量。
+    """
+    if name == "ROOT":
+        return _root_holder.value
+    if name == "USAGE_FILE":
+        return _root_holder.value / "usage.json"
+
+    # 配置
+    if name == "CONFIG_FILE":
+        return _root_holder.value / "config.json"
+    if name == "CONFIG_BACKUP":
+        return _root_holder.value / "config.json.bak"
+    if name == "CONTEXT_FILE":
+        return _root_holder.value / "context.json"
+    if name == "MODELS_YAML":
+        return _root_holder.value / "models.yaml"
+
+    # 会话
+    if name == "SESSIONS_DIR":
+        return _root_holder.value / "sessions"
+    if name == "SESSIONS_MANUAL_DIR":
+        return _root_holder.value / "sessions" / "manual"
+    if name == "SESSIONS_AUTO_DIR":
+        return _root_holder.value / "sessions" / "auto"
+
+    # 扩展
+    if name == "PLUGIN_DIR":
+        return _root_holder.value / "plugins"
+    if name == "AGENTS_DIR":
+        return _root_holder.value / "agents"
+    if name == "MASTER_DIR":
+        return _root_holder.value / "master"
+
+    # 远程
+    if name == "REMOTE_DIR":
+        return _root_holder.value / "remote"
+    if name == "REMOTE_AGENTS_FILE":
+        return _root_holder.value / "remote" / "agents.json"
+    if name == "REMOTE_HOSTS_FILE":
+        return _root_holder.value / "remote" / "hosts.json"
+
+    # 业务配置
+    if name == "DATABASE_FILE":
+        return _root_holder.value / "database.json"
+    if name == "M365_FILE":
+        return _root_holder.value / "m365.json"
+    if name == "GATEWAY_FILE":
+        return _root_holder.value / "gateway.json"
+    if name == "PERSONALITIES_FILE":
+        return _root_holder.value / "personalities.json"
+    if name == "SKILLS_DIR":
+        return _root_holder.value / "skills"
+    if name == "IMAGE_CONFIG_FILE":
+        return _root_holder.value / "image_config.json"
+    if name == "REGISTRY_FILE":
+        return _root_holder.value / "registry.json"
+    if name == "CONTEXT_FILES_FILE":
+        return _root_holder.value / "context_files.json"
+
+    # MCP
+    if name == "MCP_DIR":
+        return _root_holder.value / "mcp"
+    if name == "MCP_SERVERS_FILE":
+        return _root_holder.value / "mcp" / "servers.json"
+
+    # 守护进程
+    if name == "DAEMON_DIR":
+        return _root_holder.value / "daemon"
+    if name == "DAEMON_CONFIG_FILE":
+        return _root_holder.value / "daemon" / "config.json"
+    if name == "DAEMON_PID_FILE":
+        return _root_holder.value / "daemon" / "daemon.pid"
+    if name == "DAEMON_STOP_FILE":
+        return _root_holder.value / "daemon" / "daemon.stop"
+    if name == "DAEMON_TOKEN_FILE":
+        return _root_holder.value / "daemon" / "token"
+    if name == "DAEMON_HERMES_CONFIG_FILE":
+        return _root_holder.value / "daemon" / "hermes_config.json"
+
+    # Hermes
+    if name == "HERMES_DIR":
+        return _root_holder.value / "hermes"
+    if name == "HERMES_TASKS_FILE":
+        return _root_holder.value / "hermes" / "tasks.json"
+    if name == "HERMES_GOALS_FILE":
+        return _root_holder.value / "hermes" / "goals.json"
+    if name == "HERMES_ANALYTICS_FILE":
+        return _root_holder.value / "hermes" / "analytics.json"
+    if name == "HERMES_LOG_FILE":
+        return _root_holder.value / "hermes" / "hermes.log"
+    if name == "HERMES_REVIEW_QUEUE_FILE":
+        return _root_holder.value / "hermes" / "review_queue.json"
+    if name == "HERMES_MEMORY_FILE":
+        return _root_holder.value / "hermes" / "memory.json"
+    if name == "ERROR_LEDGER_FILE":
+        return _root_holder.value / "error_ledger.json"
+    if name == "HERMES_DAEMON_CONFIG_FILE":
+        return _root_holder.value / "hermes" / "daemon.json"
+    if name == "HERMES_DAEMON_PID_FILE":
+        return _root_holder.value / "hermes" / "daemon.pid"
+    if name == "HERMES_DAEMON_STOP_FILE":
+        return _root_holder.value / "hermes" / "daemon.stop"
+
+    # RAG
+    if name == "RAG_DIR":
+        return _root_holder.value / "rag"
+    if name == "RAG_DB_DIR":
+        return _root_holder.value / "rag" / "db"
+    if name == "RAG_WATCHER_PID_FILE":
+        return _root_holder.value / "rag" / "watcher.pid"
+    if name == "RAG_WATCHER_STOP_FILE":
+        return _root_holder.value / "rag" / "watcher.stop"
+    if name == "RAG_WATCHER_LOG_FILE":
+        return _root_holder.value / "rag" / "watcher.log"
+
+    raise AttributeError(f"module 'fr_cli.conf.paths' has no attribute {name!r}")
 
 
 # =================================================================
 # 旧路径 → 新路径 迁移映射
 # =================================================================
-_MIGRATION_MAP = {
-    # 主配置
-    Path.home() / ".zhipu_cli_config.json": ROOT / "config.json",
-    Path.home() / ".zhipu_cli_config.json.bak": ROOT / "config.json.bak",
-    # 短期摘要
-    Path.home() / ".zhipu_cli_context.json": ROOT / "context.json",
-    # 会话存档
-    Path.home() / ".zhipu_cli_history": ROOT / "sessions" / "manual",
-    Path.home() / ".fr_cli_sessions": ROOT / "sessions" / "auto",
-    # 插件
-    Path.home() / ".zhipu_cli_plugins": ROOT / "plugins",
-    # Agent 分身
-    Path.home() / ".fr_cli_agents": ROOT / "agents",
-    # MasterAgent
-    Path.home() / ".fr_cli_master": ROOT / "master",
-    # 远程
-    Path.home() / ".fr_cli_remote_agents.json": ROOT / "remote" / "agents.json",
-    Path.home() / ".fr_cli_remotes.json": ROOT / "remote" / "hosts.json",
-    # 数据库
-    Path.home() / ".fr_cli_databases.json": ROOT / "database.json",
-    # MCP（之前有两套，合并）
-    Path.home() / ".fr_cli" / "mcp_servers.json": ROOT / "mcp" / "servers.json",
-    # Gatekeeper
-    Path.home() / ".fr_cli_gatekeeper.json": ROOT / "daemon" / "config.json",
-    Path.home() / ".fr_cli_gatekeeper.pid": ROOT / "daemon" / "daemon.pid",
-    Path.home() / ".fr_cli_gatekeeper.stop": ROOT / "daemon" / "daemon.stop",
-    # Hermes
-    Path.home() / ".fr_cli_hermes.token": ROOT / "daemon" / "token",
-    Path.home() / ".fr_cli" / "config.json": ROOT / "daemon" / "hermes_config.json",
-    # RAG
-    Path.home() / ".fr_cli_rag_db": ROOT / "rag" / "db",
-    Path.home() / ".fr_cli_rag_watcher.pid": ROOT / "rag" / "watcher.pid",
-    Path.home() / ".fr_cli_rag_watcher.stop": ROOT / "rag" / "watcher.stop",
-    Path.home() / ".fr_cli_rag_watcher.log": ROOT / "rag" / "watcher.log",
-    # 其他
-    Path.home() / ".fr_cli_image_config.json": ROOT / "image_config.json",
-    Path.home() / ".fr_cli_agent_registry.json": ROOT / "registry.json",
-    Path.home() / ".fr_cli" / "gateway.json": ROOT / "gateway.json",
-    Path.home() / ".fr_cli" / "personalities.json": ROOT / "personalities.json",
-    Path.home() / ".fr_cli" / "skills": ROOT / "skills",
-    Path.home() / ".fr_cli" / "models.yaml": ROOT / "models.yaml",
-    Path.home() / ".fr_cli" / "context_files.json": ROOT / "context_files.json",
-}
+def _migration_map():
+    """动态计算迁移映射（基于当前 ROOT）"""
+    root = _root_holder.value
+    return {
+        # 主配置
+        Path.home() / ".zhipu_cli_config.json": root / "config.json",
+        Path.home() / ".zhipu_cli_config.json.bak": root / "config.json.bak",
+        # 短期摘要
+        Path.home() / ".zhipu_cli_context.json": root / "context.json",
+        # 会话存档
+        Path.home() / ".zhipu_cli_history": root / "sessions" / "manual",
+        Path.home() / ".fr_cli_sessions": root / "sessions" / "auto",
+        # 插件
+        Path.home() / ".zhipu_cli_plugins": root / "plugins",
+        # Agent 分身
+        Path.home() / ".fr_cli_agents": root / "agents",
+        # MasterAgent
+        Path.home() / ".fr_cli_master": root / "master",
+        # 远程
+        Path.home() / ".fr_cli_remote_agents.json": root / "remote" / "agents.json",
+        Path.home() / ".fr_cli_remotes.json": root / "remote" / "hosts.json",
+        # 数据库
+        Path.home() / ".fr_cli_databases.json": root / "database.json",
+        # MCP（之前有两套，合并）
+        Path.home() / ".fr_cli" / "mcp_servers.json": root / "mcp" / "servers.json",
+        # Gatekeeper
+        Path.home() / ".fr_cli_gatekeeper.json": root / "daemon" / "config.json",
+        Path.home() / ".fr_cli_gatekeeper.pid": root / "daemon" / "daemon.pid",
+        Path.home() / ".fr_cli_gatekeeper.stop": root / "daemon" / "daemon.stop",
+        # Hermes
+        Path.home() / ".fr_cli_hermes.token": root / "daemon" / "token",
+        Path.home() / ".fr_cli" / "config.json": root / "daemon" / "hermes_config.json",
+        # RAG
+        Path.home() / ".fr_cli_rag_db": root / "rag" / "db",
+        Path.home() / ".fr_cli_rag_watcher.pid": root / "rag" / "watcher.pid",
+        Path.home() / ".fr_cli_rag_watcher.stop": root / "rag" / "watcher.stop",
+        Path.home() / ".fr_cli_rag_watcher.log": root / "rag" / "watcher.log",
+        # 其他
+        Path.home() / ".fr_cli_image_config.json": root / "image_config.json",
+        Path.home() / ".fr_cli_agent_registry.json": root / "registry.json",
+        Path.home() / ".fr_cli" / "gateway.json": root / "gateway.json",
+        Path.home() / ".fr_cli" / "personalities.json": root / "personalities.json",
+        Path.home() / ".fr_cli" / "skills": root / "skills",
+        Path.home() / ".fr_cli" / "models.yaml": root / "models.yaml",
+        Path.home() / ".fr_cli" / "context_files.json": root / "context_files.json",
+    }
+
+
+# 保留向后兼容（一些代码可能直接 import 这个变量名）
+_MIGRATION_MAP = _migration_map()
 
 
 # =================================================================
@@ -83,9 +218,10 @@ def migrate(verbose: bool = False):
         return 0
     _migrated = True
 
-    ROOT.mkdir(parents=True, exist_ok=True)
+    root = _root_holder.value
+    root.mkdir(parents=True, exist_ok=True)
     moved = 0
-    for old, new in _MIGRATION_MAP.items():
+    for old, new in _migration_map().items():
         if not old.exists() or new.exists():
             continue
         try:
@@ -107,73 +243,6 @@ def reset_migration_flag():
     """仅供测试：重置迁移标志"""
     global _migrated
     _migrated = False
-
-
-# =================================================================
-# 新路径常量（唯一权威）
-# =================================================================
-# 配置
-CONFIG_FILE = ROOT / "config.json"
-CONFIG_BACKUP = ROOT / "config.json.bak"
-CONTEXT_FILE = ROOT / "context.json"
-MODELS_YAML = ROOT / "models.yaml"
-
-# 会话
-SESSIONS_DIR = ROOT / "sessions"
-SESSIONS_MANUAL_DIR = SESSIONS_DIR / "manual"
-SESSIONS_AUTO_DIR = SESSIONS_DIR / "auto"
-
-# 扩展
-PLUGIN_DIR = ROOT / "plugins"
-AGENTS_DIR = ROOT / "agents"
-MASTER_DIR = ROOT / "master"
-
-# 远程
-REMOTE_DIR = ROOT / "remote"
-REMOTE_AGENTS_FILE = REMOTE_DIR / "agents.json"
-REMOTE_HOSTS_FILE = REMOTE_DIR / "hosts.json"
-
-# 业务配置
-DATABASE_FILE = ROOT / "database.json"
-M365_FILE = ROOT / "m365.json"
-GATEWAY_FILE = ROOT / "gateway.json"
-PERSONALITIES_FILE = ROOT / "personalities.json"
-SKILLS_DIR = ROOT / "skills"
-IMAGE_CONFIG_FILE = ROOT / "image_config.json"
-REGISTRY_FILE = ROOT / "registry.json"
-CONTEXT_FILES_FILE = ROOT / "context_files.json"
-
-# MCP
-MCP_DIR = ROOT / "mcp"
-MCP_SERVERS_FILE = MCP_DIR / "servers.json"
-
-# 守护进程
-DAEMON_DIR = ROOT / "daemon"
-DAEMON_CONFIG_FILE = DAEMON_DIR / "config.json"
-DAEMON_PID_FILE = DAEMON_DIR / "daemon.pid"
-DAEMON_STOP_FILE = DAEMON_DIR / "daemon.stop"
-DAEMON_TOKEN_FILE = DAEMON_DIR / "token"
-DAEMON_HERMES_CONFIG_FILE = DAEMON_DIR / "hermes_config.json"
-
-# Hermes
-HERMES_DIR = ROOT / "hermes"
-HERMES_TASKS_FILE = HERMES_DIR / "tasks.json"
-HERMES_GOALS_FILE = HERMES_DIR / "goals.json"
-HERMES_ANALYTICS_FILE = HERMES_DIR / "analytics.json"
-HERMES_LOG_FILE = HERMES_DIR / "hermes.log"
-HERMES_REVIEW_QUEUE_FILE = HERMES_DIR / "review_queue.json"
-HERMES_MEMORY_FILE = HERMES_DIR / "memory.json"
-ERROR_LEDGER_FILE = ROOT / "error_ledger.json"
-HERMES_DAEMON_CONFIG_FILE = HERMES_DIR / "daemon.json"
-HERMES_DAEMON_PID_FILE = HERMES_DIR / "daemon.pid"
-HERMES_DAEMON_STOP_FILE = HERMES_DIR / "daemon.stop"
-
-# RAG
-RAG_DIR = ROOT / "rag"
-RAG_DB_DIR = RAG_DIR / "db"
-RAG_WATCHER_PID_FILE = RAG_DIR / "watcher.pid"
-RAG_WATCHER_STOP_FILE = RAG_DIR / "watcher.stop"
-RAG_WATCHER_LOG_FILE = RAG_DIR / "watcher.log"
 
 
 # =================================================================

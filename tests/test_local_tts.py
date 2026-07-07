@@ -1,5 +1,4 @@
 """本地 TTS 测试"""
-import platform
 import unittest
 from unittest.mock import patch, MagicMock
 

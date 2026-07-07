@@ -2,13 +2,10 @@
 import os
 import tempfile
 import unittest
-from pathlib import Path
-from unittest.mock import patch
 
 from fr_cli.memory.incremental import (
     IncrementalSessionWriter, update_session_incremental,
-    read_session_full, read_session_full_data,
-    DEFAULT_SNAPSHOT_THRESHOLD,
+    read_session_full_data,
 )
 
 

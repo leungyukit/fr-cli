@@ -13,12 +13,14 @@ Hermes 独立守护进程 —— 脱离 REPL 终端的后台子进程
 
 停止方式：
     创建 ~/.fr_cli/hermes/daemon.stop 标记文件，守护进程检测到后自行退出。
+
+守护进程配置从 ~/.fr_cli/config.json 的 hermes.daemon 命名空间读取；
+旧文件 ~/.fr_cli/hermes/daemon.json 会在首次加载时一次性迁移。
 """
 
 import os
 import sys
 import time
-import json
 import signal
 import atexit
 
@@ -35,6 +37,7 @@ from fr_cli.conf.paths import (
 
 PID_FILE = HERMES_DAEMON_PID_FILE
 STOP_FILE = HERMES_DAEMON_STOP_FILE
+# 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 CONFIG_FILE = HERMES_DAEMON_CONFIG_FILE
 
 
@@ -75,13 +78,13 @@ def _setup_signal_handlers():
 
 
 def _load_config():
-    if CONFIG_FILE.exists():
-        try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {"port": 8765, "host": "127.0.0.1", "lang": "zh"}
+    """从主配置 hermes.daemon 命名空间读取（首次会从老文件迁移）"""
+    try:
+        from fr_cli.conf.config import load_namespace
+        cfg = load_namespace("hermes.daemon", default={"port": 8765, "host": "127.0.0.1", "lang": "zh"}, old_path=CONFIG_FILE)
+        return cfg
+    except Exception:
+        return {"port": 8765, "host": "127.0.0.1", "lang": "zh"}
 
 
 def _init_services(daemon_cfg):

@@ -8,8 +8,7 @@ from unittest.mock import patch
 
 from fr_cli.memory.resume import (
     find_latest_auto_session, is_resumable, format_resume_prompt,
-    load_last_n_turns, ask_resume_choice, DEFAULT_LOAD_TURNS,
-    RESUME_WINDOW_SECONDS,
+    load_last_n_turns, ask_resume_choice, RESUME_WINDOW_SECONDS,
 )
 
 

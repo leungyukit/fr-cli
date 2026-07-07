@@ -288,7 +288,8 @@ docker compose up fr-cli
 
 - **`core/store.py`**：`JsonStore` —— 统一 JSON 持久化抽象
   - 原子写、默认回退、文件权限控制、线程安全
-  - 已用于 `usage.json`、`cron.json`、`m365.json`、Agent `config.json`/`progress.json`、Gatekeeper `daemon/config.json`、`memory/history`、`memory/session`、`dynamic_builder/registry.json`
+  - 已用于 `usage.json`、`context.json`、Agent `progress.json`、`memory/history`、`memory/session`、`dynamic_builder/registry.json`（这些是运行时状态/数据，不是配置）
+  - **配置类**数据已统一收敛到 `config.json` 的命名空间（见配置系统章节），用 `conf/config.py:load_namespace/save_namespace` 访问
 
 - **`core/usage.py`**：`UsageTracker` —— LLM 调用用量统计
 
@@ -1068,13 +1069,16 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
 - `~/.fr_cli/plugins/` — 用户插件 `.py` 文件
 - `~/.fr_cli/context.json` — 上下文记忆摘要
 - `~/.fr_cli/usage.json` — LLM 调用用量统计（文件权限 0o600）
-- `~/.fr_cli/cron.json` — 定时任务持久化
-- `~/.fr_cli/m365.json` — Microsoft 365 OAuth token 缓存（文件权限 0o600）
 - `~/.fr_cli/agents/<name>/config.json` — Agent 专属模型配置
 - `~/.fr_cli/agents/<name>/progress.json` — Agent 定时任务执行进度
-- `~/.fr_cli/daemon/config.json` — Gatekeeper 守护进程配置
 
-> **统一持久化抽象**：新增 `fr_cli/core/store.py:JsonStore`，为所有 JSON 文件提供原子写、默认回退、权限控制与线程安全。目前已用于 `usage.json`、`cron.json`、`m365.json`、Agent `config.json`/`progress.json`、Gatekeeper `daemon/config.json`，其他 JSON 存储可逐步迁移。
+> **配置统一收敛**：所有用户配置（cron / m365 / database / remote.hosts / gatekeeper / hermes.daemon）都已合并到 `~/.fr_cli/config.json` 的对应命名空间下（cron / m365 / databases / remote / gatekeeper / hermes.daemon）。`fr_cli/conf/config.py` 提供 `load_namespace(key, default, old_path)` / `save_namespace(key, value)` 工具函数，**支持点分路径**（如 `hermes.daemon`）和**老文件自动迁移**。
+> 
+> 旧独立文件（cron.json / m365.json / database.json / remote/hosts.json / daemon/config.json / hermes/daemon.json）在首次加载时会**自动迁移到主配置**，迁移成功后旧文件会被重命名为 `*.migrated`，作为一次性备份。
+> 
+> 仅 `~/.fr_cli/agents/<name>/config.json` 保留为独立文件 —— 因为每个 Agent 的配置是独立的、动态增删的，放在主配置会污染根命名空间。
+> 
+> **统一持久化抽象**：`fr_cli/core/store.py:JsonStore` 提供原子写、默认回退、权限控制与线程安全。目前用于 `usage.json`、`context.json`、Agent `progress.json`、Gatekeeper 进程 PID/Stop 文件等"运行时数据"类文件（这些不是配置而是状态）。
 
 ---
 
@@ -1329,4 +1333,58 @@ Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务�
 | 跨任务记忆 | Hermes 任务携带 `context_tags`，执行前注入相关历史任务摘要 | `agent/hermes/managers.py` 的 `HermesMemoryStore` |
 | 集中式错误报告 | `/status errors` 聚合 Hermes 失败、自测回滚、审核拒绝、MasterAgent 失败模式 | `core/error_ledger.py`, `core/core.py`, `repl/commands/system/status.py` |
 
-*文档更新时间：2026-06-21（已完成：统一注册表 + AppState DI 容器 + Agent 分身系统 + Agent HTTP 服务 + 内置 Agent（local/remote/spider/db/RAG/stock）+ 数据卷轴 + 本机应用启动 + Gatekeeper 热重载与 Agent 定时任务 + CoT/ToT/ReAct/Plan 思维推演模式 + MasterAgent 自我进化主控 + 按日期自动存档会话 + 蜂群统一调度（Agent/工具/命令/MCP/插件）+ OCR 文字识别（Vision API + PaddleOCR 本地引擎）+ StockShareAgent 股票量化助手 + 计划模式 + 动态构建系统（按需安装依赖并生成工具）+ Microsoft 365 邮件现代认证（OAuth2 设备码/授权码流 + MFA）+ 架构评审 dead code 清理 + 高危漏洞修复 + Result 返回风格统一 + 自主增强收尾阶段：目标分解/自测回滚/失败学习/缺口发现/跨任务记忆/集中错误报告 + 第二轮架构优化：master.py 通过 mixin 拆为 6 个文件、ui/prompt.py 拆包、agent/builtins/spider.py 拆包、agent/hermes.py 拆包、repl/commands/config|system 拆包、删除 personality/skills/splash/web_config 等死代码）。*
+## 消息平台推送（v2.8+）
+
+通过 webhook 单向推送通知到主流协作平台（零依赖，仅 requests）：
+
+| 平台 | 命令 | 关键文件 |
+|---|---|---|
+| 飞书 / Lark | `/notify_add lark <webhook> [secret]` | `weapon/notifier.py` `_send_lark` |
+| 钉钉 | `/notify_add dingtalk <webhook> [secret]` | `weapon/notifier.py` `_send_dingtalk` |
+| 企业微信 | `/notify_add wecom <webhook>` | `weapon/notifier.py` `_send_wecom` |
+| Slack | `/notify_add slack <webhook>` | `weapon/notifier.py` `_send_slack` |
+| Discord | `/notify_add discord <webhook>` | `weapon/notifier.py` `_send_discord` |
+| Telegram | `/notify_add telegram <webhook>` | `weapon/notifier.py` `_send_telegram` |
+
+典型用法：定时任务执行结果通知
+```bash
+/cron_add "0 9 * * *" "/notify lark '早安,今日数据已就绪'"
+/notify lark '手动推送测试'
+/notify all '重要告警'  # 群发所有通道
+```
+
+## Dream 梦境机制（v2.8+）
+
+参考 OpenClaw/HermesAgent 的「Dream」概念：用户空闲时主动整理长期记忆。
+
+| 入口 | 行为 | 关键文件 |
+|---|---|---|
+| `/dream` | 立即执行一次梦境整理（LLM 提炼经验/偏好/最佳实践） | `agent/dream.py` `DreamEngine.dream_now` |
+| `/dream status` | 显示梦境统计 | `agent/dream.py` `get_dream_summary` |
+| 自动 | MasterAgent 空闲 30 分钟无新交互时触发 | `agent/dream.py` `DreamEngine.start_idle_watcher` |
+
+输出归档：
+- 长期索引：`~/.fr_cli/master/dream_index.json`（按主题、含频次）
+- 人类可读：`~/.fr_cli/master/dream_log.md`（Markdown 章节）
+
+## Cron 表达式（v2.8+）
+
+定时任务支持三种调度模式（向 OpenClaw / HermesAgent 看齐）：
+
+```bash
+# 旧式 interval（兼容）：每秒/分钟间隔
+/cron_add echo hello 60
+
+# 标准 cron 表达式：每天 9 点
+/cron_add echo morning "0 9 * * *"
+
+# 每 5 分钟一次
+/cron_add "*/5 * * * *" "/notify lark 心跳检测"
+
+# 一次性任务：指定时间
+/cron_add echo "2026 新年快乐" "2027-01-01 00:00:00"
+```
+
+底层用 `croniter` 库，支持标准 5/6 字段 cron 表达式。
+
+*文档更新时间：2026-07-07（v2.8 阶段：Cron 表达式标准支持 + Dream 梦境机制 + Notifier 多平台消息推送 + 全部配置收敛到主 config.json + GitHub Actions CI/CD）。*

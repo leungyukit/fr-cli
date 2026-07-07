@@ -477,8 +477,8 @@ class TestModelWizard:
         test_bak = tmp_path / "config.json.bak"
         monkeypatch.setattr(conf_mod, "CONFIG_FILE", test_cfg)
         monkeypatch.setattr(conf_mod, "CONFIG_BACKUP", test_bak)
-        monkeypatch.setattr(paths_mod, "CONFIG_FILE", test_cfg)
-        monkeypatch.setattr(paths_mod, "CONFIG_BACKUP", test_bak)
+        monkeypatch.setattr(paths_mod._root_holder, "value", test_cfg.parent)
+
 
         from fr_cli.conf.config import load_config
         from fr_cli.conf.model_wizard import run_model_wizard
@@ -512,8 +512,8 @@ class TestModelWizard:
         test_bak = tmp_path / "config.json.bak"
         monkeypatch.setattr(conf_mod, "CONFIG_FILE", test_cfg)
         monkeypatch.setattr(conf_mod, "CONFIG_BACKUP", test_bak)
-        monkeypatch.setattr(paths_mod, "CONFIG_FILE", test_cfg)
-        monkeypatch.setattr(paths_mod, "CONFIG_BACKUP", test_bak)
+        monkeypatch.setattr(paths_mod._root_holder, "value", test_cfg.parent)
+
 
         from fr_cli.conf.config import load_config
         from fr_cli.conf.model_wizard import run_model_wizard
@@ -580,8 +580,8 @@ class TestInitConfigWizard:
         import fr_cli.conf.paths as paths_mod
         monkeypatch.setattr(conf_mod, "CONFIG_FILE", tmp_path / "config.json")
         monkeypatch.setattr(conf_mod, "CONFIG_BACKUP", tmp_path / "config.json.bak")
-        monkeypatch.setattr(paths_mod, "CONFIG_FILE", tmp_path / "config.json")
-        monkeypatch.setattr(paths_mod, "CONFIG_BACKUP", tmp_path / "config.json.bak")
+        monkeypatch.setattr(paths_mod._root_holder, "value", tmp_path)
+
 
         # 标记为交互式
         try:

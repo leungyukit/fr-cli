@@ -1,5 +1,4 @@
 """Crypto wallet 测试(只读查询,不联网的部分)"""
-import json
 import unittest
 from unittest.mock import patch
 

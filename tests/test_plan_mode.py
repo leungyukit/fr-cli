@@ -18,7 +18,8 @@ from fr_cli.core import plan_mode
 def isolated_session(tmp_path, monkeypatch):
     """隔离 _plan_file_for_session 路径"""
     from fr_cli.conf import paths as paths_mod
-    monkeypatch.setattr(paths_mod, "CONTEXT_FILE", tmp_path / "context.json")
+    # CONTEXT_FILE = ROOT / "context.json", 通过改 _root_holder 让所有路径指向 tmp_path
+    monkeypatch.setattr(paths_mod._root_holder, "value", tmp_path)
 
 
 # ==================== save / load / clear ====================

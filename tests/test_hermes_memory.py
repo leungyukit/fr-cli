@@ -12,12 +12,7 @@ def hermes_env(tmp_path, monkeypatch):
     """将 Hermes 持久化路径隔离到临时目录"""
     import fr_cli.conf.paths as paths_mod
 
-    monkeypatch.setattr(paths_mod, "HERMES_DIR", tmp_path)
-    monkeypatch.setattr(paths_mod, "HERMES_TASKS_FILE", tmp_path / "tasks.json")
-    monkeypatch.setattr(paths_mod, "HERMES_GOALS_FILE", tmp_path / "goals.json")
-    monkeypatch.setattr(paths_mod, "HERMES_ANALYTICS_FILE", tmp_path / "analytics.json")
-    monkeypatch.setattr(paths_mod, "HERMES_MEMORY_FILE", tmp_path / "memory.json")
-    monkeypatch.setattr(paths_mod, "HERMES_LOG_FILE", tmp_path / "hermes.log")
+    monkeypatch.setattr(paths_mod._root_holder, "value", tmp_path)
     return tmp_path
 
 

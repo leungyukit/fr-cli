@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 
 from fr_cli.command.parallel import (
     extract_parallel_calls, _split_calls, remove_parallel_markers,
-    ParallelExecutor, DEFAULT_MAX_WORKERS, _clamp_workers,
+    ParallelExecutor, _clamp_workers,
 )
 
 

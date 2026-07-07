@@ -1,6 +1,6 @@
 """
 配置文件读写与初始化引擎
-支持原子写入与自动备份，防止写入中断导致配置丢失
+支持原子写入与自动备份，防止写入中断损坏配置
 
 新架构：所有路径都来自 fr_cli.conf.paths（单一真相源）。
 旧路径在首次启动时由 paths.migrate() 自动迁移到新位置。
@@ -10,8 +10,10 @@ import os
 import shutil
 from pathlib import Path
 from fr_cli.ui.ui import YELLOW, RED, GREEN, CYAN, RESET, DIM
+from fr_cli.conf import paths as _paths
+# 重新导出路径常量，方便测试 monkeypatch（生产代码用 _paths.XXX 访问）
 from fr_cli.conf.paths import (
-    CONFIG_FILE, CONFIG_BACKUP, ROOT,
+    ROOT,
     migrate as paths_migrate,
 )
 
@@ -108,22 +110,26 @@ def load_config():
     """
     d = _default_config()
 
+    # 每次动态计算路径，方便测试 monkeypatch ROOT
+    config_file = _paths.CONFIG_FILE
+    config_backup = _paths.CONFIG_BACKUP
+
     # 1. 尝试加载主配置文件（新路径）
     c = None
-    if CONFIG_FILE.exists():
+    if config_file.exists():
         try:
-            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+            with open(config_file, "r", encoding="utf-8") as f:
                 c = json.load(f)
         except Exception as e:
             print(f"{YELLOW}⚠️ 配置文件损坏: {e}{RESET}")
 
     # 2. 尝试从备份恢复
-    if c is None and CONFIG_BACKUP.exists():
+    if c is None and config_backup.exists():
         try:
-            with open(CONFIG_BACKUP, "r", encoding="utf-8") as f:
+            with open(config_backup, "r", encoding="utf-8") as f:
                 c = json.load(f)
             print(f"{GREEN}✅ 已从备份恢复配置{RESET}")
-            shutil.copy2(CONFIG_BACKUP, CONFIG_FILE)
+            shutil.copy2(config_backup, config_file)
         except Exception as e:
             print(f"{YELLOW}⚠️ 备份文件也损坏: {e}{RESET}")
 
@@ -146,21 +152,25 @@ def load_config():
 def save_config(c):
     """将配置字典原子写入本地（先写临时文件再重命名，避免写入中断损坏配置）"""
     try:
+        # 每次动态计算路径
+        config_file = _paths.CONFIG_FILE
+        config_backup = _paths.CONFIG_BACKUP
+
         # 确保新根目录存在
-        CONFIG_FILE.parent.mkdir(parents=True, exist_ok=True)
+        config_file.parent.mkdir(parents=True, exist_ok=True)
 
         # 1. 备份现有配置
-        if CONFIG_FILE.exists():
-            shutil.copy2(CONFIG_FILE, CONFIG_BACKUP)
+        if config_file.exists():
+            shutil.copy2(config_file, config_backup)
 
         # 2. 使用安全临时文件（随机名称 + 600 权限）
         import tempfile
-        fd, tmp_path = tempfile.mkstemp(dir=CONFIG_FILE.parent, suffix=".json.tmp")
+        fd, tmp_path = tempfile.mkstemp(dir=config_file.parent, suffix=".json.tmp")
         try:
             os.chmod(tmp_path, 0o600)
             with os.fdopen(fd, "w", encoding="utf-8") as f:
                 json.dump(c, f, indent=4, ensure_ascii=False)
-            Path(tmp_path).replace(CONFIG_FILE)
+            Path(tmp_path).replace(config_file)
         except Exception:
             try:
                 os.remove(tmp_path)
@@ -181,13 +191,23 @@ class ConfigError(Exception):
 def load_namespace(key, default=None, old_path=None):
     """从主配置 config.json 的命名空间中读取数据。
 
+    key 支持点分路径，如 "hermes.daemon" 对应 cfg["hermes"]["daemon"]。
+
+    default 接受类型（dict / list）或实例；传类型时会自动实例化，
+    避免调用方误把 dict 类当 dict 实例使用。
+
     若 old_path 指定的旧独立配置文件存在且主配置中该命名空间为空，
     则一次性迁移旧文件内容到主配置并保存。
     """
     if default is None:
         default = {}
+    # 兼容传类型的情况
+    if default is dict:
+        default = {}
+    elif default is list:
+        default = []
     cfg = load_config()
-    data = cfg.get(key)
+    data = _get_nested(cfg, key)
     if data is not None:
         return data
 
@@ -198,7 +218,7 @@ def load_namespace(key, default=None, old_path=None):
             try:
                 old_data = json.loads(old_path.read_text(encoding="utf-8"))
                 if old_data:
-                    cfg[key] = old_data
+                    _set_nested(cfg, key, old_data)
                     save_config(cfg)
                     try:
                         old_path.rename(str(old_path) + ".migrated")
@@ -212,10 +232,33 @@ def load_namespace(key, default=None, old_path=None):
 
 
 def save_namespace(key, value):
-    """把数据写入主配置 config.json 的命名空间并持久化。"""
+    """把数据写入主配置 config.json 的命名空间并持久化。
+
+    key 支持点分路径。
+    """
     cfg = load_config()
-    cfg[key] = value
+    _set_nested(cfg, key, value)
     save_config(cfg)
+
+
+def _get_nested(cfg, key):
+    """支持点分路径的取值"""
+    parts = key.split(".")
+    cur = cfg
+    for p in parts:
+        if not isinstance(cur, dict) or p not in cur:
+            return None
+        cur = cur[p]
+    return cur
+
+
+def _set_nested(cfg, key, value):
+    """支持点分路径的赋值"""
+    parts = key.split(".")
+    cur = cfg
+    for p in parts[:-1]:
+        cur = cur.setdefault(p, {})
+    cur[parts[-1]] = value
 
 
 def init_config(*, force_wizard: bool = False, interactive: bool = None):

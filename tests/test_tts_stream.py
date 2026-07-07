@@ -1,6 +1,6 @@
 """TTS 流式合成测试"""
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from fr_cli.weapon.local_tts import speak_stream
 

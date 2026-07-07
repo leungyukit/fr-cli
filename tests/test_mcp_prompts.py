@@ -1,6 +1,6 @@
 """MCP Prompts 测试"""
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 from fr_cli.weapon.mcp import (
     MCPServer, MCPServerManager,

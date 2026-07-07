@@ -1,5 +1,4 @@
 """Bookmark 收藏夹测试"""
-import json
 import os
 import tempfile
 import unittest
@@ -7,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from fr_cli.weapon.bookmark import (
-    _html_to_md, _ensure_dirs, list_bookmarks, remove_bookmark,
+    _html_to_md, list_bookmarks, remove_bookmark,
     get_bookmark, search_bookmarks, import_chrome_bookmarks,
     format_bookmarks_list,
 )
@@ -71,7 +70,6 @@ class TestBookmarkCRUD(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp(prefix="test_bm_")
         # patch 所有 path
-        from fr_cli.conf.paths import ROOT as FR_CLI_DIR
         import fr_cli.weapon.bookmark as mod
         self.real_dir = mod.BOOKMARKS_DIR
         self.real_content = mod.CONTENT_DIR

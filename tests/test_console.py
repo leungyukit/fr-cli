@@ -1,19 +1,12 @@
 """Web 控制台测试"""
 import json
-import os
-import tempfile
-import threading
-import time
 import unittest
 import urllib.request
-from pathlib import Path
 from unittest.mock import patch
 
 from fr_cli.web.console import (
     start_console, stop_console, console_status,
-    _get_global_status, _get_sessions_list, _get_session_detail,
-    _make_handler, _generate_token, _render_homepage,
-    DEFAULT_HOST, DEFAULT_PORT,
+    _get_global_status, _generate_token, _render_homepage,
 )
 
 
@@ -106,7 +99,7 @@ class TestHTTPEndpoints(unittest.TestCase):
                                token=self.token, open_browser=False)
         if not result["ok"]:
             self.skipTest(f"无法启动控制台: {result.get('error')}")
-        self.base_url = f"http://127.0.0.1:17780"
+        self.base_url = "http://127.0.0.1:17780"
 
     def tearDown(self):
         stop_console()

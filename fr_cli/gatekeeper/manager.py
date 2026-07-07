@@ -1,6 +1,9 @@
 """
 Gatekeeper 管理器 —— 守护进程管理器
 在主进程中控制守护进程的启动、停止与状态查询。
+
+守护进程配置统一收敛到 ~/.fr_cli/config.json 的 gatekeeper 命名空间。
+旧文件 ~/.fr_cli/daemon/config.json 会在首次加载时一次性迁移。
 """
 import os
 import sys
@@ -9,17 +12,30 @@ import signal
 import subprocess
 from pathlib import Path
 from fr_cli.conf.paths import DAEMON_PID_FILE, DAEMON_STOP_FILE, DAEMON_CONFIG_FILE
+from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.core.result import Result
-from fr_cli.core.store import JsonStore
 
 PID_FILE = DAEMON_PID_FILE
 STOP_FILE = DAEMON_STOP_FILE
+# 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 DAEMON_CONFIG_FILE = DAEMON_CONFIG_FILE
+
+_GATEKEEPER_NS = "gatekeeper"
+
+
+class _GatekeeperStore:
+    """JsonStore 兼容接口，对应 gatekeeper 命名空间"""
+
+    def read(self):
+        return load_namespace(_GATEKEEPER_NS, default={}, old_path=DAEMON_CONFIG_FILE)
+
+    def write(self, cfg):
+        save_namespace(_GATEKEEPER_NS, cfg)
 
 
 def _daemon_store():
-    """返回基于当前 DAEMON_CONFIG_FILE 的 JsonStore"""
-    return JsonStore(DAEMON_CONFIG_FILE, default=dict)
+    """返回 JsonStore 兼容的对象，用于读写 gatekeeper 命名空间"""
+    return _GatekeeperStore()
 
 
 class GatekeeperManager:

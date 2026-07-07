@@ -75,8 +75,9 @@ class TestForeverConfirm:
         # 用临时 config 文件
         config_file = tmp_path / "config.json"
         config_file.write_text("{}", encoding="utf-8")
-        import fr_cli.conf.config as cfg_mod
-        monkeypatch.setattr(cfg_mod, "CONFIG_FILE", config_file)
+        from fr_cli.conf import paths
+        # 通过 monkeypatch paths 模块的 _root_holder 让所有路径都指向 tmp
+        monkeypatch.setattr(paths._root_holder, "value", tmp_path)
 
         with patch("builtins.input", return_value="f"):
             ok, s, f = ask("sec_read", "/tmp/x", "zh", {}, {}, {"auto_confirm": {}})

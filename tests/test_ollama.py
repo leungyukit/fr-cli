@@ -1,14 +1,10 @@
 """Ollama 测试"""
-import json
-import os
-import tempfile
 import unittest
-from pathlib import Path
 from unittest.mock import patch
 
 from fr_cli.weapon.ollama import (
     detect_ollama, list_models, delete_model, format_status,
-    _human_size, _http_request,
+    _human_size,
 )
 
 

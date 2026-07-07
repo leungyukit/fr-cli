@@ -3,7 +3,6 @@ import json
 import os
 import tempfile
 import unittest
-from unittest.mock import patch
 
 from fr_cli.weapon.session_to_ppt import (
     load_session_messages, extract_conversation_pairs,

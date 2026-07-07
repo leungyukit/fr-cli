@@ -9,11 +9,13 @@ Gatekeeper 守护进程 —— 后台守护进程
 
 停止方式：
     创建 ~/.fr_cli/daemon/daemon.stop 标记文件，守护进程检测到后自行退出。
+
+守护进程配置从 ~/.fr_cli/config.json 的 gatekeeper 命名空间读取；
+旧文件 ~/.fr_cli/daemon/config.json 会在首次加载时一次性迁移。
 """
 import os
 import sys
 import time
-import json
 import signal
 import atexit
 
@@ -24,6 +26,7 @@ if _project_root not in sys.path:
 
 PID_FILE = DAEMON_PID_FILE
 STOP_FILE = DAEMON_STOP_FILE
+# 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 DAEMON_CONFIG_FILE = DAEMON_CONFIG_FILE
 
 # 配置热重载间隔（秒）
@@ -66,13 +69,12 @@ def _setup_signal_handlers():
 
 
 def _load_daemon_config():
-    if DAEMON_CONFIG_FILE.exists():
-        try:
-            with open(DAEMON_CONFIG_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except Exception:
-            pass
-    return {}
+    """从主配置 gatekeeper 命名空间读取守护进程配置（首次会从老文件迁移）"""
+    try:
+        from fr_cli.conf.config import load_namespace
+        return load_namespace("gatekeeper", default={}, old_path=DAEMON_CONFIG_FILE)
+    except Exception:
+        return {}
 
 
 def _reload_cron_jobs(cron_mgr, daemon_cfg, state):

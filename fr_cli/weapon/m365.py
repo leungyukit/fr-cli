@@ -4,12 +4,14 @@ Microsoft 365 邮件客户端 —— 腾云驾雾之现代认证
 支持 OAuth2 设备代码流 / 授权码流，兼容 Microsoft 365 的 MFA 多因素认证。
 邮件收发通过 Microsoft Graph API。
 
-配置项收敛在 ~/.fr_cli/m365.json 中：
+配置项收敛在 ~/.fr_cli/config.json 的 m365 命名空间：
   tenant_id:     Azure AD 租户 ID（common 表示个人/多租户）
   client_id:     Azure AD 应用注册 ID
   flow:          "device_code"（默认）或 "authorization_code"
   redirect_uri:  授权码流回调地址（默认 http://localhost:17891）
   token_cache:   MSAL 序列化后的 token 缓存（由程序自动维护）
+
+旧文件 ~/.fr_cli/m365.json 会在首次加载时一次性迁移。
 """
 import time
 import webbrowser
@@ -18,11 +20,12 @@ from typing import Any, Dict, List, Optional, Tuple
 import requests
 
 from fr_cli.conf.paths import M365_FILE
+from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.ui.ui import CYAN, GREEN, RED, RESET, YELLOW, DIM
-from fr_cli.core.store import JsonStore
 from fr_cli.core.result import Result
 
 
+# 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 M365_CONFIG_FILE = M365_FILE
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
 AUTHORITY_BASE = "https://login.microsoftonline.com"
@@ -30,13 +33,13 @@ DEFAULT_SCOPES = ["Mail.Read", "Mail.Send", "User.Read"]
 
 
 def _load_m365_cfg() -> Dict[str, Any]:
-    """加载 M365 配置"""
-    return JsonStore(M365_CONFIG_FILE, default=dict).read()
+    """加载 M365 配置（从主配置 m365 命名空间，老文件一次性迁移）"""
+    return load_namespace("m365", default={}, old_path=M365_CONFIG_FILE)
 
 
 def _save_m365_cfg(cfg: Dict[str, Any]):
-    """保存 M365 配置（敏感 token 文件设置 0o600）"""
-    JsonStore(M365_CONFIG_FILE, default=dict).write(cfg)
+    """保存 M365 配置到主配置 m365 命名空间"""
+    save_namespace("m365", cfg)
 
 
 def _ensure_msal():
@@ -425,6 +428,13 @@ def m365_config_wizard(lang: str = "zh") -> Tuple[bool, Dict[str, Any]]:
 def m365_logout() -> bool:
     """清除本地 M365 配置与 token 缓存"""
     try:
+        # 清理主配置中的 m365 命名空间
+        from fr_cli.conf.config import load_config, save_config
+        cfg = load_config()
+        if "m365" in cfg:
+            del cfg["m365"]
+            save_config(cfg)
+        # 兼容旧独立文件
         if M365_CONFIG_FILE.exists():
             M365_CONFIG_FILE.unlink()
         return True
