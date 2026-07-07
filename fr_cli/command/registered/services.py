@@ -117,18 +117,19 @@ def _cron_add(deps, **kwargs):
       - "0 9 * * *"       → cron 表达式（每天 9 点）
       - "2026-12-31 23:59" → at 一次性任务
     """
-    from fr_cli.weapon.cron import add_job, _default_manager
+    from fr_cli.weapon.cron import _default_manager
     from fr_cli.gatekeeper.manager import sync_gatekeeper_cron_jobs
 
     cmd = kwargs.get("command", "")
     schedule = kwargs.get("schedule", "")
 
-    # 兼容旧式：schedule 是纯数字 → interval
+    # 直接调 manager.add_job,避免模块级包装的参数限制
     try:
+        # 兼容旧式：schedule 是纯数字 → interval
         interval_val = float(schedule)
-        jid, m = add_job(cmd=cmd, interval=interval_val, lang=deps.lang)
+        jid, m = _default_manager.add_job(cmd=cmd, interval=interval_val, lang=deps.lang)
     except ValueError:
-        jid, m = add_job(cmd=cmd, schedule=schedule, lang=deps.lang)
+        jid, m = _default_manager.add_job(cmd=cmd, schedule=schedule, lang=deps.lang)
 
     if jid is not None:
         sync_gatekeeper_cron_jobs(cron_jobs=_default_manager.export_jobs())

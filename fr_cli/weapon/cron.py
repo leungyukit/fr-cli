@@ -417,16 +417,23 @@ _default_manager = CronManager()
 JOBS = _default_manager.jobs
 
 
-def add_job(cmd, interval, lang):
-    """添加定时任务（向后兼容旧接口，推荐用 manager.add_job(schedule=...)）"""
+def add_job(cmd=None, interval=None, lang="zh", schedule=None, **_unused):
+    """添加定时任务（向后兼容旧接口）。
+
+    支持两种调用：
+      - 旧式：add_job(cmd, interval, lang)
+      - 新式：add_job(cmd=..., schedule=..., lang=...)
+    """
+    if schedule is not None:
+        return _default_manager.add_job(cmd=cmd, schedule=schedule, lang=lang)
     return _default_manager.add_job(cmd=cmd, interval=interval, lang=lang)
 
 
-def list_jobs(lang):
+def list_jobs(lang="zh"):
     """列出定时任务（委托给默认管理器）"""
     return _default_manager.list_jobs(lang)
 
 
-def del_job(job_id, lang):
+def del_job(job_id, lang="zh"):
     """删除定时任务（委托给默认管理器）"""
     return _default_manager.del_job(job_id, lang)

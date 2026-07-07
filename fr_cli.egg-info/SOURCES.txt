@@ -17,6 +17,7 @@ fr_cli/agent/__init__.py
 fr_cli/agent/artifact_detector.py
 fr_cli/agent/client.py
 fr_cli/agent/dispatch.py
+fr_cli/agent/dream.py
 fr_cli/agent/executor.py
 fr_cli/agent/generator.py
 fr_cli/agent/hermes_daemon.py
@@ -252,6 +253,7 @@ fr_cli/weapon/local_tts.py
 fr_cli/weapon/m365.py
 fr_cli/weapon/mail.py
 fr_cli/weapon/network.py
+fr_cli/weapon/notifier.py
 fr_cli/weapon/ocr.py
 fr_cli/weapon/ollama.py
 fr_cli/weapon/remote.py
@@ -300,11 +302,13 @@ tests/test_context.py
 tests/test_context_compress.py
 tests/test_cron.py
 tests/test_cron_persist.py
+tests/test_cron_schedules.py
 tests/test_crypto.py
 tests/test_dataframe.py
 tests/test_defi.py
 tests/test_defi_chart.py
 tests/test_diff_view.py
+tests/test_dream.py
 tests/test_dynamic_builder.py
 tests/test_dynamic_builder_selftest.py
 tests/test_event_auto_record.py
@@ -345,6 +349,7 @@ tests/test_multi_edit.py
 tests/test_network.py
 tests/test_new_providers.py
 tests/test_no_color_prompt_toolkit.py
+tests/test_notifier.py
 tests/test_ocr.py
 tests/test_ollama.py
 tests/test_parallel.py

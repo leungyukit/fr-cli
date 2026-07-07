@@ -207,15 +207,34 @@ def parse_cmd_args(parts: List[str], tool: Dict[str, Any], deps: Any) -> Dict[st
 
     # Cron
     if name == "cron_add":
+        # 新接口：/cron_add <command> <schedule>
+        # schedule 可以是：秒数（旧式）、cron 表达式、或 ISO 时间（at 任务）
         kwargs = {"command": arg1}
         if len(parts) > 2:
-            try:
-                kwargs["interval"] = int(parts[2])
-            except ValueError:
-                kwargs["interval"] = 60
+            kwargs["schedule"] = parts[2]
         else:
-            kwargs["interval"] = 60
+            kwargs["schedule"] = "60"  # 默认 60 秒
         return kwargs
+
+    # Dream 梦境
+    if name == "dream":
+        return {"action": arg1}
+
+    # Notifier 通知
+    if name == "notify":
+        kwargs = {"channel": arg1}
+        if len(parts) > 2:
+            kwargs["message"] = ' '.join(parts[2:])
+        return kwargs
+    if name == "notify_add":
+        kwargs = {"channel": arg1, "webhook": arg2}
+        if len(parts) > 3:
+            kwargs["secret"] = parts[3]
+        return kwargs
+    if name == "notify_rm":
+        return {"channel": arg1}
+    if name == "notify_list":
+        return {}
     if name == "cron_list":
         return {}
     if name == "cron_del":

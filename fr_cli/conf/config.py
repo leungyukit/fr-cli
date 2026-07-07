@@ -12,8 +12,11 @@ from pathlib import Path
 from fr_cli.ui.ui import YELLOW, RED, GREEN, CYAN, RESET, DIM
 from fr_cli.conf import paths as _paths
 # 重新导出路径常量，方便测试 monkeypatch（生产代码用 _paths.XXX 访问）
+# ruff: noqa: F401  -- 这些是测试兼容性的 re-export
 from fr_cli.conf.paths import (
-    ROOT,
+    CONFIG_FILE,        # noqa: F401  -- 测试通过 monkeypatch 覆盖
+    CONFIG_BACKUP,      # noqa: F401  -- 测试通过 monkeypatch 覆盖
+    ROOT,               # noqa: F401  -- 测试通过 monkeypatch 覆盖
     migrate as paths_migrate,
 )
 
