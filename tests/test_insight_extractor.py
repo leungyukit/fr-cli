@@ -554,3 +554,129 @@ def test_master_prompt_omits_insights_when_empty():
     stub = _Stub(state)
     prompt = stub._build_system_prompt(lang="zh")
     assert "[选品经验]" not in prompt
+
+
+# ---------- 端到端 smoke test ----------
+
+def test_e2e_insight_command_to_prompt_injection():
+    """端到端:模拟 /insight extract 命令,验证整条链路(路由→extractor→存储→prompt 注入)"""
+    from fr_cli.repl.commands.insight import _cmd_insight
+    from fr_cli.agent import insight_storage as st
+
+    # 准备 mock client:80 条数据分 2 批 + 1 次聚合
+    outputs = [
+        json.dumps({"summary": "b1", "categories": [], "price_bands": [],
+                    "lifecycle_patterns": [], "seasonal_trends": [], "key_signals": []},
+                   ensure_ascii=False),
+        json.dumps({"summary": "b2", "categories": [], "price_bands": [],
+                    "lifecycle_patterns": [], "seasonal_trends": [], "key_signals": []},
+                   ensure_ascii=False),
+        json.dumps({"summary": "E2E 端到端验证洞察", "categories": [
+                        {"name": "女装/连衣裙", "hit_rate": "高", "evidence": "跨批次",
+                         "key_signals": ["应季"]}],
+                    "price_bands": [{"range": "50-200", "verdict": "高频", "evidence": "x"}],
+                    "lifecycle_patterns": [], "seasonal_trends": [], "key_signals": ["E2E 信号"]},
+                   ensure_ascii=False),
+    ]
+    call_count = [0]
+    def fake_stream(*a, **kw):
+        raw = outputs[call_count[0]] if call_count[0] < len(outputs) else "{}"
+        call_count[0] += 1
+        return (raw, None, 0.1, None)
+
+    class _FakeVfs:
+        cwd = "/fake/cwd"
+    class _FakeSecurity:
+        autonomous_mode = "manual"
+    class _FakeState:
+        lang = "zh"
+        security = _FakeSecurity()
+        client = MagicMock()
+        model_name = "mock-model"
+        display_model = "mock-model"
+        messages = []
+        vfs = _FakeVfs()
+
+    state = _FakeState()
+    parts = ["/insight", "extract", "--batch", "40"]  # 80 条 / 40 = 2 批
+
+    with patch("fr_cli.core.stream.stream_cnt", side_effect=fake_stream):
+        result = _cmd_insight(state, parts)
+    assert result is False  # 不退出 REPL
+
+    # 链路产物 1:磁盘上有 latest.json
+    latest = st.load_latest()
+    assert latest is not None
+    assert latest["source_name"] == "mock"
+    assert latest["record_count"] == 80
+    assert latest["insights"]["summary"] == "E2E 端到端验证洞察"
+
+    # 链路产物 2:MasterAgent prompt 能读出
+    from fr_cli.agent.master_prompt_builder import MasterAgentPromptMixin
+    class _Stub(MasterAgentPromptMixin):
+        def __init__(self, state):
+            self.state = state
+            self.persona = ""
+            self.skills = ""
+            self.evolution = {}
+            self.session = {}
+        def _build_tools_desc(self):
+            return "(stub)"
+    class _S:
+        lang = "zh"
+        security = _FakeSecurity()
+        client = None
+        model_name = "m"
+        messages = []
+        vfs = None
+    stub = _Stub(_S())
+    prompt = stub._build_system_prompt(lang="zh")
+    assert "[选品经验]" in prompt
+    assert "E2E 端到端验证洞察" in prompt
+    assert "应季" in prompt  # 来自 key_signals 注入
+
+
+def test_e2e_insight_alias_extract_routes_correctly():
+    """端到端:验证 /insight_extract 别名也走相同链路"""
+    from fr_cli.repl.commands.insight import _cmd_insight_extract
+    from fr_cli.agent import insight_storage as st
+
+    outputs = [
+        json.dumps({"summary": "b1", "categories": [], "price_bands": [],
+                    "lifecycle_patterns": [], "seasonal_trends": [], "key_signals": []},
+                   ensure_ascii=False),
+        json.dumps({"summary": "b2", "categories": [], "price_bands": [],
+                    "lifecycle_patterns": [], "seasonal_trends": [], "key_signals": []},
+                   ensure_ascii=False),
+        json.dumps({"summary": "alias 路径 OK", "categories": [], "price_bands": [],
+                    "lifecycle_patterns": [], "seasonal_trends": [],
+                    "key_signals": ["alias 信号"]},
+                   ensure_ascii=False),
+    ]
+    call_count = [0]
+    def fake_stream(*a, **kw):
+        raw = outputs[call_count[0]] if call_count[0] < len(outputs) else "{}"
+        call_count[0] += 1
+        return (raw, None, 0.1, None)
+
+    class _FakeVfs:
+        cwd = "/x"
+    class _FakeSecurity:
+        autonomous_mode = "manual"
+    class _FakeState:
+        lang = "zh"
+        security = _FakeSecurity()
+        client = MagicMock()
+        model_name = "m"
+        display_model = "m"
+        messages = []
+        vfs = _FakeVfs()
+    state = _FakeState()
+
+    with patch("fr_cli.core.stream.stream_cnt", side_effect=fake_stream):
+        result = _cmd_insight_extract(state, ["/insight_extract", "--batch", "40"])
+
+    assert result is False
+    latest = st.load_latest()
+    assert latest is not None
+    assert latest["insights"]["summary"] == "alias 路径 OK"
