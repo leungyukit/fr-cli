@@ -2,6 +2,44 @@
 
 所有 fr-cli 的变更记录。
 
+## [Unreleased]
+
+### ✨ 新增功能
+
+#### 选品洞察提炼器(Insight Extractor)
+- 新增 `fr_cli/agent/insight_source.py`：可插拔选品数据源
+  - `MockSelectionSource`（默认，~80 条合成数据，让流程在没有真实数据时也能跑通）
+  - `JSONSelectionSource` / `CSVSelectionSource`
+  - `register_source(name, cls)` 动态扩展
+- 新增 `fr_cli/agent/insight_extractor.py`：LLM 提炼引擎
+  - 分批-聚合模式，应对 100-1000 条规模
+  - 输出结构化洞察（品类/价格带/生命周期/季节性/关键信号）
+  - `format_for_prompt(insights)` 输出可注入 system prompt 的 Markdown
+- 新增 `fr_cli/agent/insight_storage.py`：洞察档案
+  - `~/.fr_cli/master/insights/latest.json`（最新洞察，供 prompt 注入）
+  - `~/.fr_cli/master/insights/history/`（历史快照，便于回溯对比）
+- 新增 `/insight` 与 `/insight_extract` 命令：
+  - `/insight show` — 查看最新
+  - `/insight extract [--source mock|json|csv] [--path <file>] [--since <YYYY-MM-DD>] [--batch <N>]` — 立即跑一次提炼
+  - `/insight history [N]` — 查看历史快照
+  - `/insight sources` — 列出可用数据源
+- 扩展 `master_prompt_builder.py`：在 system prompt 中新增 `[选品经验]` 段落，自动读取最新洞察并注入
+- 扩展 `dream.py`：DreamEngine 支持可选 `selection_source`；每次 Dream 末尾会顺带跑一次 insight_extract（失败不影响 Dream 主流程）
+
+### 🔧 优化
+- MasterAgent 启动即可用上历史选品经验，无需人工搬运
+
+### 📊 测试
+- 新增 `tests/test_insight_extractor.py`（24 个测试），全部通过
+  - 覆盖：数据源(Mock/JSON/CSV)、存储、format_for_prompt、分批-聚合抽取(含 code block 解析)、Dream 集成、prompt 注入
+- 现有 dream / master_evolution / master_prompt_fix / integration 测试 45/45 全部通过
+
+### 🔄 兼容
+- 路径访问改为 lambda 形式，便于测试 monkeypatch `MASTER_DIR` 隔离
+- 无破坏性变更
+
+---
+
 ## [2.8.0] - 2026-07-07
 
 ### ✨ 新增功能

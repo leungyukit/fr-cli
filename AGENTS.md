@@ -1387,4 +1387,48 @@ Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务�
 
 底层用 `croniter` 库，支持标准 5/6 字段 cron 表达式。
 
-*文档更新时间：2026-07-07（v2.8 阶段：Cron 表达式标准支持 + Dream 梦境机制 + Notifier 多平台消息推送 + 全部配置收敛到主 config.json + GitHub Actions CI/CD）。*
+## 选品洞察提炼器（v2.9+ / Unreleased）
+
+让 MasterAgent 从选品历史中提炼爆款规律，自动注入到 system prompt。属于"业务经验学习"维度。
+
+**数据源**（可插拔，`fr_cli/agent/insight_source.py`）：
+- `MockSelectionSource` — 默认，~80 条合成数据，零配置跑通
+- `JSONSelectionSource` / `CSVSelectionSource` — 真实数据接入
+- `register_source(name, cls)` — 动态扩展（如接 ERP / 选品平台 API）
+
+**提炼引擎**（`fr_cli/agent/insight_extractor.py`）：
+- 分批-聚合模式，应对 100-1000 条规模
+- 输出结构化洞察：强势品类 / 价格带规律 / 生命周期 / 季节性 / 关键信号
+- `format_for_prompt(insights, max_chars=2000)` 输出可注入 prompt 的 Markdown
+
+**档案存储**（`fr_cli/agent/insight_storage.py`）：
+- `~/.fr_cli/master/insights/latest.json` — 最新洞察，供 prompt 注入
+- `~/.fr_cli/master/insights/history/YYYY-MM-DD_HHMMSS.json` — 历史快照
+
+**REPL 命令**（`fr_cli/repl/commands/insight.py`）：
+- `/insight` 或 `/insight show` — 查看最新洞察
+- `/insight extract [--source mock|json|csv] [--path <file>] [--since YYYY-MM-DD] [--batch N]` — 立即跑一次提炼
+- `/insight history [N]` — 查看最近 N 条历史
+- `/insight sources` — 列出可用数据源
+- `/insight_extract` — 等价于 `/insight extract`
+
+**Prompt 注入**（`fr_cli/agent/master_prompt_builder.py`）：
+- 在 `[高频失败与恢复提示]` 段后追加 `[选品经验]` 段落
+- 来源元信息（数据源 + 提炼时间）一并注入，便于 LLM 评估时效
+
+**Dream 集成**（`fr_cli/agent/dream.py`）：
+- `DreamEngine(client, model_name, lang, selection_source=None)` 可选传 `selection_source`
+- 每次 Dream 末尾会顺带跑一次 `insight_extract`，失败不影响 Dream 主流程
+
+**典型使用**：
+```bash
+# 第一次:跑一次提炼(用 mock 数据看效果)
+/insight extract
+
+# 接真实数据:
+/insight extract --source json --path ~/Downloads/selection_history.json
+
+# 之后 MasterAgent 每次启动,会自动读取 latest.json 注入
+```
+
+*文档更新时间：2026-08-13（v2.9 Unreleased：选品洞察提炼器 Insight Extractor + 业务经验自动注入 MasterAgent）。*

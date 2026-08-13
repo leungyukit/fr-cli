@@ -126,10 +126,14 @@ DREAM_PROMPT_ZH = """你是凡人元神的「梦中书」，负责在 MasterAgen
 class DreamEngine:
     """梦境整理引擎"""
 
-    def __init__(self, client=None, model_name=None, lang="zh"):
+    def __init__(self, client=None, model_name=None, lang="zh", selection_source=None):
         self.client = client
         self.model_name = model_name
         self.lang = lang
+        # 可选：选品数据源。提供后，每次 Dream 末尾会顺带跑一次 insight_extract
+        # 提炼选品爆款规律，结果自动持久化到 ~/.fr_cli/master/insights/
+        # 下次 MasterAgent 启动时，这份洞察会注入到 system prompt
+        self.selection_source = selection_source
         self._lock = threading.Lock()
         self._last_interaction_at = None
         self._idle_thread = None
@@ -233,7 +237,15 @@ class DreamEngine:
             md = self._render_dream_markdown(dream_data, interactions, now)
             _append_dream_log(md)
 
-            return {"skipped": False, "data": dream_data, "saved_at": now}
+            result = {"skipped": False, "data": dream_data, "saved_at": now}
+
+            # 5. 顺带跑一次选品洞察提炼(可选,失败不影响 Dream 主体)
+            if self.selection_source is not None:
+                insight_result = self._run_insight_extract()
+                if insight_result:
+                    result["insight_extract"] = insight_result
+
+            return result
 
     def _render_dream_markdown(self, dream_data, interactions, timestamp):
         """把梦境结果格式化成 Markdown 章节"""
@@ -274,6 +286,40 @@ class DreamEngine:
 
         lines.append("\n---\n")
         return "\n".join(lines)
+
+    def _run_insight_extract(self):
+        """顺带跑一次选品洞察提炼(Dream 收尾钩子)
+
+        - 任何异常都被吞掉,确保不影响 Dream 主流程
+        - 无 client / 无 selection_source 时直接返回 None
+        - 返回的 dict 结构: {skipped, source_name, record_count, batch_count, saved_at, summary}
+        """
+        if not self.client or not self.model_name or self.selection_source is None:
+            return None
+        try:
+            from fr_cli.agent.insight_extractor import InsightExtractor
+            extractor = InsightExtractor(
+                client=self.client,
+                model_name=self.model_name,
+                lang=self.lang,
+                source=self.selection_source,
+            )
+            result = extractor.extract()
+            if result.get("skipped"):
+                return {
+                    "skipped": True,
+                    "reason": result.get("reason"),
+                }
+            insights = result.get("insights") or {}
+            return {
+                "skipped": False,
+                "source_name": result.get("source_name"),
+                "record_count": result.get("record_count"),
+                "batch_count": result.get("batch_count"),
+                "summary": (insights.get("summary") or "")[:80],
+            }
+        except Exception:
+            return None
 
 
 # 简易查询接口
