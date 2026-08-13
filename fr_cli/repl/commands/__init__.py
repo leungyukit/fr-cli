@@ -48,3 +48,4 @@ from fr_cli.repl.commands.ocr import _cmd_ocr_config
 from fr_cli.repl.commands.stock import _cmd_stock_config
 from fr_cli.repl.commands.build import _cmd_build
 from fr_cli.repl.commands.insight import _cmd_insight, _cmd_insight_extract
+from fr_cli.repl.commands.competitor_gaps import _cmd_competitor_gaps

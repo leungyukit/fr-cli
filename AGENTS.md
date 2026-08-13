@@ -1431,4 +1431,38 @@ Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务�
 # 之后 MasterAgent 每次启动,会自动读取 latest.json 注入
 ```
 
-*文档更新时间：2026-08-13（v2.9 Unreleased：选品洞察提炼器 Insight Extractor + 业务经验自动注入 MasterAgent）。*
+## 竞品监控 能力缺口扫描器（v2.9+ / Unreleased）
+
+让 dynamic_builder 主动发现"竞品监控"领域的能力缺口，而不是等用户提需求。
+
+**能力模型**（`fr_cli/dynamic_builder/capabilities/competitor_monitor.yaml`）：
+- 8 个子能力：价格/库存/上新/活动/评价/销量/搜索排名/SKU 变更
+- 每个能力带 `name / description / key_signals / priority / example_usage`
+- 优先级 high / medium / low,影响输出顺序
+
+**扫描器**（`fr_cli/dynamic_builder/competitor_gap_scan.py`）：
+- `CompetitorGapScanner(model_path, state, lang)` — 加载模型 → 遍历 → 复用 `CapabilityGapAnalyzer.analyze(req, tools, state)` 判断覆盖
+- 报告结构：`{domain, title, scanned, gap_count, tools_count, timestamp, gaps[]}`
+- 持久化：`~/.fr_cli/dynamic_builder/gap_reports/competitor_monitor/{latest.json, history/}`
+- `format_report_text(report)` 按优先级+置信度排序后输出
+
+**REPL 命令**（`fr_cli/repl/commands/competitor_gaps.py`）：
+- `/competitor_gaps` 或 `/competitor_gaps scan` — 立即跑扫描
+- `/competitor_gaps show` — 查看最近报告
+- `/competitor_gaps add <name>` — 把指定缺口推到 `/hermes review` 队列
+- `/competitor_gaps model` — 显示能力模型概要
+
+**典型使用**：
+```bash
+# 第一次:跑一次扫描,看缺什么
+/competitor_gaps scan
+
+# 缺啥补啥:把某个缺口推到 review 队列
+/competitor_gaps add competitor_price_monitor
+/hermes review approve rev-xxxxxxxx
+
+# 定期自动:用 cron 每周一跑一次
+/cron_add "0 9 * * 1" "/competitor_gaps scan"
+```
+
+*文档更新时间：2026-08-14（v2.9 Unreleased：选品洞察提炼器 Insight Extractor + 竞品监控能力缺口扫描器 Competitor Gap Scan + 业务经验自动注入 MasterAgent）。*

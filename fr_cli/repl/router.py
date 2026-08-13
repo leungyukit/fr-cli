@@ -86,6 +86,7 @@ from fr_cli.repl.commands import (
     _cmd_context,
     _cmd_insight,
     _cmd_insight_extract,
+    _cmd_competitor_gaps,
 )
 from fr_cli.repl.queue import handle_queue_command
 
@@ -164,6 +165,7 @@ COMMAND_ROUTES = {
     "/context": _cmd_context,
     "/insight": _cmd_insight,
     "/insight_extract": _cmd_insight_extract,
+    "/competitor_gaps": _cmd_competitor_gaps,
     "/queue": handle_queue_command,
 }
 
