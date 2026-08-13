@@ -87,6 +87,11 @@ class MasterAgentPromptMixin:
             hint_lines = [f"- {h.get('tool')} ({h.get('error_type')}): {h.get('hint', '')}" for h in failure_hints[-5:]]
             parts.append("\n[高频失败与恢复提示]\n" + "\n".join(hint_lines))
 
+        # 选品经验(从 ~/.fr_cli/master/insights/latest.json 读取)
+        insights_section = self._build_insights_section()
+        if insights_section:
+            parts.append(insights_section)
+
         # 自治模式提示
         try:
             mode = getattr(self.state.security, "autonomous_mode", "manual")
@@ -119,6 +124,40 @@ class MasterAgentPromptMixin:
             pass
 
         return "\n".join(parts)
+
+    # ---------- 选品经验注入 ----------
+
+    def _build_insights_section(self):
+        """从选品洞察档案读取最新提炼,格式化为 prompt 段落。
+
+        任何异常都被吞掉——选品经验只是辅助,不能影响主流程。
+        """
+        try:
+            from fr_cli.agent.insight_storage import load_latest
+            from fr_cli.agent.insight_extractor import InsightExtractor
+            payload = load_latest()
+            if not payload:
+                return ""
+            insights = payload.get("insights") or {}
+            if not insights:
+                return ""
+            extractor = InsightExtractor(lang=getattr(self.state, "lang", "zh"))
+            section = extractor.format_for_prompt(insights)
+            if not section:
+                return ""
+            # 加上来源元信息(可选,便于 LLM 知道时效)
+            created_at = payload.get("created_at", "")
+            source_name = payload.get("source_name", "")
+            meta_bits = []
+            if source_name:
+                meta_bits.append(f"数据源:{source_name}")
+            if created_at:
+                meta_bits.append(f"提炼:{created_at[:10]}")
+            if meta_bits:
+                section = section + f"\n(选品经验元信息: {' | '.join(meta_bits)})"
+            return "\n" + section
+        except Exception:
+            return ""
 
     # ---------- 插件 / Agent 自动检测 ----------
 
