@@ -1,0 +1,65 @@
+# 竞品监控 能力模型
+#
+# 由 competitor_gap_scan.py 加载,逐项判断现有工具是否覆盖。
+# 缺什么能力,自动建议构建什么工具。
+#
+# 字段说明:
+#   name:           能力 ID(对应工具命名,合法 Python 标识符)
+#   description:    一句话描述(用于 LLM 二次判断 + 用户查看)
+#   key_signals:    关键词列表(用于扩展能力名称 + 命令触发词建议)
+#   priority:       优先级 high / medium / low(影响输出顺序)
+#   example_usage:  示例使用场景(给 LLM 判断时增加上下文)
+
+domain: competitor_monitor
+title: 竞品监控
+description: 监控竞品商品的价格/库存/上新/活动/评价/销量/搜索排名/SKU 变更等动态
+version: 1
+
+capabilities:
+  - name: competitor_price_monitor
+    description: 监控竞品商品价格变化,生成价格走势/降价提醒
+    key_signals: [价格, 降价, 涨价, 走势, 调价, 竞品价]
+    priority: high
+    example_usage: 监控某 SKU 在京东/淘宝/拼多多的价格变化,降价时推送飞书
+
+  - name: competitor_stock_monitor
+    description: 监控竞品库存变化(断货/补货/预售状态)
+    key_signals: [库存, 断货, 补货, 现货, 预售, 有货]
+    priority: medium
+    example_usage: 监控竞品爆款是否突然断货,捕捉补货时机
+
+  - name: competitor_new_arrivals
+    description: 监控竞品上新动态(新品上架/新款发布)
+    key_signals: [上新, 新品, 新款, 发布, 首发, 上市]
+    priority: high
+    example_usage: 每天扫一遍竞品店铺,发现新上架商品并推送到飞书
+
+  - name: competitor_promotion_monitor
+    description: 监控竞品促销活动(满减/折扣/优惠券/秒杀)
+    key_signals: [促销, 活动, 满减, 折扣, 优惠券, 秒杀, 大促]
+    priority: high
+    example_usage: 双11/618 大促期间,实时跟踪竞品的满减门槛和赠品策略
+
+  - name: competitor_review_monitor
+    description: 监控竞品评价变化(差评率/追评/图片评价/评分)
+    key_signals: [评价, 差评, 追评, 评分, 口碑, 买家秀]
+    priority: medium
+    example_usage: 监控竞品差评内容,挖掘我方可改进的卖点
+
+  - name: competitor_sales_monitor
+    description: 监控竞品销量变化(月销/日销/累计评价数推算)
+    key_signals: [销量, 销售, 月销, 日销, 累计, 卖了多少]
+    priority: high
+    example_usage: 跟踪竞品周销量变化,识别突然起爆的 SKU
+
+  - name: competitor_search_rank
+    description: 监控竞品在搜索结果中的排名(关键词排名/类目排名)
+    key_signals: [搜索, 排名, 关键词, 排序, 类目, 坑位]
+    priority: medium
+    example_usage: 每天查询核心关键词下竞品 SKU 的搜索排名
+
+  - name: competitor_sku_changes
+    description: 监控竞品 SKU 变更(规格/属性/链接/上下架)
+    key_signals: [SKU, 规格, 属性, 链接, 变体, 上下架]
+    priority: low
+    example_usage: 监控竞品 SKU 链接变化(被下架/换主图/改标题)

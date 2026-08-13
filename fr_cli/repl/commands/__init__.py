@@ -47,3 +47,4 @@ from fr_cli.repl.commands.dev import _cmd_master, _cmd_commit, _cmd_pr, _cmd_rev
 from fr_cli.repl.commands.ocr import _cmd_ocr_config
 from fr_cli.repl.commands.stock import _cmd_stock_config
 from fr_cli.repl.commands.build import _cmd_build
+from fr_cli.repl.commands.competitor_gaps import _cmd_competitor_gaps

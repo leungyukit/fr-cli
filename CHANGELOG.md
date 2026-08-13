@@ -2,6 +2,39 @@
 
 所有 fr-cli 的变更记录。
 
+## [Unreleased]
+
+### ✨ 新增功能
+
+#### 竞品监控 能力缺口扫描器(Competitor Gap Scan)
+- 新增 `fr_cli/dynamic_builder/capabilities/competitor_monitor.yaml`：能力模型（8 个子能力）
+  - 价格/库存/上新/活动/评价/销量/搜索排名/SKU 变更
+  - 每个能力带 `name / description / key_signals / priority / example_usage`
+- 新增 `fr_cli/dynamic_builder/competitor_gap_scan.py`：扫描器
+  - `CompetitorGapScanner(model_path, state, lang)` — 加载能力模型 → 遍历 → 复用 `CapabilityGapAnalyzer` 判断覆盖
+  - 报告 schema：scanned / gap_count / tools_count / gaps（按优先级+置信度排序）
+  - 持久化：`~/.fr_cli/dynamic_builder/gap_reports/competitor_monitor/{latest.json, history/}`
+  - 兜底排序：`format_report_text` 也按优先级排序（高 → 中 → 低）
+- 新增 `/competitor_gaps` 命令：
+  - `/competitor_gaps scan` — 立即跑扫描，打印缺口报告
+  - `/competitor_gaps show` — 查看最近一次报告
+  - `/competitor_gaps add <name>` — 把指定缺口推到 `/hermes review` 队列（供后续自动构建）
+  - `/competitor_gaps model` — 显示当前能力模型概要
+
+### 🔧 优化
+- 能力扩展从"被动等需求"升级为"主动扫领域"：dynamic_builder 可主动扫描"竞品监控"领域，把缺口推到 review queue
+
+### 📊 测试
+- 新增 `tests/test_competitor_gap_scan.py`（16 个测试），全部通过
+  - 覆盖：YAML 加载、模型验证、扫描流程、异常处理、format_report 排序、4 个命令路径
+- 现有 dynamic_builder / gap_analyzer / review_queue 测试 42/42 全部通过
+
+### 🔄 兼容
+- 路径访问改为函数形式（`_reports_dir()` / `_latest_file()`），便于测试 monkeypatch `ROOT` 隔离
+- 无破坏性变更
+
+---
+
 ## [2.8.0] - 2026-07-07
 
 ### ✨ 新增功能

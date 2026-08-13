@@ -84,6 +84,7 @@ from fr_cli.repl.commands import (
     _cmd_autostart,
     _cmd_status,
     _cmd_context,
+    _cmd_competitor_gaps,
 )
 from fr_cli.repl.queue import handle_queue_command
 
@@ -160,6 +161,7 @@ COMMAND_ROUTES = {
     "/autostart": _cmd_autostart,
     "/status": _cmd_status,
     "/context": _cmd_context,
+    "/competitor_gaps": _cmd_competitor_gaps,
     "/queue": handle_queue_command,
 }
 
