@@ -31,8 +31,12 @@ class ModelFactory:
             config_path = MODELS_YAML
 
         if os.path.exists(config_path):
+            # config_path 可能是 str 或 Path(MODELS_YAML 来自 paths.py 是 Path)
+            # 用 Path.suffix 而不是 str.endswith,避免 PosixPath 无 endswith 的报错
+            from pathlib import Path
+            suffix = Path(config_path).suffix
             with open(config_path, 'r', encoding='utf-8') as f:
-                if config_path.endswith('.yaml') or config_path.endswith('.yml'):
+                if suffix in ('.yaml', '.yml'):
                     self._config = yaml.safe_load(f)
                 else:
                     self._config = json.load(f)

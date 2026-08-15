@@ -1204,3 +1204,81 @@ class TestBoundaryAndEdgeCases:
         assert state.cfg["providers"]["zhipu"]["model"] == "glm-4-plus"
         assert state.cfg["providers"]["deepseek"]["model"] == "deepseek-chat"
         assert state.cfg["providers"]["kimi"]["model"] == "moonshot-v1-8k"
+
+
+class TestModelFactoryLoadConfig:
+    """load_config 接受 str 和 Path 两种输入,不报 PosixPath.endswith 错误"""
+
+    def test_load_config_accepts_path_object(self, tmp_path):
+        """config_path 传 PosixPath(Path 对象)也能正常加载"""
+        from fr_cli.core.model_factory import ModelFactory
+
+        yaml_path = tmp_path / "models.yaml"
+        yaml_path.write_text(
+            "test_provider:\n  name: 测试\n  model: test-model\n  client: OpenAICompatibleClient\n",
+            encoding="utf-8",
+        )
+
+        factory = ModelFactory()
+        factory.load_config(config_path=yaml_path)  # 传 Path,不是 str
+        assert "test_provider" in factory._config
+        assert factory._config["test_provider"]["model"] == "test-model"
+
+    def test_load_config_accepts_string_path(self, tmp_path):
+        """str 路径也工作(向后兼容)"""
+        from fr_cli.core.model_factory import ModelFactory
+
+        yaml_path = tmp_path / "models.yaml"
+        yaml_path.write_text(
+            "str_provider:\n  model: str-model\n  client: OpenAICompatibleClient\n",
+            encoding="utf-8",
+        )
+
+        factory = ModelFactory()
+        factory.load_config(config_path=str(yaml_path))  # 显式 str
+        assert "str_provider" in factory._config
+
+    def test_load_config_handles_yml_suffix(self, tmp_path):
+        """.yml 后缀也能识别"""
+        from fr_cli.core.model_factory import ModelFactory
+
+        yml_path = tmp_path / "models.yml"
+        yml_path.write_text(
+            "yml_provider:\n  model: yml-model\n  client: OpenAICompatibleClient\n",
+            encoding="utf-8",
+        )
+
+        factory = ModelFactory()
+        factory.load_config(config_path=yml_path)
+        assert "yml_provider" in factory._config
+
+    def test_load_config_handles_json_suffix(self, tmp_path):
+        """.json 后缀走 JSON 解析分支"""
+        from fr_cli.core.model_factory import ModelFactory
+
+        json_path = tmp_path / "models.json"
+        json_path.write_text(
+            json.dumps({"json_provider": {"model": "json-model",
+                                          "client": "OpenAICompatibleClient"}}),
+            encoding="utf-8",
+        )
+
+        factory = ModelFactory()
+        factory.load_config(config_path=json_path)
+        assert "json_provider" in factory._config
+        assert factory._config["json_provider"]["model"] == "json-model"
+
+    def test_default_load_does_not_warn_about_path(self):
+        """用默认 MODELS_YAML(Path 对象)加载时,不应该再报 endswith 警告"""
+        import warnings
+        from fr_cli.core.model_factory import ModelFactory
+
+        factory = ModelFactory()
+        with warnings.catch_warnings(record=True) as caught:
+            warnings.simplefilter("always")
+            factory.load_config()  # 用默认路径
+        # 任何 'endswith' 相关警告都算 bug
+        path_warnings = [w for w in caught
+                         if "endswith" in str(w.message).lower()
+                         or "PosixPath" in str(w.message)]
+        assert not path_warnings, f"意外的 endswith 警告: {path_warnings}"
