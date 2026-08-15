@@ -22,12 +22,23 @@ class BaseLLMClient(ABC):
 
     @staticmethod
     def _yield_chunks(response) -> Iterator[dict]:
-        """通用 chunk 解析生成器,供各子类复用"""
+        """通用 chunk 解析生成器,供各子类复用
+
+        兼容性:
+        - 标准 OpenAI 格式:delta.content 有值
+        - 火山方舟 coding endpoint (thinking/reasoning 模型如 glm-5.2/5.3、
+          doubao-seed-2.x、deepseek-v4):delta.content 恒为 "",真实内容在
+          delta.reasoning_content —— 火山方舟的 OpenAI 兼容实现差异
+        """
         for chunk in response:
             content = ""
             usage = None
             if chunk.choices and chunk.choices[0].delta:
-                content = chunk.choices[0].delta.content or ""
+                delta = chunk.choices[0].delta
+                # 优先用 content,空时 fallback 到 reasoning_content
+                content = (getattr(delta, "content", None)
+                           or getattr(delta, "reasoning_content", None)
+                           or "")
             if hasattr(chunk, 'usage') and chunk.usage:
                 usage = (chunk.usage.model_dump()
                          if hasattr(chunk.usage, 'model_dump') else vars(chunk.usage))
