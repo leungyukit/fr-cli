@@ -107,3 +107,63 @@ class TestBuildMissingTool:
         result = _build_missing_tool(deps, requirement="读取 README")
         assert result.is_ok()
         assert result.unwrap()["built"] is False
+
+
+class TestFallbackMessages:
+    """fallback 文案友好性"""
+
+    def test_no_llm_context_friendly_message(self, sample_tools):
+        """无 state 时,reasoning 提示用户配 key 而不是含糊说'无法联系模型'"""
+        from fr_cli.dynamic_builder.gap_analyzer import CapabilityGapAnalyzer
+
+        analyzer = CapabilityGapAnalyzer(keyword_threshold=0.99)  # 强制走 fallback
+        # state=None
+        report = analyzer.analyze("把图片转 ASCII", sample_tools, state=None, lang="zh")
+        assert report["gap"] is True
+        assert "无 LLM 上下文" in report["reasoning"]
+        assert "API Key" in report["reasoning"]
+
+    def test_no_model_name_friendly_message(self, sample_tools):
+        """state 有但 model_name 缺失时,同样给友好提示"""
+        from fr_cli.dynamic_builder.gap_analyzer import CapabilityGapAnalyzer
+
+        analyzer = CapabilityGapAnalyzer(keyword_threshold=0.99)
+        state = SimpleNamespace(client=MagicMock())  # 无 model_name
+        report = analyzer.analyze("把图片转 ASCII", sample_tools, state=state, lang="zh")
+        assert report["gap"] is True
+        assert "无 LLM 上下文" in report["reasoning"]
+
+    @patch("fr_cli.dynamic_builder.gap_analyzer.stream_cnt")
+    def test_llm_parse_failure_with_auth_error_hints_key(self, mock_stream, sample_tools):
+        """LLM 解析失败时,若 raw 含 auth 错误关键词,提示用户配 key"""
+        from fr_cli.dynamic_builder.gap_analyzer import CapabilityGapAnalyzer
+
+        # 模拟 zhipu 报"请先配置有效的 API 密钥"
+        mock_stream.return_value = (
+            "[错误] 请先配置有效的 API 密钥",
+            {}, 0.1, False,
+        )
+        state = SimpleNamespace(client=MagicMock(), model_name="glm-4-flash", lang="zh")
+        analyzer = CapabilityGapAnalyzer(keyword_threshold=0.99)
+
+        report = analyzer.analyze("把图片转 ASCII", sample_tools, state=state, lang="zh")
+        assert report["gap"] is True
+        assert "API Key" in report["reasoning"] or "API 密钥" in report["reasoning"]
+        assert "请先配置" in report["reasoning"] or "API 密钥" in report["reasoning"]
+        # 必须告诉用户怎么操作
+        assert "/key" in report["reasoning"]
+
+    @patch("fr_cli.dynamic_builder.gap_analyzer.stream_cnt")
+    def test_llm_parse_failure_generic_keeps_old_message(self, mock_stream, sample_tools):
+        """普通 LLM 解析失败(非 auth 错误)时,保持旧文案不变"""
+        from fr_cli.dynamic_builder.gap_analyzer import CapabilityGapAnalyzer
+
+        mock_stream.return_value = ("not a json at all", {}, 0.1, False)
+        state = SimpleNamespace(client=MagicMock(), model_name="glm-4-flash", lang="zh")
+        analyzer = CapabilityGapAnalyzer(keyword_threshold=0.99)
+
+        report = analyzer.analyze("把图片转 ASCII", sample_tools, state=state, lang="zh")
+        assert report["gap"] is True
+        assert "LLM 输出解析失败" in report["reasoning"]
+        # 没有触发 auth hint 分支
+        assert "/key" not in report["reasoning"]
