@@ -108,7 +108,8 @@ class CapabilityGapAnalyzer:
                 "gap": True,
                 "confidence": 0.5,
                 "suggested_tool_name": "",
-                "reasoning": "无法联系模型做精细判断，初步认为存在能力缺口。",
+                "reasoning": "无 LLM 上下文(state 或 model_name 缺失),按保守策略标记为缺口。"
+                              "如需精确判断,请配置 API Key 后重跑。",
             }
 
         prompt = GAP_ANALYZER_PROMPT_ZH.format(
@@ -147,11 +148,22 @@ class CapabilityGapAnalyzer:
             }
         except Exception:
             # 解析失败时保守认为存在缺口
+            # 常见情况:API Key 未配置 / Key 错误 / 余额不足 —— 给可操作提示
+            raw_preview = (raw or "")[:100]
+            auth_hint_keywords = ("api 密钥", "api key", "apikey", "auth",
+                                  "unauthorized", "401", "认证失败", "invalid key")
+            if any(kw in (raw or "").lower() for kw in auth_hint_keywords):
+                reasoning = (
+                    f"LLM 调用失败(疑似 API Key 未配置或无效): {raw_preview}"
+                    " — 请用 /key <your-key> 配置有效密钥后重跑。"
+                )
+            else:
+                reasoning = f"LLM 输出解析失败，原始输出: {raw_preview}"
             return {
                 "gap": True,
                 "confidence": 0.5,
                 "suggested_tool_name": "",
-                "reasoning": f"LLM 输出解析失败，原始输出: {raw[:100]}",
+                "reasoning": reasoning,
             }
 
 
