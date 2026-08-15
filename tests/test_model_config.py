@@ -1282,3 +1282,77 @@ class TestModelFactoryLoadConfig:
                          if "endswith" in str(w.message).lower()
                          or "PosixPath" in str(w.message)]
         assert not path_warnings, f"意外的 endswith 警告: {path_warnings}"
+
+
+class TestYieldChunks:
+    """_yield_chunks 兼容标准 OpenAI 和 火山方舟 coding endpoint 两种格式"""
+
+    def _make_chunk(self, content=None, reasoning_content=None, usage=None):
+        """构造一个假的 OpenAI streaming chunk"""
+        from types import SimpleNamespace
+        delta = SimpleNamespace(
+            content=content,
+            reasoning_content=reasoning_content,
+            role="assistant",
+        )
+        choice = SimpleNamespace(delta=delta, index=0)
+        chunk = SimpleNamespace(choices=[choice])
+        if usage is not None:
+            chunk.usage = usage
+        else:
+            chunk.usage = None
+        return chunk
+
+    def test_standard_openai_format(self):
+        """标准 OpenAI 格式:delta.content 有值,正确读出"""
+        from fr_cli.core.llm.base import BaseLLMClient
+
+        chunks = [
+            self._make_chunk(content="你"),
+            self._make_chunk(content="好"),
+            self._make_chunk(content=""),
+        ]
+        result = list(BaseLLMClient._yield_chunks(iter(chunks)))
+        assert [r["content"] for r in result] == ["你", "好", ""]
+
+    def test_ark_coding_endpoint_format(self):
+        """火山方舟 coding endpoint:delta.content 恒为 "",fallback 到 reasoning_content"""
+        from fr_cli.core.llm.base import BaseLLMClient
+
+        chunks = [
+            self._make_chunk(content="", reasoning_content="让我"),
+            self._make_chunk(content="", reasoning_content="想想"),
+            self._make_chunk(content="", reasoning_content="怎么回"),
+        ]
+        result = list(BaseLLMClient._yield_chunks(iter(chunks)))
+        assert [r["content"] for r in result] == ["让我", "想想", "怎么回"]
+
+    def test_ark_thinking_then_content(self):
+        """混合模式:reasoning 一段后切到 content(部分 thinking 模型会这样)"""
+        from fr_cli.core.llm.base import BaseLLMClient
+
+        chunks = [
+            self._make_chunk(content="", reasoning_content="思考1"),
+            self._make_chunk(content="答案"),
+        ]
+        result = list(BaseLLMClient._yield_chunks(iter(chunks)))
+        assert [r["content"] for r in result] == ["思考1", "答案"]
+
+    def test_empty_chunk_yields_empty_content(self):
+        """空 content(无 reasoning_content)时,产出空 content,不崩"""
+        from fr_cli.core.llm.base import BaseLLMClient
+
+        chunks = [self._make_chunk(content=None, reasoning_content=None)]
+        result = list(BaseLLMClient._yield_chunks(iter(chunks)))
+        assert result == [{"content": "", "usage": None}]
+
+    def test_usage_passed_through(self):
+        """usage 信息正确透传"""
+        from types import SimpleNamespace
+        from fr_cli.core.llm.base import BaseLLMClient
+
+        usage = SimpleNamespace(prompt_tokens=10, completion_tokens=5)
+        chunks = [self._make_chunk(content="hi", usage=usage)]
+        result = list(BaseLLMClient._yield_chunks(iter(chunks)))
+        assert result[0]["usage"]["prompt_tokens"] == 10
+        assert result[0]["usage"]["completion_tokens"] == 5
