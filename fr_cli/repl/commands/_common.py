@@ -5,8 +5,100 @@ REPL 命令路由处理器
 
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import (
-    CYAN, GREEN, DIM, RESET
+    CYAN, GREEN, YELLOW, DIM, RESET
 )
+
+# 最近新加的命令(显示在默认 /help 顶部 / /help new)
+# 格式: (命令, 简短说明, 类别)
+# 类别用 emoji + 标签: 🆕新功能 | ⭐推荐 | 🧪实验
+_NEW_COMMANDS = [
+    ("/insight", "选品洞察提炼(从历史数据提炼爆款规律)", "🆕新功能"),
+    ("/insight extract", "立即跑一次选品洞察提炼", "🆕新功能"),
+    ("/insight show / history / sources", "查看 / 历史 / 数据源", "🆕新功能"),
+    ("/competitor_gaps", "竞品监控能力缺口扫描(dynamic_builder 主动扫领域)", "🆕新功能"),
+    ("/competitor_gaps scan / show / add", "扫 / 看 / 推 review", "🆕新功能"),
+    ("/dream", "梦境整理(空闲时自动整理长期记忆)", "🆕新功能"),
+    ("/mcp_*", "MCP 外部神通(连接外部工具)", "🆕新功能"),
+]
+
+
+def _print_new_commands(state, lang):
+    """打印'新功能 / 推荐'区,带 emoji 标记"""
+    is_zh = (lang == "zh")
+    title = "🆕 最近新功能 / 试用推荐" if is_zh else "🆕 Recent features / try these"
+    print()
+    print(f"{CYAN}{title}{RESET}")
+    for cmd, desc, badge in _NEW_COMMANDS:
+        if is_zh:
+            line = f"  {GREEN}{cmd:<28}{RESET}  {DIM}{desc}{RESET}  {YELLOW}{badge}{RESET}"
+        else:
+            line = f"  {GREEN}{cmd:<28}{RESET}  {DIM}{desc}{RESET}  {YELLOW}{badge}{RESET}"
+        print(line)
+    if is_zh:
+        print(f"  {DIM}提示: 输 /help new 只看新功能;输 /help <命令> 看具体命令的用法{RESET}")
+    else:
+        print(f"  {DIM}Tip: /help new to see only new commands; /help <cmd> for details{RESET}")
+    print()
+
+
+# 单个命令的简短说明(用于 /help <command>)
+_COMMAND_BRIEF = {
+    "/insight": "选品洞察提炼 — 跑 /insight extract 从数据源提炼爆款规律,自动注入 MasterAgent prompt",
+    "/insight_extract": "立即提炼(等价于 /insight extract)",
+    "/insight show": "查看最新洞察",
+    "/insight history": "查看历史快照",
+    "/insight sources": "列出可用数据源",
+    "/competitor_gaps": "竞品监控能力缺口扫描 — 主动发现 dynamic_builder 能力缺口",
+    "/competitor_gaps scan": "立即跑扫描",
+    "/competitor_gaps show": "看最近报告",
+    "/competitor_gaps add": "把指定缺口推到 /hermes review 队列",
+    "/competitor_gaps model": "看能力模型",
+    "/dream": "立即跑一次梦境整理",
+    "/master": "MasterAgent 主控开关",
+    "/model": "切换/配置模型",
+    "/key": "设置 API Key",
+    "/providers": "管理模型提供商",
+    "/mcp_list": "列出 MCP 服务器",
+    "/mcp_call": "调用 MCP 工具",
+}
+
+
+def _print_command_detail(state, command, lang):
+    """输出单个命令的详细帮助
+
+    优先用 _COMMAND_BRIEF 静态说明;fallback 用 handler docstring 截取。
+    """
+    is_zh = (lang == "zh")
+    brief = _COMMAND_BRIEF.get(command)
+    if brief:
+        print()
+        print(f"{CYAN}{command}{RESET}")
+        print(f"  {DIM}{brief}{RESET}")
+        print()
+        # 加一句用法提示
+        if is_zh:
+            print(f"  {DIM}直接输 {command} 看实际运行结果,或加子命令(用 /help 列出){RESET}")
+        else:
+            print(f"  {DIM}Type {command} to try, or add sub-args (see /help for full list){RESET}")
+        return
+
+    # fallback:从 handler docstring 拿
+    try:
+        from fr_cli.repl.router import COMMAND_ROUTES
+        handler = COMMAND_ROUTES.get(command)
+        if handler and handler.__doc__:
+            print()
+            print(f"{CYAN}{command}{RESET}")
+            print(f"  {DIM}{handler.__doc__.strip()}{RESET}")
+            return
+    except Exception:
+        pass
+
+    # 兜底
+    if is_zh:
+        print(f"{CYAN}{command}{RESET}  {DIM}— 暂无详细说明,直接输入试试看{RESET}")
+    else:
+        print(f"{CYAN}{command}{RESET}  {DIM}— no details, just try it{RESET}")
 
 
 
@@ -22,7 +114,15 @@ def _provider_has_key(state, provider_id):
 
 
 def _print_help(state, topic):
-    """打印帮助指南（现代 CLI 风格：分组 + 固定宽度对齐）"""
+    """打印帮助指南（现代 CLI 风格：分组 + 固定宽度对齐）
+
+    支持的 topic:
+      - /help              默认帮助(顶部显示新功能,下面是分类命令)
+      - /help new          只看新功能列表
+      - /help all          完整所有分类详情
+      - /help <category>   单个分类(config / fs / agent / ...)
+      - /help <command>    精确查单个命令(/insight, /competitor_gaps 等)
+    """
     topic_map = {
         "config": "config", "model": "config",
         "fs": "fs", "file": "fs", "files": "fs",
@@ -48,9 +148,23 @@ def _print_help(state, topic):
         "status": "status",
         "stock": "stock",
         "all": "all",
+        "new": "_new",  # 特殊:列出新功能
     }
     mapped = topic_map.get(topic, "")
     lang = state.lang
+
+    # ---------- /help new: 只看新功能 ----------
+    if mapped == "_new":
+        _print_new_commands(state, lang)
+        return
+
+    # ---------- /help <command>: 精确查单个命令 ----------
+    if topic.startswith("/") and topic not in topic_map and topic != "all":
+        from fr_cli.repl.router import COMMAND_ROUTES
+        if topic in COMMAND_ROUTES:
+            _print_command_detail(state, topic, lang)
+            return
+        # 也不是已知命令,fallthrough 到默认
 
     # ---------- 主题详细帮助（保持原有逻辑）----------
     if mapped:
@@ -82,6 +196,9 @@ def _print_help(state, topic):
     print(f"{_h(title)}")
     print(f"{_dim(cur)}")
     print()
+
+    # 顶部:🆕 新功能(让用户先看到最近加的)
+    _print_new_commands(state, lang)
 
     # 快速用法
     usage_label = "用法" if is_zh else "Usage"
