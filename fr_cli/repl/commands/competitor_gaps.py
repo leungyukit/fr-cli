@@ -9,7 +9,8 @@
   /competitor_gaps add <name>       — 把指定缺口推到 /hermes review 队列(供后续自动构建)
   /competitor_gaps model            — 显示当前能力模型路径 + 概要
 """
-from fr_cli.ui.ui import CYAN, GREEN, YELLOW, RED, DIM, RESET
+from fr_cli.ui.ui import CYAN, GREEN, YELLOW, DIM, RESET
+from fr_cli.core.errors import friendly_print, is_debug
 
 
 def _print_report(report):
@@ -46,7 +47,7 @@ def _cmd_competitor_gaps(state, parts):
                 p = c.get("priority", "medium")
                 print(f"  [{p:6}] {c.get('name', '?'):35} — {c.get('description', '')}")
         except Exception as e:
-            print(f"{RED}加载模型失败: {e}{RESET}")
+            print(friendly_print(e, debug=is_debug()))
         return False
 
     # ------ 显示最近报告 ------
@@ -66,7 +67,7 @@ def _cmd_competitor_gaps(state, parts):
             scanner = CompetitorGapScanner(state=state)
             report = scanner.scan(save_report=True)
         except Exception as e:
-            print(f"{RED}扫描失败: {e}{RESET}")
+            print(friendly_print(e, debug=is_debug()))
             return False
 
         _print_report(report)
@@ -85,7 +86,7 @@ def _cmd_competitor_gaps(state, parts):
         from fr_cli.dynamic_builder.competitor_gap_scan import load_latest_report
         report = load_latest_report()
         if not report:
-            print(f"{RED}暂无报告,先跑一次 /competitor_gaps scan。{RESET}")
+            print(f"{YELLOW}暂无报告,先跑一次 /competitor_gaps scan。{RESET}")
             return False
         target_gap = next(
             (g for g in (report.get("gaps") or []) if g.get("name") == target),
@@ -116,7 +117,7 @@ def _cmd_competitor_gaps(state, parts):
             print(f"{GREEN}✅ 已推到 /hermes review 队列: {item.id}{RESET}")
             print(f"{DIM}  后续: /hermes review approve {item.id}  批准后会触发 dynamic_build{RESET}")
         except Exception as e:
-            print(f"{RED}推到 review queue 失败: {e}{RESET}")
+            print(friendly_print(e, debug=is_debug()))
         return False
 
     # ------ 未知子命令 ------
