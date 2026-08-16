@@ -225,6 +225,7 @@ fr_cli/ui/buddha.py
 fr_cli/ui/diff_view.py
 fr_cli/ui/markdown.py
 fr_cli/ui/markdown_stream.py
+fr_cli/ui/output.py
 fr_cli/ui/spinner.py
 fr_cli/ui/ui.py
 fr_cli/ui/prompt/__init__.py
@@ -363,6 +364,7 @@ tests/test_no_color_prompt_toolkit.py
 tests/test_notifier.py
 tests/test_ocr.py
 tests/test_ollama.py
+tests/test_output_consistency.py
 tests/test_parallel.py
 tests/test_permissions.py
 tests/test_plan.py

@@ -15,6 +15,7 @@ from fr_cli.repl.commands.system.context import _cmd_context
 from fr_cli.repl.commands.system.setup import _cmd_db_setup, _cmd_remote_setup
 from fr_cli.repl.commands.system.autostart import _cmd_autostart
 from fr_cli.repl.commands.system.status import _cmd_status
+from fr_cli.repl.commands.system.start import _cmd_start
 
 # 旧式兼容：保留旧模块顶层引用（_cmd_context 依赖的 maybe_compress / estimate_tokens）
 from fr_cli.memory.compress import estimate_tokens, maybe_compress

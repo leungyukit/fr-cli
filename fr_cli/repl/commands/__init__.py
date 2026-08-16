@@ -33,6 +33,7 @@ from fr_cli.repl.commands.system import (
     _cmd_launch, _cmd_apps, _cmd_hermes_daemon,
     _cmd_remote_setup, _cmd_db_setup,
     _cmd_autostart, _cmd_status, _cmd_context,
+    _cmd_start,
 )
 from fr_cli.repl.commands.rag import _cmd_rag_dir, _cmd_rag_watch, _cmd_rag_sync
 from fr_cli.repl.commands.dataframe import _cmd_read_excel, _cmd_read_csv

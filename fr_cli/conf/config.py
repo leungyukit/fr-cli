@@ -69,6 +69,8 @@ def _default_config():
         "context_compress_keep_recent": 5,
         # v3 新增：是否跳过首次启动向导（手动配置后置位）
         "model_wizard_skipped": False,
+        # v3.1 新增:/start 5 步向导完成标志(避免重复弹)
+        "start_wizard_done": False,
         # v3 新增：后台服务自启动偏好
         "autostart_on_launch": True,
     }

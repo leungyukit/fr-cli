@@ -133,7 +133,12 @@ def print_simple_banner(state, version: str):
 
     # Logo + 标题
     title = f"   {MAROON}▐▀▀▀▀▀▀▌{RESET}  {CYAN}{BOLD}凡人打字机{RESET}  {DIM}fr-cli v{version}{RESET}"
-    subtitle = f"   {MAROON}▐██████▌{RESET}  {DIM}Send /help for help information{RESET}"
+    # subtitle 区分:首次(start_wizard_done=False)提示 /start,否则 /help
+    start_done = state.cfg.get("start_wizard_done", False)
+    if start_done:
+        subtitle = f"   {MAROON}▐██████▌{RESET}  {DIM}Send /help for help information{RESET}"
+    else:
+        subtitle = f"   {MAROON}▐██████▌{RESET}  {DIM}首次使用? 输 {CYAN}/start{RESET}{DIM} 跑 5 步快速开始向导{RESET}"
 
     # 信息行
     dir_line = f"  Directory: {cwd}"
