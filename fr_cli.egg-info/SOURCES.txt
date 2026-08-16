@@ -24,6 +24,9 @@ fr_cli/agent/hermes_daemon.py
 fr_cli/agent/hermes_daemon_process.py
 fr_cli/agent/hermes_manager.py
 fr_cli/agent/hooks.py
+fr_cli/agent/insight_extractor.py
+fr_cli/agent/insight_source.py
+fr_cli/agent/insight_storage.py
 fr_cli/agent/manager.py
 fr_cli/agent/master.py
 fr_cli/agent/master_loop.py
@@ -157,6 +160,7 @@ fr_cli/core/plan/prompts.py
 fr_cli/core/plan/storage.py
 fr_cli/dynamic_builder/__init__.py
 fr_cli/dynamic_builder/code_generator.py
+fr_cli/dynamic_builder/competitor_gap_scan.py
 fr_cli/dynamic_builder/dependency_manager.py
 fr_cli/dynamic_builder/gap_analyzer.py
 fr_cli/dynamic_builder/planner.py
@@ -188,10 +192,12 @@ fr_cli/repl/commands/_common.py
 fr_cli/repl/commands/agent.py
 fr_cli/repl/commands/base.py
 fr_cli/repl/commands/build.py
+fr_cli/repl/commands/competitor_gaps.py
 fr_cli/repl/commands/cron.py
 fr_cli/repl/commands/dataframe.py
 fr_cli/repl/commands/dev.py
 fr_cli/repl/commands/fs.py
+fr_cli/repl/commands/insight.py
 fr_cli/repl/commands/mcp.py
 fr_cli/repl/commands/ocr.py
 fr_cli/repl/commands/rag.py
@@ -219,6 +225,7 @@ fr_cli/ui/buddha.py
 fr_cli/ui/diff_view.py
 fr_cli/ui/markdown.py
 fr_cli/ui/markdown_stream.py
+fr_cli/ui/spinner.py
 fr_cli/ui/ui.py
 fr_cli/ui/prompt/__init__.py
 fr_cli/ui/prompt/completer.py
@@ -295,6 +302,7 @@ tests/test_batch_mode.py
 tests/test_bookmark.py
 tests/test_builtin_tools.py
 tests/test_charts.py
+tests/test_competitor_gap_scan.py
 tests/test_console.py
 tests/test_console_event_bridge.py
 tests/test_console_sse.py
@@ -311,6 +319,7 @@ tests/test_diff_view.py
 tests/test_dream.py
 tests/test_dynamic_builder.py
 tests/test_dynamic_builder_selftest.py
+tests/test_error_messages.py
 tests/test_event_auto_record.py
 tests/test_events_dispatch.py
 tests/test_events_integration.py
@@ -329,6 +338,7 @@ tests/test_history.py
 tests/test_hooks.py
 tests/test_i18n.py
 tests/test_incremental.py
+tests/test_insight_extractor.py
 tests/test_integration_real.py
 tests/test_json_store.py
 tests/test_launch_flow.py
@@ -359,6 +369,7 @@ tests/test_plan_mode.py
 tests/test_plan_ui.py
 tests/test_plan_undo.py
 tests/test_plugin_exec.py
+tests/test_progress_feedback.py
 tests/test_project_memory.py
 tests/test_prompt_completion.py
 tests/test_rag.py

@@ -133,11 +133,15 @@ class CompetitorGapScanner:
             })
         return out
 
-    def scan(self, save_report: bool = True) -> dict:
+    def scan(self, save_report: bool = True, on_progress=None) -> dict:
         """执行一次完整扫描
 
         Args:
             save_report: 是否持久化报告(默认 True)
+            on_progress: 进度回调,签名 on_progress(stage, current, total, info)
+                - stage: "load_model" | "analyze" | "save"
+                - current/total: 当前/总进度
+                - info: 额外信息(如 "正在分析: <capability_name>")
 
         Returns:
             报告 dict
@@ -145,14 +149,22 @@ class CompetitorGapScanner:
         # 延迟 import 避免循环依赖
         from fr_cli.dynamic_builder.gap_analyzer import analyze_gap
 
+        if on_progress:
+            on_progress("load_model", 0, 1, "加载能力模型")
         model = self.model
         capabilities = model.get("capabilities", [])
+        if on_progress:
+            on_progress("load_model", 1, 1,
+                        f"加载 {len(capabilities)} 个能力 + {len(self._get_tools())} 个工具")
         tools = self._get_tools()
 
         gaps = []
-        for cap in capabilities:
+        for i, cap in enumerate(capabilities, 1):
             if not isinstance(cap, dict) or not cap.get("name"):
                 continue
+            if on_progress:
+                on_progress("analyze", i, len(capabilities),
+                            f"分析 {i}/{len(capabilities)}: {cap.get('name', '?')}")
             # 拼接需求描述,给 LLM 足够上下文
             requirement = self._build_requirement(cap)
             try:
@@ -203,6 +215,8 @@ class CompetitorGapScanner:
         }
 
         if save_report:
+            if on_progress:
+                on_progress("save", 0, 1, "保存报告到磁盘")
             try:
                 self._save_report(report)
             except Exception:
