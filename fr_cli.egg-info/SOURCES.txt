@@ -24,6 +24,9 @@ fr_cli/agent/hermes_daemon.py
 fr_cli/agent/hermes_daemon_process.py
 fr_cli/agent/hermes_manager.py
 fr_cli/agent/hooks.py
+fr_cli/agent/insight_extractor.py
+fr_cli/agent/insight_source.py
+fr_cli/agent/insight_storage.py
 fr_cli/agent/manager.py
 fr_cli/agent/master.py
 fr_cli/agent/master_loop.py
@@ -157,6 +160,7 @@ fr_cli/core/plan/prompts.py
 fr_cli/core/plan/storage.py
 fr_cli/dynamic_builder/__init__.py
 fr_cli/dynamic_builder/code_generator.py
+fr_cli/dynamic_builder/competitor_gap_scan.py
 fr_cli/dynamic_builder/dependency_manager.py
 fr_cli/dynamic_builder/gap_analyzer.py
 fr_cli/dynamic_builder/planner.py
@@ -188,10 +192,12 @@ fr_cli/repl/commands/_common.py
 fr_cli/repl/commands/agent.py
 fr_cli/repl/commands/base.py
 fr_cli/repl/commands/build.py
+fr_cli/repl/commands/competitor_gaps.py
 fr_cli/repl/commands/cron.py
 fr_cli/repl/commands/dataframe.py
 fr_cli/repl/commands/dev.py
 fr_cli/repl/commands/fs.py
+fr_cli/repl/commands/insight.py
 fr_cli/repl/commands/mcp.py
 fr_cli/repl/commands/ocr.py
 fr_cli/repl/commands/rag.py
@@ -295,6 +301,7 @@ tests/test_batch_mode.py
 tests/test_bookmark.py
 tests/test_builtin_tools.py
 tests/test_charts.py
+tests/test_competitor_gap_scan.py
 tests/test_console.py
 tests/test_console_event_bridge.py
 tests/test_console_sse.py
@@ -329,6 +336,7 @@ tests/test_history.py
 tests/test_hooks.py
 tests/test_i18n.py
 tests/test_incremental.py
+tests/test_insight_extractor.py
 tests/test_integration_real.py
 tests/test_json_store.py
 tests/test_launch_flow.py
