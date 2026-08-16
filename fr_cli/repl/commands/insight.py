@@ -14,32 +14,36 @@
   /insight history [N]             — 查看最近 N 条历史快照(默认 5)
   /insight sources                 — 列出可用数据源
 """
-from fr_cli.ui.ui import CYAN, GREEN, YELLOW, RED, DIM, RESET
+from fr_cli.ui.output import (
+    success, failure, warning, info, header, kv_block
+)
 
 
 def _print_insights(payload, state):
     """把一份洞察 dict 打印到终端"""
     if not payload:
-        print(f"{YELLOW}暂无选品洞察。运行 /insight extract 跑一次提炼。{RESET}")
+        warning("暂无选品洞察", detail="运行 /insight extract 跑一次提炼")
         return
     insights = payload.get("insights") or {}
     if not insights:
-        print(f"{YELLOW}洞察档案为空。{RESET}")
+        warning("洞察档案为空")
         return
 
-    print(f"{CYAN}📊 最新选品洞察{RESET}")
-    print(f"{DIM}  提炼时间: {payload.get('created_at', '?')}{RESET}")
-    print(f"{DIM}  数据源:   {payload.get('source_name', '?')}{RESET}")
-    print(f"{DIM}  记录数:   {payload.get('record_count', '?')}{RESET}")
-    print()
+    header("最新选品洞察")
+    kv_block([
+        ("提炼时间", payload.get("created_at", "?")),
+        ("数据源", payload.get("source_name", "?")),
+        ("记录数", str(payload.get("record_count", "?"))),
+    ])
 
     summary = (insights.get("summary") or "").strip()
     if summary:
-        print(f"{GREEN}核心规律{RESET}: {summary}\n")
+        info("核心规律")
+        print(f"  {summary}\n")
 
     categories = insights.get("categories") or []
     if categories:
-        print(f"{CYAN}强势品类{RESET}:")
+        info("强势品类")
         for c in categories[:5]:
             if not isinstance(c, dict):
                 continue
@@ -52,7 +56,7 @@ def _print_insights(payload, state):
 
     price_bands = insights.get("price_bands") or []
     if price_bands:
-        print(f"{CYAN}价格带规律{RESET}:")
+        info("价格带规律")
         for p in price_bands[:4]:
             if not isinstance(p, dict):
                 continue
@@ -61,7 +65,7 @@ def _print_insights(payload, state):
 
     lc = insights.get("lifecycle_patterns") or []
     if lc:
-        print(f"{CYAN}生命周期{RESET}:")
+        info("生命周期")
         for x in lc[:3]:
             if not isinstance(x, dict):
                 continue
@@ -70,7 +74,7 @@ def _print_insights(payload, state):
 
     st = insights.get("seasonal_trends") or []
     if st:
-        print(f"{CYAN}季节/时间信号{RESET}:")
+        info("季节/时间信号")
         for x in st[:3]:
             if not isinstance(x, dict):
                 continue
@@ -79,7 +83,7 @@ def _print_insights(payload, state):
 
     ks = insights.get("key_signals") or []
     if ks:
-        print(f"{CYAN}关键信号{RESET}:")
+        info("关键信号")
         for s in ks[:5]:
             print(f"  • {s}")
 
@@ -93,13 +97,14 @@ def _cmd_insight(state, parts):
     if sub == "sources":
         from fr_cli.agent.insight_source import list_sources
         sources = list_sources()
-        print(f"{CYAN}可用选品数据源{RESET}: {', '.join(sources) if sources else '(无)'}")
-        print(f"{DIM}扩展: fr_cli.agent.insight_source.register_source(name, cls){RESET}")
+        sources_str = ", ".join(sources) if sources else "(无)"
+        info(f"可用选品数据源: {sources_str}")
+        print("  扩展: fr_cli.agent.insight_source.register_source(name, cls)")
         return False
 
     # ------ 历史快照 ------
     if sub == "history":
-        from fr_cli.agent.insight_storage import list_history, load_history
+        from fr_cli.agent.insight_storage import list_history
         limit = 5
         for a in args:
             if a.isdigit():
@@ -107,12 +112,12 @@ def _cmd_insight(state, parts):
                 break
         entries = list_history(limit=limit)
         if not entries:
-            print(f"{YELLOW}暂无历史快照。{RESET}")
+            warning("暂无历史快照")
             return False
-        print(f"{CYAN}最近 {len(entries)} 条历史快照{RESET}:")
+        info(f"最近 {len(entries)} 条历史快照:")
         for i, e in enumerate(entries, 1):
             print(f"  {i}. {e.get('created_at', '?')} | {e.get('source_name', '?')} | {e.get('record_count', '?')}条 | {e.get('summary', '')}")
-        print(f"\n{DIM}查看某条: /insight show <序号>  (TODO){RESET}")
+        print("\n  查看某条: /insight show <序号>  (TODO)")
         return False
 
     # ------ 显示最新 ------
@@ -126,7 +131,7 @@ def _cmd_insight(state, parts):
                 payload = load_history(entries[idx]["history_path"])
                 _print_insights(payload, state)
             else:
-                print(f"{RED}序号越界{RESET}")
+                failure("序号越界")
             return False
         from fr_cli.agent.insight_storage import load_latest
         _print_insights(load_latest(), state)
@@ -137,8 +142,7 @@ def _cmd_insight(state, parts):
         return _do_extract(state, args)
 
     # ------ 未知子命令 ------
-    print(f"{YELLOW}未知子命令: {sub}{RESET}")
-    print(f"{DIM}用法: /insight [show|extract|history|sources]{RESET}")
+    failure(f"未知子命令: {sub}", suggestion="用法: /insight [show|extract|history|sources]")
     return False
 
 
@@ -165,10 +169,10 @@ def _do_extract(state, args):
             try:
                 batch_size = int(args[i + 1])
             except ValueError:
-                print(f"{YELLOW}--batch 参数无效,使用默认 30{RESET}")
+                warning("--batch 参数无效,使用默认 30")
             i += 2
         else:
-            print(f"{YELLOW}忽略未知参数: {a}{RESET}")
+            warning(f"忽略未知参数: {a}")
             i += 1
 
     # 构建 source
@@ -185,28 +189,29 @@ def _do_extract(state, args):
             elif source_path.lower().endswith(".csv"):
                 source_name = "csv"
             else:
-                print(f"{RED}无法从路径推断数据源类型,请加 --source json|csv{RESET}")
+                failure("无法从路径推断数据源类型", suggestion="请加 --source json|csv")
                 return False
         try:
             source = get_source(source_name, path=source_path)
         except ValueError as e:
-            print(f"{RED}{e}{RESET}")
+            failure(str(e))
             return False
     elif source_name:
         try:
             source = get_source(source_name)
         except ValueError as e:
-            print(f"{RED}{e}{RESET}")
+            failure(str(e))
             return False
     else:
         source = get_default_source()
 
-    print(f"{CYAN}🧪 启动选品洞察提炼...{RESET}")
-    print(f"{DIM}  数据源: {getattr(source, 'name', '?')}{'(' + source_path + ')' if source_path else ''}")
-    if since:
-        print(f"{DIM}  since:  {since}{RESET}")
-    print(f"{DIM}  batch:  {batch_size}{RESET}")
-    print(f"{DIM}  模型:   {getattr(state, 'display_model', '?')}{RESET}")
+    info("启动选品洞察提炼...")
+    kv_block([
+        ("数据源", f"{getattr(source, 'name', '?')}" + (f"({source_path})" if source_path else "")),
+        ("since", since or "(全部)"),
+        ("batch", str(batch_size)),
+        ("模型", getattr(state, "display_model", "?")),
+    ])
     print()
 
     try:
@@ -238,13 +243,15 @@ def _do_extract(state, args):
 
     if result.get("skipped"):
         reason = result.get("reason", "?")
-        print(f"{YELLOW}跳过: {reason}{RESET}")
+        warning(f"跳过: {reason}")
         return False
 
-    print(f"{GREEN}✅ 提炼完成{RESET}")
-    print(f"{DIM}  记录数:  {result.get('record_count')}{RESET}")
-    print(f"{DIM}  批次数:  {result.get('batch_count')}{RESET}")
-    print(f"{DIM}  数据源:  {result.get('source_name')}{RESET}")
+    success("提炼完成")
+    kv_block([
+        ("记录数", str(result.get("record_count"))),
+        ("批次数", str(result.get("batch_count"))),
+        ("数据源", str(result.get("source_name"))),
+    ])
     print()
     _print_insights({
         "created_at": result.get("saved_at") or "",
@@ -253,7 +260,7 @@ def _do_extract(state, args):
         "insights": result.get("insights"),
     }, state)
     print()
-    print(f"{DIM}提示: 下次 MasterAgent 启动时,这份洞察会自动注入到 system prompt{RESET}")
+    info("提示: 下次 MasterAgent 启动时,这份洞察会自动注入到 system prompt")
     return False
 
 
