@@ -204,13 +204,25 @@ class InsightExtractor:
         self.source = source or get_default_source()
         self.batch_size = batch_size
 
-    def extract(self, since: Optional[str] = None) -> dict:
+    def extract(self, since: Optional[str] = None,
+                on_progress=None) -> dict:
         """执行一次完整提炼流程
+
+        Args:
+            since: 起始日期(同 source.load)
+            on_progress: 进度回调,签名 on_progress(stage, current, total, info)
+                - stage: "load" | "summarize" | "aggregate" | "save"
+                - current/total: 当前/总进度(可能为 0)
+                - info: 额外信息(如 "第 1/3 批提炼中")
 
         Returns:
             dict: 洞察结果(同时持久化到磁盘)
         """
+        if on_progress:
+            on_progress("load", 0, 1, "加载数据源")
         records = self.source.load(since=since)
+        if on_progress:
+            on_progress("load", 1, 1, f"加载 {len(records)} 条")
         if not records:
             return {
                 "skipped": True,
@@ -230,6 +242,9 @@ class InsightExtractor:
         # 批提炼(无 client 时只生成 stub,便于离线测试)
         batch_summaries = []
         for i, batch in enumerate(batches, 1):
+            if on_progress:
+                on_progress("summarize", i, len(batches),
+                            f"第 {i}/{len(batches)} 批提炼中")
             summary = self._summarize_batch(batch, batch_index=i, total=len(batches))
             if summary:
                 batch_summaries.append(summary)
@@ -242,12 +257,16 @@ class InsightExtractor:
             }
 
         # 聚合
+        if on_progress and len(batch_summaries) > 1:
+            on_progress("aggregate", 0, 1, "跨批聚合中")
         if len(batch_summaries) == 1:
             final = batch_summaries[0]
         else:
             final = self._aggregate_summaries(batch_summaries)
 
         # 持久化
+        if on_progress:
+            on_progress("save", 0, 1, "保存到磁盘")
         try:
             save_insights(
                 final,

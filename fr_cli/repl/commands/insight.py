@@ -211,6 +211,8 @@ def _do_extract(state, args):
 
     try:
         from fr_cli.agent.insight_extractor import InsightExtractor
+        from fr_cli.ui.spinner import Spinner
+        from fr_cli.core.errors import friendly_print, is_debug
         extractor = InsightExtractor(
             client=getattr(state, "client", None),
             model_name=getattr(state, "model_name", None),
@@ -218,9 +220,20 @@ def _do_extract(state, args):
             source=source,
             batch_size=batch_size,
         )
-        result = extractor.extract(since=since)
+        # Spinner 在后台跑,on_progress 回调更新显示消息
+        sp = Spinner("提炼中...")
+        with sp:
+            def _on_progress(stage, current, total, info):
+                if stage == "summarize":
+                    sp.update(f"{info}...")
+                elif stage == "aggregate":
+                    sp.update("跨批聚合中...")
+                elif stage == "save":
+                    sp.update("保存到磁盘...")
+                # load 阶段不显示(太快)
+            result = extractor.extract(since=since, on_progress=_on_progress)
     except Exception as e:
-        print(f"{RED}提炼失败: {e}{RESET}")
+        print(friendly_print(e, debug=is_debug()))
         return False
 
     if result.get("skipped"):

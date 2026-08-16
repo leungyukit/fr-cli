@@ -64,8 +64,16 @@ def _cmd_competitor_gaps(state, parts):
         print(f"{DIM}  模型: {getattr(state, 'display_model', '?')}{RESET}")
         print()
         try:
+            from fr_cli.ui.spinner import Spinner
             scanner = CompetitorGapScanner(state=state)
-            report = scanner.scan(save_report=True)
+            sp = Spinner("扫描中...")
+            with sp:
+                def _on_progress(stage, current, total, info):
+                    if stage == "analyze" and current > 0:
+                        sp.update(f"{info}")
+                    elif stage == "load_model":
+                        sp.update(info)
+                report = scanner.scan(save_report=True, on_progress=_on_progress)
         except Exception as e:
             print(friendly_print(e, debug=is_debug()))
             return False

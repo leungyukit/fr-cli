@@ -225,6 +225,7 @@ fr_cli/ui/buddha.py
 fr_cli/ui/diff_view.py
 fr_cli/ui/markdown.py
 fr_cli/ui/markdown_stream.py
+fr_cli/ui/spinner.py
 fr_cli/ui/ui.py
 fr_cli/ui/prompt/__init__.py
 fr_cli/ui/prompt/completer.py
@@ -318,6 +319,7 @@ tests/test_diff_view.py
 tests/test_dream.py
 tests/test_dynamic_builder.py
 tests/test_dynamic_builder_selftest.py
+tests/test_error_messages.py
 tests/test_event_auto_record.py
 tests/test_events_dispatch.py
 tests/test_events_integration.py
@@ -367,6 +369,7 @@ tests/test_plan_mode.py
 tests/test_plan_ui.py
 tests/test_plan_undo.py
 tests/test_plugin_exec.py
+tests/test_progress_feedback.py
 tests/test_project_memory.py
 tests/test_prompt_completion.py
 tests/test_rag.py
