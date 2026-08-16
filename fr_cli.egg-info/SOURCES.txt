@@ -327,6 +327,7 @@ tests/test_fs.py
 tests/test_gap_analyzer.py
 tests/test_gatekeeper_store.py
 tests/test_git_tools.py
+tests/test_help_discovery.py
 tests/test_help_update.py
 tests/test_hermes.py
 tests/test_hermes_daemon.py
