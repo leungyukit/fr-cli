@@ -1,7 +1,8 @@
 """
 REPL /key 与 /providers 命令 —— API Key 与多提供商管理
 """
-from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.output import success, failure, warning, info, header
+from fr_cli.ui.ui import CYAN, YELLOW, DIM, RESET
 from fr_cli.repl.commands._common import _provider_has_key
 
 
@@ -19,7 +20,7 @@ def _cmd_key(state, parts):
         target_provider = arg1
         from fr_cli.core.llm import get_provider_info
         if not get_provider_info(target_provider):
-            print(f"{RED}❌ 无效提供商: {target_provider}{RESET}")
+            failure(f"无效提供商: {target_provider}")
             return False
         # 临时切到目标提供商设置 key，再切回来
         original_provider = state.provider
@@ -28,15 +29,15 @@ def _cmd_key(state, parts):
         # 如果原来不是目标提供商，切回去
         if original_provider != target_provider:
             state.update_provider(original_provider)
-        print(f"{GREEN}✅ [{target_provider}] API Key 已更新{RESET}")
+        success(f"[{target_provider}] API Key 已更新")
     elif arg1:
         # /key <key>
         state.update_key(arg1)
-        print(f"{GREEN}✅ [{state.provider}] API Key 已更新{RESET}")
+        success(f"[{state.provider}] API Key 已更新")
     else:
-        print(f"{YELLOW}⚠️ 用法:{RESET}")
-        print(f"  /key <API密钥>              — 为当前提供商 [{state.provider}] 设置密钥")
-        print("  /key <提供商> <API密钥>       — 为指定提供商设置密钥")
+        warning("用法")
+        info("/key <API密钥>              — 为当前提供商 [{state.provider}] 设置密钥")
+        info("/key <提供商> <API密钥>       — 为指定提供商设置密钥")
     return False
 
 
@@ -58,15 +59,15 @@ def _cmd_providers(state, parts):
 
     if not sub or sub == "list":
         from fr_cli.core.llm import list_providers, get_provider_info
-        print(f"{CYAN}📜 提供商配置总览{RESET}")
+        header("提供商配置总览")
         for p in list_providers():
             pcfg = providers_cfg.get(p["id"], {})
             has_key = _provider_has_key(state, p["id"])
-            key_status = f"{GREEN}✅{RESET}" if has_key else f"{RED}❌{RESET}"
+            key_status = "✅" if has_key else "❌"
             model = pcfg.get("model", p["default_model"])
-            info = get_provider_info(p["id"])
-            base_url = pcfg.get("base_url") or info.get("base_url", "默认")
-            token_plan_url = pcfg.get("token_plan_base_url") or info.get("token_plan_base_url")
+            pinfo = get_provider_info(p["id"])
+            base_url = pcfg.get("base_url") or pinfo.get("base_url", "默认")
+            token_plan_url = pcfg.get("token_plan_base_url") or pinfo.get("token_plan_base_url")
             active = f" {YELLOW}👈 当前使用{RESET}" if p["id"] == state.provider else ""
             print(f"\n  {key_status} {CYAN}{p['id']}{RESET} — {p['name']}{active}")
             print(f"      模型: {DIM}{model}{RESET}")
@@ -77,11 +78,12 @@ def _cmd_providers(state, parts):
                 raw_key = pcfg.get("key", state.cfg.get("key", ""))
                 key_display = raw_key[:8] + "****" if len(raw_key) > 8 else raw_key
                 print(f"      Key:  {DIM}{key_display}{RESET}")
-        print(f"\n{DIM}用法:{RESET}")
-        print("  /providers setup                   — 交互式配置向导（推荐新手）")
-        print("  /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>] — 添加/更新提供商配置")
-        print("  /providers del <提供商>              — 删除提供商配置")
-        print("  /providers use <提供商>              — 切换到指定提供商")
+        print()
+        info("用法:")
+        info("/providers setup                   — 交互式配置向导（推荐新手）")
+        info("/providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>] — 添加/更新提供商配置")
+        info("/providers del <提供商>              — 删除提供商配置")
+        info("/providers use <提供商>              — 切换到指定提供商")
         return False
 
     if sub == "setup":
@@ -101,17 +103,17 @@ def _cmd_providers(state, parts):
 
     if sub == "add":
         if not arg1 or not arg2:
-            print(f"{RED}❌ 用法: /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>]{RESET}")
+            failure("用法: /providers add <提供商> <key> [模型] [--base-url <url>] [--token-plan-base-url <url>]")
             return False
         provider_id = arg1
         from fr_cli.core.llm import get_provider_info
-        info = get_provider_info(provider_id)
-        if not info:
-            print(f"{RED}❌ 无效提供商: {provider_id}{RESET}")
+        pinfo = get_provider_info(provider_id)
+        if not pinfo:
+            failure(f"无效提供商: {provider_id}")
             return False
         pcfg = providers_cfg.setdefault(provider_id, {})
         pcfg["key"] = arg2
-        model = parts[4] if len(parts) > 4 else info["default_model"]
+        model = parts[4] if len(parts) > 4 else pinfo["default_model"]
         pcfg["model"] = model
         # 支持自定义 base_url: /providers add <provider> <key> [model] --base-url <url>
         # 支持自定义 token_plan_base_url: --token-plan-base-url <url>
@@ -129,39 +131,39 @@ def _cmd_providers(state, parts):
             extra_parts.append(f"Token Plan 接口={pcfg.get('token_plan_base_url')}")
         extra = " ".join(extra_parts)
         extra = f" {extra}" if extra else ""
-        print(f"{GREEN}✅ [{provider_id}] 配置已更新: 模型={model}{extra}{RESET}")
+        success(f"[{provider_id}] 配置已更新: 模型={model}{extra}")
         return False
 
     if sub == "del":
         if not arg1:
-            print(f"{RED}❌ 用法: /providers del <提供商>{RESET}")
+            failure("用法: /providers del <提供商>")
             return False
         if arg1 in providers_cfg:
             del providers_cfg[arg1]
             state.cfg["providers"] = providers_cfg
             state.save_cfg()
-            print(f"{GREEN}✅ [{arg1}] 配置已删除{RESET}")
+            success(f"[{arg1}] 配置已删除")
         else:
-            print(f"{YELLOW}⚠️ [{arg1}] 无配置可删除{RESET}")
+            warning(f"[{arg1}] 无配置可删除")
         return False
 
     if sub == "use":
         if not arg1:
-            print(f"{RED}❌ 用法: /providers use <提供商>{RESET}")
+            failure("用法: /providers use <提供商>")
             return False
         ok = state.update_provider(arg1)
         if ok:
-            print(f"{GREEN}✅ 已切换到: [{state.provider}] {state.display_model}{RESET}")
+            success(f"已切换到: [{state.provider}] {state.display_model}")
             # 检查新提供商是否已配置 API Key
             if not _provider_has_key(state, state.provider):
-                print(f"{YELLOW}⚠️ [{state.provider}] 尚未配置 API Key{RESET}")
+                warning(f"[{state.provider}] 尚未配置 API Key")
                 k = input(f"👉 请输入 [{state.provider}] 的 API Key: ").strip()
                 if k:
                     state.update_key(k)
-                    print(f"{GREEN}✅ [{state.provider}] API Key 已保存{RESET}")
+                    success(f"[{state.provider}] API Key 已保存")
         else:
-            print(f"{RED}❌ 无效提供商: {arg1}{RESET}")
+            failure(f"无效提供商: {arg1}")
         return False
 
-    print(f"{RED}❌ 未知子命令: {sub}{RESET}")
+    failure(f"未知子命令: {sub}")
     return False

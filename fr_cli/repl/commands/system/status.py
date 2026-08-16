@@ -1,9 +1,11 @@
 """
-全局状态面板：/status [json|errors]
+全局状态面板:/status [json|errors]
 """
 import json
 
-from fr_cli.ui.ui import CYAN, YELLOW, GREEN, DIM, RESET
+from fr_cli.ui.output import (
+    success, warning, info, header
+)
 
 
 def _cmd_status(state, parts):
@@ -27,10 +29,9 @@ def _cmd_status(state, parts):
         return False
 
     # 文本面板
-    print(f"{CYAN}📊 fr-cli 全局状态{RESET}")
-    print(f"{DIM}{'━' * 40}{RESET}")
+    header("fr-cli 全局状态")
 
-    key_ok = "✅" if summary.get("api_key_configured") else "❌"
+    key_ok = "✅ 已配置" if summary.get("api_key_configured") else "❌ 未配置"
     print(f"🤖 模型: {summary.get('provider')} / {summary.get('model')}")
     print(f"🔑 API Key: {key_ok}")
     print(f"🔐 自主模式: {summary.get('autonomous_mode')}")
@@ -42,16 +43,15 @@ def _cmd_status(state, parts):
     print()
     agent_srv = summary.get("agent_server", {})
     if agent_srv.get("running"):
-        print(f"{GREEN}🌐 Agent HTTP 服务: 运行中{RESET}")
-        print(f"   {DIM}{agent_srv.get('status')}{RESET}")
+        success("Agent HTTP 服务: 运行中", detail=str(agent_srv.get('status')))
     else:
-        print(f"{DIM}🌐 Agent HTTP 服务: 未运行{RESET}")
+        info("Agent HTTP 服务: 未运行")
 
     hermes = summary.get("hermes_daemon", {})
     if hermes.get("running"):
-        print(f"{GREEN}🧚 Hermes 守护进程: {hermes.get('status')}{RESET}")
+        success(f"Hermes 守护进程: {hermes.get('status')}")
     else:
-        print(f"{DIM}🧚 Hermes 守护进程: {hermes.get('status')}{RESET}")
+        info(f"Hermes 守护进程: {hermes.get('status')}")
 
     # Hermes 任务统计
     tasks = summary.get("hermes_tasks", {})
@@ -62,9 +62,9 @@ def _cmd_status(state, parts):
 
     gk = summary.get("gatekeeper", {})
     if gk.get("running"):
-        print(f"{GREEN}🛡️ Gatekeeper: {gk.get('status')}{RESET}")
+        success(f"Gatekeeper: {gk.get('status')}")
     else:
-        print(f"{DIM}🛡️ Gatekeeper: {gk.get('status')}{RESET}")
+        info(f"Gatekeeper: {gk.get('status')}")
 
     print()
     rq = summary.get("review_queue", {})
@@ -83,7 +83,9 @@ def _cmd_status(state, parts):
     rejected_count = len(errors.get("review_queue_rejected", []))
     if failed_count or selftest_count or rejected_count:
         print()
-        print(f"{YELLOW}⚠️ 最近错误: Hermes失败={failed_count} 自测回滚={selftest_count} 审核拒绝={rejected_count}{RESET}")
-        print(f"   使用 {CYAN}/status errors{RESET} 查看详情")
+        warning(
+            f"最近错误: Hermes失败={failed_count} 自测回滚={selftest_count} 审核拒绝={rejected_count}",
+            detail="使用 /status errors 查看详情",
+        )
 
     return False
