@@ -97,6 +97,10 @@ class MasterAgentLoopMixin:
         # 长上下文自动压缩（后台任务也受益）
         self._maybe_compress_messages(messages)
 
+        # 交互运行(REPL 对话)流式输出,让用户实时看到思考与最终回答;
+        # Hermes 后台隔离运行保持 silent(输出进任务日志而非终端)
+        isolated_run = context_messages is not None
+
         # ReAct 循环
         final_answer = None
         observations = []
@@ -108,7 +112,7 @@ class MasterAgentLoopMixin:
             # 调用 LLM 获取 Thought + Action
             txt, usage, _, _ = stream_cnt(
                 self.state.client, self.state.model_name, messages, lang,
-                custom_prefix="", max_tokens=2048, silent=True
+                custom_prefix="", max_tokens=2048, silent=isolated_run
             )
 
             # 解析工具调用
@@ -156,7 +160,7 @@ class MasterAgentLoopMixin:
             from fr_cli.core.stream import stream_cnt
             final_answer, _, _, _ = stream_cnt(
                 self.state.client, self.state.model_name, messages, lang,
-                custom_prefix="", max_tokens=2048, silent=True
+                custom_prefix="", max_tokens=2048, silent=isolated_run
             )
             # 将 assistant 的最终回答加入消息历史，保证会话连续性
             messages.append({"role": "assistant", "content": final_answer})
@@ -179,7 +183,6 @@ class MasterAgentLoopMixin:
         self._reflect_and_evolve(user_input, observations, final_answer)
 
         # ---------- 后处理：与传统模式对齐体验 ----------
-        isolated_run = context_messages is not None
         target_messages = context_messages if isolated_run else self.state.messages
 
         # 保存到消息列表以便会话连贯（后台任务使用独立列表）

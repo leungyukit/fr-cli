@@ -55,6 +55,7 @@
 - 降级路径 Markdown 围栏被 chunk 边界截断、语言标签状态丢失、表格头行不含 `-` 不被识别（3 个既存 bug）
 - 韩立字符画高度保护按纯文本版行数（40）判断，彩色终端实际打印 80 行会溢出一倍——改为按实际打印版本（彩色/纯文本）计算
 - 流式输出在未闭合代码块内结束时最后一行重复打印：`flush()` 的 IN_CODE 分支不清空 buffer，且 `stream_cnt` 两个退出点都 flush——flush 改为幂等 + 去掉重复调用
+- MasterAgent（默认开启）路径的最终回答原文 `print`，绕过流式 Markdown 渲染——改为交互模式流式输出（每轮 ReAct 思考与最终回答都实时渲染），Hermes 后台隔离运行保持 silent；pipeline 不再重复打印
 - `m365_config_wizard` 对 Result 解包必抛 TypeError（`__slots__` 不可迭代）
 
 ### 📊 测试

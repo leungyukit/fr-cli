@@ -64,9 +64,9 @@ def _route_mode(state, u):
 
     # MasterAgent 自我进化主控模式接管(ReAct 循环 + 自主工具调用)
     if getattr(state, "master_agent", None) and state.master_agent.is_enabled():
-        final_answer, _ = state.master_agent.handle(u)
-        if final_answer:
-            print(final_answer)
+        # 交互模式下 master_loop 已流式输出(markdown 实时渲染),这里不再重复打印;
+        # Hermes 后台隔离运行走 silent,返回值由调用方存入任务结果
+        state.master_agent.handle(u)
         return
 
     return _direct_chat(state, u)
