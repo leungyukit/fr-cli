@@ -42,7 +42,25 @@ class ModelFactory:
                     self._config = json.load(f)
         else:
             self._config = self._get_default_config()
+        self._config = self._normalize_config(self._config)
         return self
+
+    @staticmethod
+    def _normalize_config(cfg):
+        """归一化配置为扁平 provider 字典(顶层键即 provider id)。
+
+        兼容旧版嵌套格式:早期 ~/.fr_cli/models.yaml 形如
+            providers: {deepseek: {...}, ...}
+            settings:   {default_provider: ...}
+        不归一化会把 providers/settings 当成两个 provider,
+        导致向导列表错乱、default_model=None 进而在格式化时崩溃。
+        """
+        if not isinstance(cfg, dict):
+            return {}
+        inner = cfg.get("providers")
+        if isinstance(inner, dict) and inner and all(isinstance(v, dict) for v in inner.values()):
+            return inner
+        return cfg
 
     def _get_default_config(self):
         """获取默认配置 —— 从包内 default_models.yaml 加载。

@@ -145,9 +145,9 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
         providers_cfg = cfg.setdefault("providers", {})
         for i, p in enumerate(providers, 1):
             info = get_provider_info(p["id"])
-            default_model = info.get("default_model", "?") if info else "?"
+            default_model = (info.get("default_model") or "?") if info else "?"
             marker = f"{GREEN}✓{RESET}" if p["id"] in providers_cfg else f"{DIM}·{RESET}"
-            compat = info.get("compat", "?") if info else "?"
+            compat = (info.get("compat") or "?") if info else "?"
             print(f"  {marker} [{CYAN}{i:>2}{RESET}] {p['id']:<22} {DIM}{p['name']:<14} 默认:{default_model:<24} compat:{compat}{RESET}")
 
         idx = _choose_from_list("👉 供应商编号", providers, allow_back=False)

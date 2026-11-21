@@ -16,6 +16,47 @@ from fr_cli.core.llm import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _default_providers(monkeypatch, request):
+    """隔离开发者本机 ~/.fr_cli/models.yaml,强制从包内 default_models.yaml 重建 _PROVIDERS。
+
+    本文件全部断言都针对包内默认 provider 表;若不隔离,开发者机器上存在
+    用户 models.yaml 时 _PROVIDERS 会是用户配置(如旧版嵌套格式归一化后的
+    三个 provider),测试结果随环境漂移 —— 例如 create_llm_client_for("openai")
+    会因 _resolve_llm_kwargs 的"回退到第一个 provider"逻辑拿到错误 base_url。
+
+    注意对象身份:reload_providers() 会 rebind 模块全局,而本模块 import 时
+    绑定的 _PROVIDERS 是旧对象;全量跑时若前置测试调用过 reload,两者会脱钩。
+    因此先把全局指回本模块绑定的对象,再原地填充,保证断言与 API 读到同一份。
+    """
+    from pathlib import Path
+    from fr_cli.core import llm, model_factory
+
+    target = request.module._PROVIDERS
+    saved_global = llm._PROVIDERS
+    saved_factory = model_factory._factory
+    saved_providers = dict(target)
+    saved_map = dict(llm._MODEL_TO_PROVIDER)
+
+    # MODELS_YAML 指向不存在路径 → load_config 走 _get_default_config → 包内默认配置
+    monkeypatch.setattr(model_factory, "MODELS_YAML",
+                        Path("/nonexistent/fr-cli-test-models.yaml"))
+    model_factory._factory = None
+    llm._PROVIDERS = target
+    target.clear()
+    llm._MODEL_TO_PROVIDER.clear()
+    llm._load_providers_from_factory()
+
+    yield
+
+    model_factory._factory = saved_factory
+    target.clear()
+    target.update(saved_providers)
+    llm._MODEL_TO_PROVIDER.clear()
+    llm._MODEL_TO_PROVIDER.update(saved_map)
+    llm._PROVIDERS = saved_global
+
+
 class TestMiniMaxProviders:
     """测试 MiniMax 相关 provider"""
 

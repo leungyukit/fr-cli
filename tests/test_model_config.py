@@ -1356,3 +1356,89 @@ class TestYieldChunks:
         result = list(BaseLLMClient._yield_chunks(iter(chunks)))
         assert result[0]["usage"]["prompt_tokens"] == 10
         assert result[0]["usage"]["completion_tokens"] == 5
+
+
+# ---------- 旧版嵌套格式 models.yaml 兼容 ----------
+
+class TestLegacyNestedModelsYaml:
+    """旧版 ~/.fr_cli/models.yaml 为嵌套格式(顶层 providers:/settings:),
+    新版代码只认扁平格式。加载时必须归一化,否则 providers/settings 会被
+    当成两个 provider,default_model=None 导致向导格式化崩溃。"""
+
+    LEGACY = {
+        "providers": {
+            "deepseek": {
+                "name": "DeepSeek", "model": "deepseek-chat",
+                "base_url": "https://api.deepseek.com/v1",
+            },
+            "volcengine-plan": {
+                "name": "volcengine-coding-plan", "model": "ark-code-latest",
+                "base_url": "https://ark.example.com/api/v3",
+            },
+        },
+        "settings": {"default_provider": "volcengine-plan", "lang": "zh"},
+    }
+
+    def _write(self, tmp_path):
+        p = tmp_path / "models.json"
+        p.write_text(json.dumps(self.LEGACY), encoding="utf-8")
+        return p
+
+    def test_factory_normalizes_nested_format(self, tmp_path):
+        """嵌套格式加载后归一化为扁平 provider 字典"""
+        from fr_cli.core.model_factory import ModelFactory
+        p = self._write(tmp_path)
+        inst = ModelFactory()
+        orig = getattr(inst, "_config", None)
+        try:
+            inst.load_config(str(p))
+            assert inst.list_providers() == ["deepseek", "volcengine-plan"]
+            assert inst.get_model_name("deepseek") == "deepseek-chat"
+            assert inst.get_config("volcengine-plan")["model"] == "ark-code-latest"
+            assert inst.get_config("volcengine-plan")["base_url"] == "https://ark.example.com/api/v3"
+        finally:
+            inst._config = orig
+
+    def test_factory_flat_format_untouched(self, tmp_path):
+        """新版扁平格式不受影响(不误触发归一化)"""
+        from fr_cli.core.model_factory import ModelFactory
+        flat = {"zhipu": {"name": "智谱", "model": "glm-4-flash"}}
+        p = tmp_path / "models.json"
+        p.write_text(json.dumps(flat), encoding="utf-8")
+        inst = ModelFactory()
+        orig = getattr(inst, "_config", None)
+        try:
+            inst.load_config(str(p))
+            assert inst.list_providers() == ["zhipu"]
+            assert inst.get_model_name("zhipu") == "glm-4-flash"
+        finally:
+            inst._config = orig
+
+    def test_llm_providers_load_from_nested_format(self, tmp_path):
+        """向导的数据源(core.llm)从嵌套格式得到真实 provider,无伪条目"""
+        from fr_cli.core import llm, model_factory
+        p = self._write(tmp_path)
+        inst = model_factory.ModelFactory()
+        orig_cfg = getattr(inst, "_config", None)
+        orig_providers = dict(llm._PROVIDERS)
+        orig_map = dict(llm._MODEL_TO_PROVIDER)
+        orig_factory = model_factory._factory
+        try:
+            inst.load_config(str(p))
+            model_factory._factory = inst
+            llm.reload_providers()
+            ids = [x["id"] for x in llm.list_providers()]
+            assert "deepseek" in ids and "volcengine-plan" in ids
+            assert "providers" not in ids and "settings" not in ids
+            info = llm.get_provider_info("deepseek")
+            assert info["default_model"] == "deepseek-chat"
+            assert info["name"] == "DeepSeek"
+            # 向导格式化路径:default_model 必须非 None
+            for x in llm.list_providers():
+                i = llm.get_provider_info(x["id"])
+                f"{i.get('default_model') or '?':<24}"
+        finally:
+            llm._PROVIDERS.clear(); llm._PROVIDERS.update(orig_providers)
+            llm._MODEL_TO_PROVIDER.clear(); llm._MODEL_TO_PROVIDER.update(orig_map)
+            model_factory._factory = orig_factory
+            inst._config = orig_cfg
