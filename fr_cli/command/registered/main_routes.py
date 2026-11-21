@@ -14,7 +14,7 @@ from fr_cli.command.registry import register
     aliases=["/help", "/?", "/h"],
 )
 def _help_cmd(deps, **kwargs):
-    return "💡 /help 由 main.py 路由处理（不通过注册表）", None
+    return "/help 由 main.py 路由处理（不通过注册表）", None
 
 
 @register(
@@ -24,7 +24,7 @@ def _help_cmd(deps, **kwargs):
     aliases=["/exit", "/quit", "/q"],
 )
 def _exit_cmd(deps, **kwargs):
-    return "💡 /exit 由 main.py 路由处理", None
+    return "/exit 由 main.py 路由处理", None
 
 
 @register(
@@ -34,7 +34,7 @@ def _exit_cmd(deps, **kwargs):
     aliases=["/shell", "/s"],
 )
 def _shell_cmd(deps, **kwargs):
-    return "💡 /shell 由 main.py 路由处理", None
+    return "/shell 由 main.py 路由处理", None
 
 
 @register(
@@ -44,4 +44,4 @@ def _shell_cmd(deps, **kwargs):
     aliases=["/undo", "/u"],
 )
 def _undo_cmd(deps, **kwargs):
-    return "💡 /undo 由 main.py 路由处理", None
+    return "/undo 由 main.py 路由处理", None

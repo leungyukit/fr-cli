@@ -45,7 +45,7 @@ def _cmd_agent_cron_add(state, parts):
     }
     agent_crons.append(new_job)
     sync_gatekeeper_cron_jobs(agent_crons=agent_crons)
-    print(f"{GREEN}✅ Agent 定时任务已添加 (ID: {new_job['id']}){RESET}")
+    print(f"{GREEN}[OK] Agent 定时任务已添加 (ID: {new_job['id']}){RESET}")
     print(f"{DIM}  Agent: {arg1} | 间隔: {interval}秒 | 输入: {arg3 or '(无)'}{RESET}")
 
     # 如果 gatekeeper 正在运行，提示热重载将自动生效
@@ -88,7 +88,7 @@ def _cmd_agent_cron_del(state, parts):
         print(f"{RED}未找到 ID 为 {job_id} 的 Agent 定时任务。{RESET}")
         return False
     sync_gatekeeper_cron_jobs(agent_crons=new_crons)
-    print(f"{GREEN}✅ Agent 定时任务 ID:{job_id} 已删除。{RESET}")
+    print(f"{GREEN}[OK] Agent 定时任务 ID:{job_id} 已删除。{RESET}")
     if state.gatekeeper.is_running():
         print(f"{DIM}  Gatekeeper 运行中，变更将在约30秒内自动生效。{RESET}")
     return False

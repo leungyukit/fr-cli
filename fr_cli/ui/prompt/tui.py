@@ -58,7 +58,7 @@ class FanRenPrompt:
         if HAS_PT:
             self._init_tty()
         else:
-            print(f"{YELLOW}⚠️ prompt_toolkit 未安装，使用基础 input(){RESET}", file=sys.stderr)
+            print(f"{YELLOW}[!] prompt_toolkit 未安装，使用基础 input(){RESET}", file=sys.stderr)
             print("  安装: pip install prompt_toolkit>=3.0.0", file=sys.stderr)
 
     def _init_tty(self):
@@ -306,7 +306,7 @@ class FanRenPrompt:
         """获取用户输入
 
         Args:
-            prefix_hint: 在 prompt 前打印的提示（如 "💡 试试 /help"）
+            prefix_hint: 在 prompt 前打印的提示（如 "试试 /help"）
         Returns:
             str: 用户输入（已 strip）
             "" : 用户按 Ctrl+C 清空

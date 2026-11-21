@@ -41,14 +41,14 @@ class WebRaider:
     def search(self, q, lang):
         """使用百度搜索进行零配置搜索，返回 Result[list]。"""
         if not HAS_REQ:
-            return Result.fail("❌ pip install requests")
+            return Result.fail("[x] pip install requests")
         try:
             import urllib.parse
             headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
             # 百度搜索
             url = f"https://www.baidu.com/s?wd={urllib.parse.quote(q)}"
             if _is_private_url(url):
-                return Result.fail("❌ 禁止访问该 URL")
+                return Result.fail("[x] 禁止访问该 URL")
             res = requests.get(url, headers=headers, timeout=8)
 
             # 简易正则提取结果
@@ -71,9 +71,9 @@ class WebRaider:
     def fetch(self, url, lang):
         """抓取指定 URL 的网页并提取纯文本，返回 Result[str]。"""
         if not HAS_REQ:
-            return Result.fail("❌ pip install requests")
+            return Result.fail("[x] pip install requests")
         if _is_private_url(url):
-            return Result.fail("❌ 禁止访问该 URL")
+            return Result.fail("[x] 禁止访问该 URL")
         try:
             headers = {"User-Agent": "Mozilla/5.0"}
             res = requests.get(url, headers=headers, timeout=10)

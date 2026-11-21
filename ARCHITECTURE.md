@@ -5,9 +5,9 @@
 ## 1. 设计原则
 
 1. **单一真相源 (Single Source of Truth)**
-   - 配置路径 → `fr_cli.conf.paths`（所有路径常量）
-   - 命令注册 → `fr_cli.command.registry`（统一注册表）
-   - 运行时状态 → `fr_cli.core.core.AppState`（DI 容器）
+   - 配置路径 →`fr_cli.conf.paths`（所有路径常量）
+   - 命令注册 →`fr_cli.command.registry`（统一注册表）
+   - 运行时状态 →`fr_cli.core.core.AppState`（DI 容器）
 
 2. **向后兼容是必须的**
    - 旧路径首次启动自动迁移到新位置

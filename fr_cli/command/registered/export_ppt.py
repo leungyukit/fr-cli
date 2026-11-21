@@ -57,9 +57,9 @@ def _register_export_ppt(deps, **kwargs):
     pptx_error = result.get("pptx_error")
     extra = ""
     if pptx_error:
-        extra = f"\n\n⚠️ PPTX 生成失败,已回退到 Markdown: {pptx_error}"
+        extra = f"\n\n[!] PPTX 生成失败,已回退到 Markdown: {pptx_error}"
     return Result.ok(
-        f"✅ 会话导出成功\n"
+        f"[OK] 会话导出成功\n"
         f"  格式: {result.get('format', '?')}\n"
         f"  路径: {result['path']}\n"
         f"  幻灯片: {result.get('slides', 0)} 张{extra}"
@@ -79,7 +79,7 @@ def _register_list_exportable(deps, **kwargs):
     if not sessions:
         return Result.ok("未找到任何会话")
 
-    lines = [f"📂 最近 {len(sessions)} 个可导出会话:"]
+    lines = [f"最近 {len(sessions)} 个可导出会话:"]
     for s in sessions:
         lines.append(f"  {s['index']}. {s['filename']}")
         lines.append(f"     {s['updated_at']} | {s['msg_count']} 条消息")

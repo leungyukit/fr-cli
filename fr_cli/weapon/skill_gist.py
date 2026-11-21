@@ -291,13 +291,13 @@ def format_shared_skills(records: List[Dict[str, Any]], lang: str = "zh") -> str
         return "没有共享记录" if lang == "zh" else "No shared records"
 
     if lang == "zh":
-        title = "🌐 已共享的 Skills"
+        title = "已共享的 Skills"
     else:
-        title = "🌐 Shared Skills"
+        title = "Shared Skills"
 
     lines = [f"{title} ({len(records)}):"]
     for r in records:
-        lines.append(f"  📦 {r['name']}")
+        lines.append(f"{r['name']}")
         lines.append(f"     Gist: {r['gist_id']}")
         lines.append(f"     URL: {r['url']}")
         if r.get("shared_at"):

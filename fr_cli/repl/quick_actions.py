@@ -107,9 +107,9 @@ def write_vscode_template(target_dir: str = ".") -> str:
     target.mkdir(parents=True, exist_ok=True)
     f = target / "settings.json"
     if f.exists():
-        return f"⚠️ 已存在: {f}（未覆盖）"
+        return f"[!] 已存在: {f}（未覆盖）"
     f.write_text(VSCODE_SETTINGS_TEMPLATE, encoding="utf-8")
-    return f"✅ 已写入: {f}"
+    return f"[OK] 已写入: {f}"
 
 
 ZED_SETTINGS_TEMPLATE = """{
@@ -131,9 +131,9 @@ def write_zed_template(target_dir: str = ".") -> str:
     target.mkdir(parents=True, exist_ok=True)
     f = target / "settings.json"
     if f.exists():
-        return f"⚠️ 已存在: {f}（未覆盖）"
+        return f"[!] 已存在: {f}（未覆盖）"
     f.write_text(ZED_SETTINGS_TEMPLATE, encoding="utf-8")
-    return f"✅ 已写入: {f}"
+    return f"[OK] 已写入: {f}"
 
 
 # ==================== P3-5 几个 command 命令 ====================
@@ -142,32 +142,32 @@ def cmd_voice(state, parts) -> str:
     """/voice —— 语音输入（macOS Dictation 提示）"""
     if IS_MACOS:
         return (
-            "🎙️  语音输入：\n"
+            "语音输入：\n"
             "   macOS 自带 Dictation：按 Fn 两次开始听写，再按 Fn 一次结束\n"
             "   或在系统设置 → 键盘 → Dictation 启用\n\n"
             "   fr-cli 自动识别剪贴板中的转写文字"
         )
     elif IS_WINDOWS:
-        return "🎙️  Windows 语音输入：Win+H 调出听写面板"
+        return "Windows 语音输入：Win+H 调出听写面板"
     else:
-        return "🎙️  Linux 语音输入：需安装 arecord + vosk（pip install vosk）"
+        return "Linux 语音输入：需安装 arecord + vosk（pip install vosk）"
 
 
 def cmd_screenshot(state, parts) -> str:
     """/screenshot [full|window|selection] —— 截屏"""
     region = parts[1] if len(parts) > 1 else None
     if not IS_MACOS:
-        return f"❌ 当前平台 ({sys.platform}) 暂不支持截屏\n   💡 macOS 上可用 screencapture 命令手动"
+        return f"[x] 当前平台 ({sys.platform}) 暂不支持截屏\n macOS 上可用 screencapture 命令手动"
     out = screenshot(region)
     if out:
-        return f"📸 已截图: {out}\n   💡 用 /see {out} 让 AI 分析"
-    return "❌ 截屏失败（可能用户取消了选择）"
+        return f"已截图: {out}\n 用 /see {out} 让 AI 分析"
+    return "[x] 截屏失败（可能用户取消了选择）"
 
 
 def cmd_drag_hint(state, parts) -> str:
     """/drag —— 显示拖文件到终端的提示"""
     return (
-        "📎 拖文件支持：\n"
+        "拖文件支持：\n"
         "   macOS/Linux: 把文件从 Finder/Nautilus 拖到终端，会自动识别路径\n"
         "   Windows: 右键文件 → 复制为路径，然后粘贴\n\n"
         "   fr-cli 会自动识别：\n"
@@ -184,4 +184,4 @@ def cmd_ide_template(state, parts) -> str:
         return write_vscode_template()
     elif ide == "zed":
         return write_zed_template()
-    return f"❌ 不支持的 IDE: {ide}（支持: vscode / zed）"
+    return f"[x] 不支持的 IDE: {ide}（支持: vscode / zed）"

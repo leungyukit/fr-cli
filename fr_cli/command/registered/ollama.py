@@ -48,7 +48,7 @@ def _register_ollama_pull(deps, **kwargs):
 
     from fr_cli.weapon.ollama import pull_model
 
-    print(f"⏳ 正在下载 {model}...")
+    print(f"正在下载 {model}...")
     lines = []
     last_status = ""
     for chunk in pull_model(model, base_url=url):
@@ -69,7 +69,7 @@ def _register_ollama_pull(deps, **kwargs):
             bar = "█" * filled + "░" * (bar_len - filled)
             print(f"  [{bar}] {percent:.1f}%")
 
-    return Result.ok(f"✅ 模型 {model} 下载完成\n\n" + "\n".join(lines))
+    return Result.ok(f"[OK] 模型 {model} 下载完成\n\n" + "\n".join(lines))
 
 
 @register(
@@ -90,7 +90,7 @@ def _register_ollama_rm(deps, **kwargs):
     r = delete_model(model, base_url=url)
     if not r["ok"]:
         return Result.fail(r.get("error", "删除失败"))
-    return Result.ok(f"✅ 模型 {model} 已删除")
+    return Result.ok(f"[OK] 模型 {model} 已删除")
 
 
 @register(
@@ -121,10 +121,10 @@ def _register_ollama_use(deps, **kwargs):
         if hasattr(deps.state, "reinit_client"):
             deps.state.reinit_client()
         return Result.ok(
-            f"✅ 已切换到 Ollama:\n"
+            f"[OK] 已切换到 Ollama:\n"
             f"  provider: ollama\n"
             f"  model: {model}\n\n"
-            f"💡 提示:确保 ollama serve 在后台运行,且已 ollama pull {model}"
+            f"提示:确保 ollama serve 在后台运行,且已 ollama pull {model}"
         )
     except Exception as e:
         return Result.fail(f"切换失败: {e}")

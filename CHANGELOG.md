@@ -4,7 +4,7 @@
 
 ## [Unreleased]
 
-### ✨ 新增功能
+### 新增功能
 
 #### 韩立启动字符画
 - 新增 `fr_cli/ui/hanli.py`：半块真彩色字符画渲染（`print_hanli(variant, min_free_rows)`）
@@ -27,9 +27,9 @@
 
 #### Ctrl+C 中断 + 工具调用可视化
 - AI 输出 / 工具执行中按 `Ctrl+C` 中断当前轮（不再只是清空输入）
-- 工具调用改 Claude Code 风格：`⏺` 头 + dim 体
+- 工具调用改 Claude Code 风格：`[*]` 头 + dim 体
 
-### 🧹 清理与拆分
+### 清理与拆分
 
 #### 死代码清理
 - 删除约 28 个零引用函数与 v3 未接线模块（container / lifecycle / pipeline / provider / errors / builtin_plugins / compat / examples）
@@ -52,20 +52,20 @@
 - 测试 monkeypatch 的模块属性不能搬：`weapon.defi._http_get`、`weapon.m365.M365_CONFIG_FILE`、`weapon.cron.CRON_STORE_FILE` 必须留在原模块
 - 带 `@register` / `@hook` 装饰器的函数不是死代码（引用计数分析看不到装饰器注册）
 
-### 🐛 修复
+### 修复
 - 降级路径 Markdown 围栏被 chunk 边界截断、语言标签状态丢失、表格头行不含 `-` 不被识别（3 个既存 bug）
 - 韩立字符画高度保护按纯文本版行数（40）判断，彩色终端实际打印 80 行会溢出一倍——改为按实际打印版本（彩色/纯文本）计算
 - 流式输出在未闭合代码块内结束时最后一行重复打印：`flush()` 的 IN_CODE 分支不清空 buffer，且 `stream_cnt` 两个退出点都 flush——flush 改为幂等 + 去掉重复调用
 - MasterAgent（默认开启）路径的最终回答原文 `print`，绕过流式 Markdown 渲染——改为交互模式流式输出（每轮 ReAct 思考与最终回答都实时渲染），Hermes 后台隔离运行保持 silent；pipeline 不再重复打印
 - `m365_config_wizard` 对 Result 解包必抛 TypeError（`__slots__` 不可迭代）
 
-### 📊 测试
+### 测试
 - 新增 `tests/test_hanli_art.py`（15）、`tests/test_bang_and_interrupt.py`（9）、`tests/test_stream_markdown.py`（12）、`tests/test_markdown_stream.py`（+1 flush 幂等回归）
 - 全量：74 failed / 1715 passed / 12 skipped —— 失败数与改动前基线（74 failed / 1750 passed）完全一致，均为环境性预存失败（无 API Key / 无默认模型配置 / 顺序依赖）；passed 减少来自随 v3 死代码一并删除的测试
 
 ---
 
-### ✨ 新增功能
+### 新增功能
 
 #### 选品洞察提炼器(Insight Extractor)
 - 新增 `fr_cli/agent/insight_source.py`：可插拔选品数据源
@@ -102,18 +102,18 @@
   - `/competitor_gaps add <name>` — 把指定缺口推到 `/hermes review` 队列（供后续自动构建）
   - `/competitor_gaps model` — 显示当前能力模型概要
 
-### 🔧 优化
+### 优化
 - MasterAgent 启动即可用上历史选品经验，无需人工搬运
 - 能力扩展从"被动等需求"升级为"主动扫领域"：dynamic_builder 可主动扫描"竞品监控"领域，把缺口推到 review queue
 
-### 📊 测试
+### 测试
 - 新增 `tests/test_insight_extractor.py`（26 个测试，含 2 个 E2E smoke test），全部通过
   - 覆盖：数据源(Mock/JSON/CSV)、存储、format_for_prompt、分批-聚合抽取(含 code block 解析)、Dream 集成、prompt 注入、命令端到端
 - 新增 `tests/test_competitor_gap_scan.py`（16 个测试），全部通过
   - 覆盖：YAML 加载、模型验证、扫描流程、异常处理、format_report 排序、4 个命令路径
 - 现有 dream / master_evolution / master_prompt_fix / integration / dynamic_builder / gap_analyzer / review_queue 测试 87/87 全部通过
 
-### 🔄 兼容
+### 兼容
 - 路径访问改为 lambda/函数形式，便于测试 monkeypatch `MASTER_DIR / ROOT` 隔离
 - 无破坏性变更
 
@@ -121,7 +121,7 @@
 
 ## [2.8.0] - 2026-07-07
 
-### ✨ 新增功能
+### 新增功能
 
 #### Cron 表达式标准支持
 - `cron` 引擎升级到支持三种调度模式：
@@ -131,7 +131,7 @@
 - 新增依赖 `croniter>=2.0.0`
 - 定时任务持久化格式升级（含 `mode` + `value` 字段），向下兼容
 
-#### Dream 梦境机制 ✨
+#### Dream 梦境机制
 - 新增 `~/.fr_cli/master/dream_log.md`：长期记忆归档
 - 新增 `~/.fr_cli/master/dream_index.json`：按主题索引
 - 新增 `/dream` 命令：
@@ -154,20 +154,20 @@
   /cron_add "0 9 * * *" "/notify lark '早安,今日数据已就绪'"
   ```
 
-### 🔧 优化
+### 优化
 
 - **代码结构清理**：移除死代码、合并重复模块
 - **CI/CD**：新增 `.github/workflows/tests.yml`，自动跑测试矩阵（Python 3.10-3.13 × Ubuntu/macOS）+ 自动构建
 - **依赖**：新增 `croniter>=2.0.0`
 - **Ruff 静态检查**：0 警告
 
-### 📊 测试
+### 测试
 - **1687 个测试全部通过**（新增 46 个）
   - `test_cron_schedules.py` (13 个) - cron 表达式/at/迁移
   - `test_dream.py` (12 个) - 梦境机制
   - `test_notifier.py` (21 个) - 多平台推送
 
-### 🔄 兼容
+### 兼容
 - 全部向下兼容：旧式 `interval` 调用、已有 `cron.json`、`m365.json` 等配置文件自动迁移到主配置
 
 ---

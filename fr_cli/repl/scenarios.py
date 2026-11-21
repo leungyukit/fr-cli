@@ -90,25 +90,25 @@ def scenario_commit(state, args: List[str], prompt) -> str:
     from fr_cli.ui.ui import GREEN, RED, YELLOW, CYAN, DIM, RESET
 
     if not _is_git_repo():
-        return f"{RED}❌ 当前目录不是 git 仓库{RESET}\n   {DIM}💡 cd 到项目根目录再试{RESET}"
+        return f"{RED}[x] 当前目录不是 git 仓库{RESET}\n   {DIM}cd 到项目根目录再试{RESET}"
 
     staged = _get_staged_diff()
     unstaged = _get_unstaged_diff()
     status = _get_status()
 
     if not staged and not unstaged:
-        return f"{YELLOW}⚠️ 没有需要提交的改动{RESET}"
+        return f"{YELLOW}[!] 没有需要提交的改动{RESET}"
 
     # 1. 如果有未暂存的改动，提示暂存
     if not staged and unstaged:
-        print(f"{CYAN}📦 检测到未暂存的改动，自动 stage 所有修改...{RESET}")
+        print(f"{CYAN}检测到未暂存的改动，自动 stage 所有修改...{RESET}")
         ok, out = _run_git("add", "-u")
         if not ok:
-            return f"{RED}❌ git add 失败: {out}{RESET}"
+            return f"{RED}[x] git add 失败: {out}{RESET}"
         staged = _get_staged_diff()
 
     if not staged:
-        return f"{YELLOW}⚠️ 没有 staged 改动（可能只有未跟踪文件，git add 后再试）{RESET}"
+        return f"{YELLOW}[!] 没有 staged 改动（可能只有未跟踪文件，git add 后再试）{RESET}"
 
     # 2. 让 AI 生成 commit message
     files_info = status or "(no status)"
@@ -122,7 +122,7 @@ def scenario_commit(state, args: List[str], prompt) -> str:
         f"【diff】\n{staged[:3000]}"
     )
 
-    print(f"{CYAN}🤖 正在生成 commit message...{RESET}")
+    print(f"{CYAN}正在生成 commit message...{RESET}")
     prompt.set_busy(True)
     try:
         from fr_cli.core.stream import stream_cnt
@@ -145,7 +145,7 @@ def scenario_commit(state, args: List[str], prompt) -> str:
         if commit_msg.endswith("```"):
             commit_msg = commit_msg[:-3].strip()
 
-    print(f"\n{GREEN}📝 生成的 commit message:{RESET}\n")
+    print(f"\n{GREEN}生成的 commit message:{RESET}\n")
     print(f"  {DIM}─" * 30 + f"{RESET}")
     for line in commit_msg.split("\n"):
         print(f"  {line}")
@@ -156,7 +156,7 @@ def scenario_commit(state, args: List[str], prompt) -> str:
     if not confirm:
         # 允许用户编辑
         edited = prompt._session.prompt(
-            FormattedText([("class:indicator", "  ✏️  编辑 commit msg (回车取消): ")]),
+            FormattedText([("class:indicator", "编辑 commit msg (回车取消): ")]),
             default=commit_msg,
         ) if prompt._session else commit_msg
         if not edited or not edited.strip():
@@ -167,9 +167,9 @@ def scenario_commit(state, args: List[str], prompt) -> str:
     # 用 -m 提交，避免 shell 注入
     ok, out = _run_git("commit", "-m", commit_msg)
     if not ok:
-        return f"{RED}❌ git commit 失败: {out}{RESET}"
+        return f"{RED}[x] git commit 失败: {out}{RESET}"
 
-    print(f"{GREEN}✅ 提交成功!{RESET}")
+    print(f"{GREEN}[OK] 提交成功!{RESET}")
     # 显示简要 diff
     ok, show = _run_git("log", "-1", "--oneline")
     if ok:
@@ -184,17 +184,17 @@ def scenario_pr(state, args: List[str], prompt) -> str:
     from fr_cli.ui.ui import GREEN, RED, YELLOW, CYAN, DIM, RESET
 
     if not _is_git_repo():
-        return f"{RED}❌ 当前目录不是 git 仓库{RESET}"
+        return f"{RED}[x] 当前目录不是 git 仓库{RESET}"
 
     branch = _get_current_branch()
     if not branch or branch in ("main", "master"):
-        return f"{YELLOW}⚠️ 当前在默认分支 ({branch})，没有 PR 可生成{RESET}"
+        return f"{YELLOW}[!] 当前在默认分支 ({branch})，没有 PR 可生成{RESET}"
 
     default_branch = _get_default_branch()
     diff = _get_diff_against(default_branch)
 
     if not diff:
-        return f"{YELLOW}⚠️ 当前分支与 origin/{default_branch} 没有差异{RESET}\n   {DIM}💡 先 git push 再来{RESET}"
+        return f"{YELLOW}[!] 当前分支与 origin/{default_branch} 没有差异{RESET}\n   {DIM}先 git push 再来{RESET}"
 
     # 让 AI 生成 PR 描述
     pr_prompt = (
@@ -213,7 +213,7 @@ def scenario_pr(state, args: List[str], prompt) -> str:
         f"只输出 Markdown 内容，不要任何额外解释。"
     )
 
-    print(f"{CYAN}🤖 正在生成 PR 描述...{RESET}")
+    print(f"{CYAN}正在生成 PR 描述...{RESET}")
     prompt.set_busy(True)
     try:
         from fr_cli.core.stream import stream_cnt
@@ -239,7 +239,7 @@ def scenario_pr(state, args: List[str], prompt) -> str:
 
     # 拼上标题
     title_prompt = "用 30 字内中文给这个 PR 起个标题（只输出标题文字，不要 #）"
-    print(f"{CYAN}🤖 正在生成 PR 标题...{RESET}")
+    print(f"{CYAN}正在生成 PR 标题...{RESET}")
     prompt.set_busy(True)
     try:
         from fr_cli.core.stream import stream_cnt
@@ -256,7 +256,7 @@ def scenario_pr(state, args: List[str], prompt) -> str:
     finally:
         prompt.set_busy(False)
 
-    print(f"\n{GREEN}📋 PR 预览:{RESET}\n")
+    print(f"\n{GREEN}PR 预览:{RESET}\n")
     print(f"  {CYAN}标题:{RESET} {title}")
     print(f"  {CYAN}目标:{RESET} {default_branch} ← {branch}\n")
     print(f"  {DIM}─" * 40 + f"{RESET}")
@@ -268,8 +268,8 @@ def scenario_pr(state, args: List[str], prompt) -> str:
     from fr_cli.conf.paths import ROOT
     pr_file = ROOT / "pr_description.md"
     pr_file.write_text(f"# {title}\n\n{pr_desc}\n", encoding="utf-8")
-    print(f"  {DIM}💾 已保存到: {pr_file}{RESET}")
-    print(f"  {DIM}💡 复制到 GitHub PR 页面即可{RESET}\n")
+    print(f"  {DIM}已保存到: {pr_file}{RESET}")
+    print(f"  {DIM}复制到 GitHub PR 页面即可{RESET}\n")
     return ""
 
 
@@ -285,9 +285,9 @@ def scenario_review(state, args: List[str], prompt) -> str:
         # 从 git staged 拿文件列表
         ok, files = _run_git("diff", "--name-only", "--staged")
         if not ok or not files:
-            return f"{YELLOW}⚠️ 没有 staged 改动{RESET}"
+            return f"{YELLOW}[!] 没有 staged 改动{RESET}"
         file_list = files.split("\n")
-        print(f"{CYAN}🔍 Reviewing {len(file_list)} staged files...{RESET}")
+        print(f"{CYAN}Reviewing {len(file_list)} staged files...{RESET}")
     elif scope == "." or scope == "":
         # 当前目录
         from pathlib import Path
@@ -295,8 +295,8 @@ def scenario_review(state, args: List[str], prompt) -> str:
         py_files = list(cwd.glob("**/*.py"))[:20]
         file_list = [str(f.relative_to(cwd)) for f in py_files]
         if not file_list:
-            return f"{YELLOW}⚠️ 当前目录没有 .py 文件{RESET}"
-        print(f"{CYAN}🔍 Reviewing {len(file_list)} Python files in {cwd}...{RESET}")
+            return f"{YELLOW}[!] 当前目录没有 .py 文件{RESET}"
+        print(f"{CYAN}Reviewing {len(file_list)} Python files in {cwd}...{RESET}")
     else:
         # 单文件
         file_list = [scope]
@@ -312,7 +312,7 @@ def scenario_review(state, args: List[str], prompt) -> str:
         f"- 如果没问题就只说一句「无明显问题」"
     )
 
-    print(f"{CYAN}🤖 AI 正在 review...{RESET}")
+    print(f"{CYAN}AI 正在 review...{RESET}")
     prompt.set_busy(True)
     try:
         from fr_cli.core.stream import stream_cnt
@@ -336,7 +336,7 @@ def scenario_review(state, args: List[str], prompt) -> str:
     if review.endswith("```"):
         review = review[:-3].rstrip()
 
-    print(f"\n{GREEN}📋 Code Review:{RESET}\n")
+    print(f"\n{GREEN}Code Review:{RESET}\n")
     print(review)
     print()
 
@@ -344,5 +344,5 @@ def scenario_review(state, args: List[str], prompt) -> str:
     from fr_cli.conf.paths import ROOT
     review_file = ROOT / "code_review.md"
     review_file.write_text(review, encoding="utf-8")
-    print(f"  {DIM}💾 已保存到: {review_file}{RESET}")
+    print(f"  {DIM}已保存到: {review_file}{RESET}")
     return ""

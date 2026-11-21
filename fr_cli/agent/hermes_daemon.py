@@ -68,10 +68,10 @@ class HermesDaemon:
         """启动守护进程"""
         server = HTTPServer((self.host, self.port), HermesHandler)
         server.daemon = self
-        print(f"🧚 Hermes 守护进程已启动: http://{self.host}:{self.port}")
-        print(f"🔑 Bearer Token: {self.token}")
+        print(f"Hermes 守护进程已启动: http://{self.host}:{self.port}")
+        print(f"Bearer Token: {self.token}")
         print("   (已保存到 ~/.fr_cli/daemon/token，权限 600)")
-        print("📡 监听命令中...")
+        print("监听命令中...")
 
         while self.running:
             try:

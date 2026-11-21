@@ -254,7 +254,7 @@ def _analyze_with_llm(state, query: str, data: dict):
         {"role": "system", "content": "你是股票/量化分析助手，擅长整理和解读金融数据。"},
         {"role": "user", "content": prompt},
     ]
-    print(f"{CYAN}🧙 正在分析股票数据...{RESET}")
+    print(f"{CYAN}正在分析股票数据...{RESET}")
     txt, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=2048)
     return txt
 
@@ -332,16 +332,16 @@ def handle_stock(user_input, state):
 
         result = _simulate_trade(stock_cfg, code, action, quantity, price)
         if result.is_ok():
-            print(f"{GREEN}✅ 模拟交易已记录: {code} {action} {quantity} @ {price}{RESET}")
+            print(f"{GREEN}[OK] 模拟交易已记录: {code} {action} {quantity} @ {price}{RESET}")
             print(f"{DIM}当前持仓: {result.unwrap()}{RESET}")
         else:
-            print(f"{RED}❌ {result.error}{RESET}")
+            print(f"{RED}[x] {result.error}{RESET}")
         return
 
     # 数据查询与分析
     result = _fetch_stock_data(text, stock_cfg)
     if result.is_fail():
-        print(f"{RED}❌ {result.error}{RESET}")
+        print(f"{RED}[x] {result.error}{RESET}")
         print(f"{DIM}提示: 使用 /stock_config setup 配置数据源，或安装 akshare: pip install akshare{RESET}")
         return
     data = result.unwrap()
@@ -367,7 +367,7 @@ def _print_usage():
 
 
 def _print_config(stock_cfg: dict):
-    print(f"{CYAN}📈 当前 StockShareAgent 配置{RESET}")
+    print(f"{CYAN}当前 StockShareAgent 配置{RESET}")
     print(f"  默认数据源: {DIM}{stock_cfg.get('default_source', 'akshare')}{RESET}")
     for source in ("akshare", "mairui", "tushare", "trade"):
         cfg = stock_cfg.get(source, {})
@@ -381,7 +381,7 @@ def _print_config(stock_cfg: dict):
 
 def _print_portfolio(stock_cfg: dict):
     portfolio = stock_cfg.get("portfolio", {})
-    print(f"{CYAN}💼 模拟持仓{RESET}")
+    print(f"{CYAN}模拟持仓{RESET}")
     if not portfolio:
         print(f"{DIM}暂无持仓{RESET}")
         return

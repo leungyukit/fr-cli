@@ -129,9 +129,9 @@ def test_format_report_with_gaps_sorted_by_priority():
     l_pos = text.find("low_cap")
     assert h_pos < m_pos < l_pos
     # 优先级 emoji
-    assert "🔴" in text
-    assert "🟡" in text
-    assert "🟢" in text
+    assert "[x]" in text
+    assert "[!]" in text
+    assert "[*]" in text
 
 
 # ---------- Scanner.scan() ----------

@@ -26,14 +26,14 @@ from fr_cli.core.result import Result
 
 # 通知通道 → 颜色标记
 CHANNEL_ICONS = {
-    "lark": "📘",
-    "feishu": "📘",
-    "dingtalk": "📗",
-    "wechat_work": "📙",
-    "wecom": "📙",
-    "slack": "💬",
-    "discord": "🎮",
-    "telegram": "✈️",
+    "lark": "",
+    "feishu": "",
+    "dingtalk": "",
+    "wechat_work": "",
+    "wecom": "",
+    "slack": "",
+    "discord": "",
+    "telegram": "",
 }
 
 

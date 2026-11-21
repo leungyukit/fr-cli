@@ -204,7 +204,7 @@ def format_worktree_list(worktrees: List[Dict[str, Any]], current_cwd: Optional[
         path = wt.get("path", "")
         branch = wt.get("branch", "(detached)")
         head = wt.get("head", "")[:8]
-        marker = " ← 当前" if current_cwd and os.path.realpath(path) == os.path.realpath(current_cwd) else ""
-        lines.append(f"  📁 {path}")
+        marker = "← 当前" if current_cwd and os.path.realpath(path) == os.path.realpath(current_cwd) else ""
+        lines.append(f"{path}")
         lines.append(f"     分支: {branch} | HEAD: {head}{marker}")
     return "\n".join(lines)

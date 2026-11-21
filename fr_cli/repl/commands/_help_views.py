@@ -26,7 +26,7 @@ from fr_cli.repl.commands._help_data import (
 def _print_new_commands(state, lang):
     """打印'新功能 / 推荐'区,带 emoji 标记"""
     is_zh = (lang == "zh")
-    title = "🆕 最近新功能 / 试用推荐" if is_zh else "🆕 Recent features / try these"
+    title = "[NEW] 最近新功能 / 试用推荐" if is_zh else "[NEW] Recent features / try these"
     print()
     print(f"{CYAN}{title}{RESET}")
     for cmd, desc, badge in _NEW_COMMANDS:
@@ -138,7 +138,7 @@ def _print_help(state, topic):
     print(f"{_dim(cur)}")
     print()
 
-    # 顶部:🆕 新功能(让用户先看到最近加的)
+    # 顶部:[NEW] 新功能(让用户先看到最近加的)
     _print_new_commands(state, lang)
 
     # 快速用法

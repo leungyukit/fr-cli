@@ -67,7 +67,7 @@ class SecurityManager:
         # sandbox_auto：仅沙盒内操作自动放行
         if mode == "sandbox_auto" and k in SANDBOX_SECURITY_KEYS:
             if k not in self._auto_echoed:
-                print(f"{DIM}🤖 自动放行沙盒操作: {k} ({d}){RESET}")
+                print(f"{DIM}自动放行沙盒操作: {k} ({d}){RESET}")
                 self._auto_echoed.add(k)
             return True
 

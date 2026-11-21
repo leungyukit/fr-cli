@@ -64,7 +64,7 @@ class FrCliError(Exception):
         hint:  给用户的可执行建议
         original: 包装的原始异常(可选)
     """
-    emoji = "❌"
+    emoji = "[x]"
     hint = ""
 
     def __init__(self, message: str = "", hint: str = "", original: Exception = None):
@@ -75,9 +75,10 @@ class FrCliError(Exception):
 
     def format(self) -> str:
         """格式化为终端输出"""
-        lines = [f"{self.emoji} {self.message}"]
+        prefix = f"{self.emoji} " if self.emoji else ""
+        lines = [f"{prefix}{self.message}"]
         if self.hint:
-            lines.append(f"   💡 {self.hint}")
+            lines.append(f"{self.hint}")
         return "\n".join(lines)
 
     def log(self):
@@ -93,7 +94,7 @@ class FrCliError(Exception):
 
 class APIKeyError(FrCliError):
     """API Key 无效或缺失"""
-    emoji = "🔑"
+    emoji = ""
     hint = "用 /key <your-key> 设置,或 /providers use <提供商> 切换"
 
 
@@ -130,9 +131,9 @@ def friendly_print(exc: Exception, debug: bool = False) -> str:
     hint_info = _ERROR_HINTS.get(type(exc))
     if hint_info:
         title, hint = hint_info
-        text = f"❌ {title}: {msg}\n   💡 {hint}"
+        text = f"[x] {title}: {msg}\n {hint}"
     else:
-        text = f"❌ {name}: {msg}"
+        text = f"[x] {name}: {msg}"
 
     if debug or is_debug():
         text += "\n" + traceback.format_exc()

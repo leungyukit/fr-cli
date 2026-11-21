@@ -3,7 +3,7 @@ pipeline 阶段 3+4:插件前置拦截 + 流式调用 + 多源汇总
 
 从 fr_cli.core.chat.pipeline 拆出(原文件 488 行)。
 - _maybe_run_local_plugin: /plugin_name 开头直接执行本地插件(无 LLM 调用)
-- _stream_and_respond:     流式调用 + 事件广播 + 命令自动执行(⏺ 风格展示)
+- _stream_and_respond:     流式调用 + 事件广播 + 命令自动执行([*] 风格展示)
 - _multi_source_blend:     初步回答 + 工具结果 → 第二轮汇总调用
 """
 from __future__ import annotations
@@ -102,13 +102,13 @@ def _stream_and_respond(state, updated_messages, u, lang):
         clean_txt, cmd_results = txt, []
 
     # AI 响应已在 stream_cnt 中实时渲染（流式 Markdown），此处不再整篇重渲染，
-    # 仅展示命令自动执行的结果（⏺ 头 + dim 体，Claude Code 风格），避免重复输出
+    # 仅展示命令自动执行的结果（[*] 头 + dim 体，Claude Code 风格），避免重复输出
     if cmd_results:
         print()
         for result in cmd_results:
             folded = fold_result(result)
             head, _, body = folded.partition("\n")
-            print(f"{CYAN}⏺{RESET} {BOLD}{head.strip()}{RESET}")
+            print(f"{CYAN}[*]{RESET} {BOLD}{head.strip()}{RESET}")
             body = body.strip("\n")
             if body.strip():
                 print(f"{DIM}{body}{RESET}")

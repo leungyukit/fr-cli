@@ -22,8 +22,8 @@ zle -N kimi-cli-toggle-mode _kimi_cli_toggle_mode
 bindkey '^X' kimi-cli-toggle-mode
 
 # 模式提示符
-FR_CLI_PS1="[🤖 Agent]"
-FR_SHELL_PS1="[🐚 Shell]"
+FR_CLI_PS1="[Agent]"
+FR_SHELL_PS1="[Shell]"
 
 _prompt_fr_mode() {
     if [ "$_fr_cli_mode" = "agent" ]; then

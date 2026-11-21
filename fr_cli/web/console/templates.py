@@ -81,7 +81,7 @@ pre {{ background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: aut
 </style>
 </head>
 <body>
-<h1>🎛️ fr-cli Web 控制台</h1>
+<h1>fr-cli Web 控制台</h1>
 
 <div class="token-box">
   <strong>Bearer Token:</strong> <code id="token">{token}</code>
@@ -91,16 +91,16 @@ pre {{ background: var(--bg); padding: 12px; border-radius: 6px; overflow-x: aut
 </div>
 
 <nav>
-  <a onclick="document.getElementById('content').dataset.active='status'; load('status')">📊 全局状态</a>
-  <a onclick="document.getElementById('content').dataset.active='sessions'; load('sessions')">💬 会话</a>
-  <a onclick="document.getElementById('content').dataset.active='tasks'; load('tasks')">⚙️ Hermes 任务</a>
-  <a onclick="document.getElementById('content').dataset.active='worktrees'; load('worktrees')">🌳 Worktree</a>
-  <a onclick="document.getElementById('content').dataset.active='bookmarks'; load('bookmarks')">📚 Bookmark</a>
-  <a onclick="document.getElementById('content').dataset.active='stats'; load('stats')">📈 统计</a>
+  <a onclick="document.getElementById('content').dataset.active='status'; load('status')">全局状态</a>
+  <a onclick="document.getElementById('content').dataset.active='sessions'; load('sessions')">会话</a>
+  <a onclick="document.getElementById('content').dataset.active='tasks'; load('tasks')">Hermes 任务</a>
+  <a onclick="document.getElementById('content').dataset.active='worktrees'; load('worktrees')">Worktree</a>
+  <a onclick="document.getElementById('content').dataset.active='bookmarks'; load('bookmarks')">Bookmark</a>
+  <a onclick="document.getElementById('content').dataset.active='stats'; load('stats')">统计</a>
 </nav>
 
 <div class="section" style="max-height:200px;overflow-y:auto;">
-  <h2>📡 实时事件 (SSE)</h2>
+  <h2>实时事件 (SSE)</h2>
   <div id="event-log"><p class="loading">等待事件...</p></div>
 </div>
 
@@ -117,11 +117,11 @@ async function fetchJSON(path) {{
 
 function renderStatus(d) {{
   return `
-    <h2>📊 全局状态</h2>
+    <h2>全局状态</h2>
     <div class="stat-grid">
       <div class="stat"><div class="label">Provider</div><div class="value">${{d.provider || '-'}}</div></div>
       <div class="stat"><div class="label">Model</div><div class="value">${{d.model || '-'}}</div></div>
-      <div class="stat"><div class="label">API Key</div><div class="value">${{d.key_configured ? '✅' : '❌'}}</div></div>
+      <div class="stat"><div class="label">API Key</div><div class="value">${{d.key_configured ? '[OK]' : '[x]'}}</div></div>
       <div class="stat"><div class="label">自治模式</div><div class="value">${{d.autonomous_mode || '-'}}</div></div>
       <div class="stat"><div class="label">Hermes 任务</div><div class="value">${{d.hermes_tasks}}</div></div>
       <div class="stat"><div class="label">Cron Jobs</div><div class="value">${{d.cron_jobs}}</div></div>
@@ -138,8 +138,8 @@ function renderStatus(d) {{
 }}
 
 function renderSessions(d) {{
-  if (!d.length) return '<h2>💬 会话</h2><p class="loading">没有会话</p>';
-  return `<h2>💬 会话 (${{d.length}})</h2>
+  if (!d.length) return '<h2>会话</h2><p class="loading">没有会话</p>';
+  return `<h2>会话 (${{d.length}})</h2>
     <table>
       <tr><th>索引</th><th>文件名</th><th>创建</th><th>更新</th><th>消息数</th></tr>
       ${{d.map(s => `
@@ -155,14 +155,14 @@ function renderSessions(d) {{
 }}
 
 function renderTasks(d) {{
-  if (!d.length) return '<h2>⚙️ Hermes 任务</h2><p class="loading">没有任务</p>';
-  return `<h2>⚙️ Hermes 任务 (${{d.length}})</h2>
+  if (!d.length) return '<h2>Hermes 任务</h2><p class="loading">没有任务</p>';
+  return `<h2>Hermes 任务 (${{d.length}})</h2>
     <pre>${{JSON.stringify(d.slice(0, 20), null, 2)}}</pre>`;
 }}
 
 function renderWorktrees(d) {{
-  if (!d.length) return '<h2>🌳 Worktree</h2><p class="loading">没有 worktree</p>';
-  return `<h2>🌳 Worktree (${{d.length}})</h2>
+  if (!d.length) return '<h2>Worktree</h2><p class="loading">没有 worktree</p>';
+  return `<h2>Worktree (${{d.length}})</h2>
     <table>
       <tr><th>路径</th><th>分支</th><th>创建</th><th>最后使用</th></tr>
       ${{d.map(w => `
@@ -177,8 +177,8 @@ function renderWorktrees(d) {{
 }}
 
 function renderBookmarks(d) {{
-  if (!d.length) return '<h2>📚 Bookmark</h2><p class="loading">没有书签</p>';
-  return `<h2>📚 Bookmark (${{d.length}})</h2>
+  if (!d.length) return '<h2>Bookmark</h2><p class="loading">没有书签</p>';
+  return `<h2>Bookmark (${{d.length}})</h2>
     <table>
       <tr><th>ID</th><th>标题</th><th>URL</th><th>标签</th><th>RAG</th></tr>
       ${{d.slice(0, 30).map(b => `
@@ -187,7 +187,7 @@ function renderBookmarks(d) {{
           <td>${{b.title || '?'}}</td>
           <td><a href="${{b.url}}" target="_blank">${{b.url}}</a></td>
           <td>${{(b.tags || []).map(t => '#' + t).join(' ')}}</td>
-          <td>${{b.in_rag ? '🧠' : ''}}</td>
+          <td>${{b.in_rag ? '' : ''}}</td>
         </tr>
       `).join('')}}
     </table>
@@ -196,7 +196,7 @@ function renderBookmarks(d) {{
 
 function renderStats(d) {{
   return `
-    <h2>📈 用量统计</h2>
+    <h2>用量统计</h2>
     <div class="stat-grid">
       <div class="stat"><div class="label">总消息数</div><div class="value">${{d.total_messages}}</div></div>
       <div class="stat"><div class="label">总 Token</div><div class="value">${{d.total_tokens.toLocaleString()}}</div></div>
@@ -229,9 +229,9 @@ async function load(name) {{
 // v2.8+:SSE 实时事件订阅
 let eventSource = null;
 const _EVENT_ICONS = {{
-  tool: '🛠️', llm: '🧠', agent: '🤖', command: '⌨️',
-  session: '💬', app: '🚀', config: '⚙️', error: '❌',
-  usage: '📊', status: '📊', task: '⚙️', log: '📝',
+  tool: '', llm: '', agent: '', command: '',
+  session: '', app: '', config: '', error: '[x]',
+  usage: '', status: '', task: '', log: '',
 }};
 function startSSE() {{
   if (eventSource) return;
@@ -252,20 +252,20 @@ function startSSE() {{
   }});
   eventSource.addEventListener('status', (e) => {{
     const data = JSON.parse(e.data);
-    showEvent('📊 ' + (data.data.message || JSON.stringify(data.data)), data);
+    showEvent('' + (data.data.message || JSON.stringify(data.data)), data);
     // 自动刷新 status tab(如果当前在)
     const content = document.getElementById('content');
     if (content.dataset.active === 'status') load('status');
   }});
   eventSource.addEventListener('task', (e) => {{
     const data = JSON.parse(e.data);
-    showEvent('⚙️ 任务: ' + (data.data.task_id || '?') + ' → ' + (data.data.status || '?'), data);
+    showEvent('任务: ' + (data.data.task_id || '?') + '→ ' + (data.data.status || '?'), data);
     const content = document.getElementById('content');
     if (content.dataset.active === 'tasks') load('tasks');
   }});
   eventSource.addEventListener('log', (e) => {{
     const data = JSON.parse(e.data);
-    showEvent('📝 ' + (data.data.message || ''), data);
+    showEvent('' + (data.data.message || ''), data);
   }});
   eventSource.addEventListener('error', () => {{
     // 自动重连

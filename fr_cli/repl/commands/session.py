@@ -70,7 +70,7 @@ def _cmd_session_list(state, parts):
     if not sessions:
         print(f"{DIM}暂无自动会话存档。{RESET}")
         return False
-    print(f"{CYAN}📁 自动会话列表:{RESET}")
+    print(f"{CYAN}自动会话列表:{RESET}")
     for s in sessions:
         print(f"  [{s['index']}] {CYAN}{s['filename']}{RESET} | 创建: {s['created_at']} | 消息: {s['msg_count']} 条")
     return False
@@ -88,10 +88,10 @@ def _cmd_session_load(state, parts):
     ok, msgs, fname = load_auto_session(idx, sp)
     if ok:
         state.messages = msgs
-        print(f"{GREEN}✅ 已加载会话 [{fname}]，共 {len(msgs)} 条消息。{RESET}")
+        print(f"{GREEN}[OK] 已加载会话 [{fname}]，共 {len(msgs)} 条消息。{RESET}")
         print(f"{DIM}   后续对话将追加到当前自动会话存档中。{RESET}")
     else:
-        print(f"{RED}❌ 加载失败，编号 {idx} 无效。{RESET}")
+        print(f"{RED}[x] 加载失败，编号 {idx} 无效。{RESET}")
     return False
 
 
@@ -104,9 +104,9 @@ def _cmd_session_del(state, parts):
         return False
     idx = int(arg1)
     if delete_auto_session(idx):
-        print(f"{GREEN}✅ 已删除编号 {idx} 的会话。{RESET}")
+        print(f"{GREEN}[OK] 已删除编号 {idx} 的会话。{RESET}")
     else:
-        print(f"{RED}❌ 删除失败，编号 {idx} 无效。{RESET}")
+        print(f"{RED}[x] 删除失败，编号 {idx} 无效。{RESET}")
     return False
 
 
@@ -135,7 +135,7 @@ def _cmd_new(state, parts):
             pass
 
     # 6. 显示当前状态摘要
-    print(f"{GREEN}✅ 已开启新会话 —— 轮回重置，道号焕然一新。{RESET}")
+    print(f"{GREEN}[OK] 已开启新会话 —— 轮回重置，道号焕然一新。{RESET}")
     print(f"{DIM}   Session ID: {state.session_id}{RESET}")
     print(f"{DIM}   工作目录: {getattr(state.vfs, 'cwd', '未配置')}{RESET}")
     print(f"{DIM}   模型: {state.display_provider}/{state.display_model}{RESET}")

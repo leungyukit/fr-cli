@@ -61,8 +61,8 @@ def _c(color: str, text: str) -> str:
 # ---------- 6 种语义化输出 ----------
 
 def success(message: str, detail: Optional[str] = None) -> None:
-    """✅ 成功消息(绿色)"""
-    line = f"✅ {message}"
+    """[OK] 成功消息(绿色)"""
+    line = f"[OK] {message}"
     if detail:
         line += f"  {_c(DIM, detail)}"
     print(_c(GREEN, line))
@@ -73,8 +73,8 @@ def failure(
     reason: Optional[str] = None,
     suggestion: Optional[str] = None,
 ) -> None:
-    """❌ 失败消息(红色),可带原因和建议"""
-    line = f"❌ {message}"
+    """[x] 失败消息(红色),可带原因和建议"""
+    line = f"[x] {message}"
     if reason:
         line += f"\n  {_c(DIM, '原因:')} {reason}"
     if suggestion:
@@ -83,16 +83,16 @@ def failure(
 
 
 def warning(message: str, detail: Optional[str] = None) -> None:
-    """⚠️ 警告消息(黄色)"""
-    line = f"⚠️  {message}"
+    """[!] 警告消息(黄色)"""
+    line = f"[!] {message}"
     if detail:
         line += f"  {_c(DIM, detail)}"
     print(_c(YELLOW, line))
 
 
 def info(message: str) -> None:
-    """ℹ️ 普通信息(蓝色/青色)"""
-    print(_c(CYAN, f"ℹ️  {message}"))
+    """[i] 普通信息(蓝色/青色)"""
+    print(_c(CYAN, f"[i] {message}"))
 
 
 def step(message: str, current: Optional[int] = None,
@@ -162,8 +162,8 @@ def result(r, success_msg: Optional[str] = None) -> None:
         success_msg: 自定义成功提示(默认用 r.data)
 
     行为:
-        - 成功: ✅ success_msg or data
-        - 失败: ❌ error
+        - 成功:[OK] success_msg or data
+        - 失败:[x] error
     """
     # 兼容旧风格 tuple
     if isinstance(r, tuple) and len(r) == 2:

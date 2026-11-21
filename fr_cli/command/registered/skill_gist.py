@@ -30,11 +30,11 @@ def _register_skill_share(deps, **kwargs):
 
     visibility = "公开" if public else "私密"
     return Result.ok(
-        f"✅ Skill 分享成功 ({visibility}):\n"
+        f"[OK] Skill 分享成功 ({visibility}):\n"
         f"  名称: {result['name']}\n"
         f"  Gist ID: {result['gist_id']}\n"
         f"  URL: {result['url']}\n"
-        f"\n📋 分享方式:把 URL 发给别人,他们用 /skill_import <URL> 导入"
+        f"\n分享方式:把 URL 发给别人,他们用 /skill_import <URL> 导入"
     )
 
 
@@ -58,7 +58,7 @@ def _register_skill_import(deps, **kwargs):
         return Result.fail(result.get("error", "导入失败"))
 
     return Result.ok(
-        f"✅ Skill 导入成功:\n"
+        f"[OK] Skill 导入成功:\n"
         f"  名称: {result['name']}\n"
         f"  路径: {result['path']}\n"
         f"  Gist: {result.get('url', '?')}\n"
@@ -97,9 +97,9 @@ def _register_skill_search(deps, **kwargs):
         return Result.fail(result.get("error", "搜索失败"))
 
     return Result.ok(
-        f"🔍 Gist 搜索结果:\n"
+        f"Gist 搜索结果:\n"
         f"  Query: {query}\n"
         f"  搜索 URL: {result.get('search_url', '?')}\n\n"
-        f"💡 GitHub 没有官方 Gist search API。请用上面链接在浏览器搜索,\n"
+        f"GitHub 没有官方 Gist search API。请用上面链接在浏览器搜索,\n"
         f"   找到喜欢的 gist 后,用 /skill_import <URL> 导入。"
     )

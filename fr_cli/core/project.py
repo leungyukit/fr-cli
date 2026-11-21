@@ -119,7 +119,7 @@ def init_project(project_name: str = None, target_dir: str = None) -> str:
     """
     target = Path(target_dir or os.getcwd()) / PROJECT_DIR_NAME
     if target.exists():
-        return f"⚠️ 目录已存在: {target}"
+        return f"[!] 目录已存在: {target}"
 
     target.mkdir(parents=True, exist_ok=True)
     (target / "agents").mkdir(exist_ok=True)
@@ -137,7 +137,7 @@ def init_project(project_name: str = None, target_dir: str = None) -> str:
         '{\n  "lang": "zh",\n  "auto_load_persona": true\n}\n', encoding="utf-8"
     )
 
-    return f"✅ 已创建项目目录: {target}\n   ├── persona.md\n   ├── agents/_example/\n   └── config.json"
+    return f"[OK] 已创建项目目录: {target}\n   ├── persona.md\n   ├── agents/_example/\n   └── config.json"
 
 
 # ==================== 项目上下文注入 ====================
@@ -149,7 +149,7 @@ def build_project_context_injection(state) -> str:
         return ""
 
     parts = ["\n\n[项目级上下文]"]
-    parts.append(f"📁 项目根: {proj_root.parent}")
+    parts.append(f"项目根: {proj_root.parent}")
 
     persona = load_project_persona(proj_root)
     if persona:

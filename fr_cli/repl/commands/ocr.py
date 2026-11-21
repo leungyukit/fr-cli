@@ -28,7 +28,7 @@ def _cmd_ocr_config(state, parts):
 
     if not sub or sub == "show":
         ocr_cfg = get_ocr_config(state.cfg)
-        print(f"{CYAN}📝 当前 OCR 配置{RESET}")
+        print(f"{CYAN}当前 OCR 配置{RESET}")
         print(f"  引擎:     {DIM}{ocr_cfg.get('engine') or 'vision'}{RESET}")
         print(f"  厂商:     {DIM}{ocr_cfg.get('provider') or '(未设置)'}{RESET}")
         print(f"  模型:     {DIM}{ocr_cfg.get('model') or '(未设置)'}{RESET}")
@@ -53,7 +53,7 @@ def _cmd_ocr_config(state, parts):
     if sub == "clear":
         state.cfg["ocr"] = {}
         state.save_cfg()
-        print(f"{GREEN}✅ OCR 配置已清空{RESET}")
+        print(f"{GREEN}[OK] OCR 配置已清空{RESET}")
         return False
 
     # 单字段设置
@@ -66,26 +66,26 @@ def _cmd_ocr_config(state, parts):
     }
     if sub == "engine":
         if arg not in ("vision", "paddle"):
-            print(f"{RED}❌ 用法: /ocr_config engine <vision|paddle>{RESET}")
+            print(f"{RED}[x] 用法: /ocr_config engine <vision|paddle>{RESET}")
             return False
         cfg["engine"] = arg
         state.cfg["ocr"] = cfg
         state.save_cfg()
         desc = "多模态 Vision API" if arg == "vision" else "本地 PaddleOCR 引擎"
-        print(f"{GREEN}✅ OCR 引擎已切换: {desc}{RESET}")
+        print(f"{GREEN}[OK] OCR 引擎已切换: {desc}{RESET}")
         return False
     if sub in simple_fields:
         if not arg:
-            print(f"{RED}❌ 用法: /ocr_config {sub} <值>{RESET}")
+            print(f"{RED}[x] 用法: /ocr_config {sub} <值>{RESET}")
             return False
         value = " ".join(parts[2:]) if sub == "prompt" else arg
         cfg[sub] = value
         state.cfg["ocr"] = cfg
         state.save_cfg()
-        print(f"{GREEN}✅ OCR {simple_fields[sub]} 已更新{RESET}")
+        print(f"{GREEN}[OK] OCR {simple_fields[sub]} 已更新{RESET}")
         return False
 
-    print(f"{RED}❌ 未知子命令: {sub}{RESET}")
+    print(f"{RED}[x] 未知子命令: {sub}{RESET}")
     return False
 
 
@@ -97,7 +97,7 @@ def _cmd_ocr_config_setup(state):
     cfg = state.cfg.setdefault("ocr", {})
 
     print(f"{CYAN}╔{'═' * 50}╗{RESET}")
-    print(f"{CYAN}║{'📝  OCR 配置向导':^48}║{RESET}")
+    print(f"{CYAN}║{'OCR 配置向导':^48}║{RESET}")
     print(f"{CYAN}╚{'═' * 50}╝{RESET}")
 
     # 第一步：选择识别引擎
@@ -105,7 +105,7 @@ def _cmd_ocr_config_setup(state):
     print(f"  {CYAN}[1]{RESET} vision — 多模态 Vision API（需配置模型与 Key）")
     print(f"  {CYAN}[2]{RESET} paddle — 本地 PaddleOCR 引擎（离线识别，需安装 paddleocr）")
     try:
-        engine_choice = input(f"\n{YELLOW}👉 引擎编号 [1]: {RESET}").strip()
+        engine_choice = input(f"\n{YELLOW}引擎编号 [1]: {RESET}").strip()
     except (EOFError, KeyboardInterrupt):
         print(f"\n{DIM}已取消。{RESET}")
         return False
@@ -123,7 +123,7 @@ def _cmd_ocr_config_setup(state):
         })
         state.cfg["ocr"] = cfg
         state.save_cfg()
-        print(f"\n{GREEN}✅ OCR 配置完成！{RESET}")
+        print(f"\n{GREEN}[OK] OCR 配置完成！{RESET}")
         print(f"  引擎: {DIM}本地 PaddleOCR{RESET}")
         print(f"\n{DIM}现在可以使用：/ocr <图片或PDF路径>{RESET}")
         return False
@@ -133,11 +133,11 @@ def _cmd_ocr_config_setup(state):
     print(f"{DIM}若选择厂商，将自动复用其 API Key 与 Base URL；输入 0 表示自定义。{RESET}\n")
     print(f"  {CYAN}[0]{RESET} 自定义接口")
     for i, p in enumerate(providers, 1):
-        marker = f" {YELLOW}👈 当前{RESET}" if p["id"] == state.provider else ""
+        marker = f" {YELLOW}当前{RESET}" if p["id"] == state.provider else ""
         print(f"  {CYAN}[{i}]{RESET} {p['id']} — {p['name']}{marker}")
 
     try:
-        choice = input(f"\n{YELLOW}👉 厂商编号 (回车跳过): {RESET}").strip()
+        choice = input(f"\n{YELLOW}厂商编号 (回车跳过): {RESET}").strip()
     except (EOFError, KeyboardInterrupt):
         print(f"\n{DIM}已取消。{RESET}")
         return False
@@ -151,10 +151,10 @@ def _cmd_ocr_config_setup(state):
             elif 1 <= idx <= len(providers):
                 provider = providers[idx - 1]["id"]
             else:
-                print(f"{RED}❌ 编号超出范围{RESET}")
+                print(f"{RED}[x] 编号超出范围{RESET}")
                 return False
         else:
-            print(f"{RED}❌ 请输入有效编号{RESET}")
+            print(f"{RED}[x] 请输入有效编号{RESET}")
             return False
 
     # 第三步：输入模型名
@@ -165,12 +165,12 @@ def _cmd_ocr_config_setup(state):
         default_model = info.get("default_model", "") if info else ""
     hint = f" (如 {default_model})" if default_model else " (如 glm-4v / deepseek-vl)"
     try:
-        model = input(f"{YELLOW}👉 模型名{hint}: {RESET}").strip()
+        model = input(f"{YELLOW}模型名{hint}: {RESET}").strip()
     except (EOFError, KeyboardInterrupt):
         print(f"\n{DIM}已取消。{RESET}")
         return False
     if not model:
-        print(f"{RED}❌ 模型名不能为空{RESET}")
+        print(f"{RED}[x] 模型名不能为空{RESET}")
         return False
 
     # 第四步：是否覆盖 Key / Base URL
@@ -179,29 +179,29 @@ def _cmd_ocr_config_setup(state):
     if not provider:
         print(f"\n{DIM}第四步：自定义接口需要 API Key 与 Base URL{RESET}")
         try:
-            key = input(f"{YELLOW}👉 API Key: {RESET}").strip()
-            base_url = input(f"{YELLOW}👉 Base URL (可选): {RESET}").strip()
+            key = input(f"{YELLOW}API Key: {RESET}").strip()
+            base_url = input(f"{YELLOW}Base URL (可选): {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print(f"\n{DIM}已取消。{RESET}")
             return False
         if not key:
-            print(f"{RED}❌ 自定义接口必须提供 API Key{RESET}")
+            print(f"{RED}[x] 自定义接口必须提供 API Key{RESET}")
             return False
     else:
         try:
-            override = input(f"\n{YELLOW}👉 是否设置专属 Key 覆盖全局配置? [y/N]: {RESET}").strip().lower()
+            override = input(f"\n{YELLOW}是否设置专属 Key 覆盖全局配置? [y/N]: {RESET}").strip().lower()
             if override in ("y", "yes"):
-                key = input(f"{YELLOW}👉 专属 API Key: {RESET}").strip()
-            custom_url = input(f"{YELLOW}👉 是否设置自定义 Base URL? [y/N]: {RESET}").strip().lower()
+                key = input(f"{YELLOW}专属 API Key: {RESET}").strip()
+            custom_url = input(f"{YELLOW}是否设置自定义 Base URL? [y/N]: {RESET}").strip().lower()
             if custom_url in ("y", "yes"):
-                base_url = input(f"{YELLOW}👉 Base URL: {RESET}").strip()
+                base_url = input(f"{YELLOW}Base URL: {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print(f"\n{DIM}已取消。{RESET}")
             return False
 
     # 第五步：自定义提示词
     try:
-        prompt = input(f"\n{YELLOW}👉 OCR 提示词 (回车使用默认): {RESET}").strip()
+        prompt = input(f"\n{YELLOW}OCR 提示词 (回车使用默认): {RESET}").strip()
     except (EOFError, KeyboardInterrupt):
         prompt = ""
 
@@ -216,7 +216,7 @@ def _cmd_ocr_config_setup(state):
     state.cfg["ocr"] = cfg
     state.save_cfg()
 
-    print(f"\n{GREEN}✅ OCR 配置完成！{RESET}")
+    print(f"\n{GREEN}[OK] OCR 配置完成！{RESET}")
     print(f"  引擎: {DIM}{'本地 PaddleOCR' if engine == 'paddle' else '多模态 Vision API'}{RESET}")
     print(f"  厂商: {DIM}{provider or '自定义'}{RESET}")
     print(f"  模型: {DIM}{model}{RESET}")

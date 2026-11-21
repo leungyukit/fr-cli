@@ -220,7 +220,7 @@ def _find_repo_root_for_wt(wt_path: str) -> Optional[str]:
     worktree 路径形如: <main_repo>/.worktrees/<branch>
     """
     p = Path(wt_path)
-    # 向上两级:.worktrees/branch → .worktrees → main_repo
+    # 向上两级:.worktrees/branch →.worktrees → main_repo
     if p.parent.name == ".worktrees":
         return str(p.parent.parent)
     # 否则找 .git 文件(.git 是文件而不是目录 = 这是 worktree)
@@ -247,13 +247,13 @@ def _find_repo_root_for_wt(wt_path: str) -> Optional[str]:
 def format_cleanup_report(report: Dict[str, Any], lang: str = "zh") -> str:
     """格式化清理报告"""
     if lang == "zh":
-        title = "🧹 Worktree 自动清理"
+        title = "Worktree 自动清理"
         cleaned_label = "已清理"
         skipped_label = "跳过"
         errors_label = "错误"
         dry_label = "预览(不实际删除)"
     else:
-        title = "🧹 Worktree Cleanup"
+        title = "Worktree Cleanup"
         cleaned_label = "Cleaned"
         skipped_label = "Skipped"
         errors_label = "Errors"
@@ -265,13 +265,13 @@ def format_cleanup_report(report: Dict[str, Any], lang: str = "zh") -> str:
     lines.append(f"  {cleaned_label}: {len(report['cleaned'])}")
     for c in report["cleaned"]:
         method = c.get("method", "git")
-        lines.append(f"    ✅ {c['path']} [{method}]")
+        lines.append(f"[OK] {c['path']} [{method}]")
     if report["skipped"]:
         lines.append(f"  {skipped_label}: {len(report['skipped'])}")
         for s in report["skipped"][:10]:
-            lines.append(f"    ⏭️  {s['path']} ({s.get('reason', '?')})")
+            lines.append(f"[>>] {s['path']} ({s.get('reason', '?')})")
     if report["errors"]:
         lines.append(f"  {errors_label}: {len(report['errors'])}")
         for e in report["errors"]:
-            lines.append(f"    ❌ {e['path']}: {e['error']}")
+            lines.append(f"[x] {e['path']}: {e['error']}")
     return "\n".join(lines)

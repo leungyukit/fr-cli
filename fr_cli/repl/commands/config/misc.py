@@ -89,7 +89,7 @@ def _cmd_autonomous(state, parts):
     normalized = normalize_autonomous_mode(mode)
 
     if mode not in ("manual", "sandbox_auto", "full_auto", "off"):
-        print(f"{RED}❌ 未知模式: {arg1}{RESET}")
+        print(f"{RED}[x] 未知模式: {arg1}{RESET}")
         print(f"{DIM}用法: /autonomous [manual|sandbox_auto|full_auto|off]{RESET}")
         return False
 
@@ -100,7 +100,7 @@ def _cmd_autonomous(state, parts):
             "sandbox_auto": "沙盒自动 / 系统确认",
             "full_auto": "完全自动（危险）",
         }.get(normalized, normalized)
-        print(f"{GREEN}✅ 自治模式已设为: {label} ({normalized}){RESET}")
+        print(f"{GREEN}[OK] 自治模式已设为: {label} ({normalized}){RESET}")
     else:
-        print(f"{RED}❌ 设置失败{RESET}")
+        print(f"{RED}[x] 设置失败{RESET}")
     return False

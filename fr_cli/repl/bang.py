@@ -31,7 +31,7 @@ def handle_bang(state, body: str) -> bool:
     shell_cmd = shell_cmd.strip()
     pipe_prompt = pipe_prompt.strip() if sep else ""
     if not shell_cmd:
-        print(f"{YELLOW}⚠ ! 后面需要跟命令{RESET}")
+        print(f"{YELLOW}[!]! 后面需要跟命令{RESET}")
         return True
 
     out, code = get_shell_manager().execute_command(shell_cmd)
@@ -51,7 +51,7 @@ def _display_only(out: str, code: int) -> None:
             out = out[:3000] + f"\n... (输出共 {len(out)} 字符，已截断)"
         print(f"{DIM}{out.rstrip()}{RESET}")
     if code != 0:
-        print(f"{YELLOW}⚠ 命令退出码 {code}{RESET}")
+        print(f"{YELLOW}[!] 命令退出码 {code}{RESET}")
 
 
 def _pipe_to_ai(state, shell_cmd: str, out: str, prompt: str) -> None:
@@ -68,5 +68,5 @@ def _pipe_to_ai(state, shell_cmd: str, out: str, prompt: str) -> None:
 
     queue_mgr = state._queue_mgr
     if queue_mgr.is_processing:
-        print(f"{DIM}⏳ 已加入队列，AI 回答完成后自动处理...{RESET}")
+        print(f"{DIM}已加入队列，AI 回答完成后自动处理...{RESET}")
     queue_mgr.process(prompt)

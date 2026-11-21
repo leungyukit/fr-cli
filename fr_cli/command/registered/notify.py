@@ -50,9 +50,9 @@ def _notify_list(deps, **kwargs):
         return Result.ok("暂无通知通道。用 /notify_add 添加。")
     lines = []
     for c in channels:
-        secret_mark = " 🔐" if c["has_secret"] else ""
+        secret_mark = " [key]" if c["has_secret"] else ""
         lines.append(f"  • {c['channel']:12} {c['webhook']}{secret_mark}")
-    return Result.ok("📡 已配置的通知通道:\n" + "\n".join(lines))
+    return Result.ok("已配置的通知通道:\n" + "\n".join(lines))
 
 
 @register(
@@ -74,7 +74,7 @@ def _notify(deps, **kwargs):
         results = notify_all(message)
         ok_count = sum(1 for r in results.values() if r.is_ok())
         fail = [ch for ch, r in results.items() if r.is_fail()]
-        msg = f"📡 群发 {ok_count}/{len(results)} 通道成功"
+        msg = f"群发 {ok_count}/{len(results)} 通道成功"
         if fail:
             msg += f"\n  失败: {', '.join(fail)}"
         return Result.ok(msg) if not fail else Result.fail(msg)

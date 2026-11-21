@@ -174,12 +174,12 @@ async def stream_llm(messages, on_chunk, on_done):
 
 ## 4. 兼容性保证
 
-- ✅ 现有 1459 个测试全部通过
-- ✅ 现有 API 全部保留(只是内部走新 EventBus)
-- ✅ `AppState` 仍然可用(适配器)
-- ✅ `MCPServerManager` 等工具仍然可用
-- ✅ REPL 用户体验不变
-- ✅ Web 控制台页面不变
+- [OK] 现有 1459 个测试全部通过
+- [OK] 现有 API 全部保留(只是内部走新 EventBus)
+- [OK] `AppState` 仍然可用(适配器)
+- [OK] `MCPServerManager` 等工具仍然可用
+- [OK] REPL 用户体验不变
+- [OK] Web 控制台页面不变
 
 ## 5. 迁移路径(渐进)
 

@@ -25,7 +25,7 @@ def init_executor():
     web_c.fetch.return_value = ("网页正文示例内容。\n这是第二行。", None)
     disk_c = MagicMock()
     disk_c.ls.return_value = (["云端文件1.txt","云端文件2.pdf"], None)
-    disk_c.up.return_value = (True, "✅ 上传成功")
+    disk_c.up.return_value = (True, "[OK] 上传成功")
     mail_c.inbox.return_value = ([{"id":"1","sub":"欢迎邮件","from":"admin@example.com"}], None)
     mail_c.send.return_value = (True, None)
     cfg = {"session_name":"","model":"glm-4-flash","lang":"zh","key":"demo"}
@@ -42,25 +42,25 @@ def divider(title):
 
 def show_workspace():
     files = sorted(os.listdir(WORKSPACE))
-    print(f"\n  📂 工作空间当前文件 ({len(files)} 个):")
+    print(f"\n 工作空间当前文件 ({len(files)} 个):")
     for f in files:
         size = os.path.getsize(os.path.join(WORKSPACE, f))
         print(f"     - {f} ({size} bytes)")
 
 def step(name, ai_response, msgs=None):
     divider(name)
-    print(f"\n  🤖 AI 回复:\n{'-'*50}")
+    print(f"\n AI 回复:\n{'-'*50}")
     for line in ai_response.split('\n'):
         print(f"     {line}")
     print(f"{'-'*50}")
 
     clean, results = executor.process_ai_commands(ai_response, msgs)
 
-    print(f"\n  ⚡ 工具执行结果:")
+    print(f"\n 工具执行结果:")
     for r in results:
         print(f"     {r}")
 
-    print(f"\n  📝 清理后展示给用户的内容:\n{'-'*50}")
+    print(f"\n 清理后展示给用户的内容:\n{'-'*50}")
     for line in clean.split('\n'):
         if line.strip():
             print(f"     {line}")
@@ -191,8 +191,8 @@ step("步骤 14: AI 切换模型配置",
 
 # 最终汇总
 divider("演示完成")
-print("\n  ✅ 所有 14 个场景执行完毕")
-print("  ✅ 工作空间中的文件真实存在，可查看")
-print("  ✅ 文件内容完整保留换行和格式")
+print("\n [OK] 所有 14 个场景执行完毕")
+print("[OK] 工作空间中的文件真实存在，可查看")
+print("[OK] 文件内容完整保留换行和格式")
 show_workspace()
 print("")

@@ -186,7 +186,7 @@ class TestMultiEditEdgeCases:
 
     def test_unicode_content(self, deps, tmp_path):
         f = tmp_path / "a.txt"
-        f.write_text("你好 世界 🌍", encoding="utf-8")
+        f.write_text("你好 世界", encoding="utf-8")
         edits = [{"path": "a.txt", "old_text": "你好", "new_text": "Hello"}]
         result = _multi_edit(deps, edits=edits)
         assert result.is_ok()

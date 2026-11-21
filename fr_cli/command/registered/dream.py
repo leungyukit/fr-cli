@@ -35,7 +35,7 @@ def _dream(deps, **kwargs):
         return Result.ok("用法: /dream search <关键词>")
     if action == "status":
         s = get_dream_summary()
-        msg = "🌙 梦境档案\n"
+        msg = "梦境档案\n"
         msg += f"  总次数: {s['total_dreams']}\n"
         msg += f"  最近: {s['last_dream'] or '从未'}\n"
         if s["top_themes"]:
@@ -50,11 +50,11 @@ def _dream(deps, **kwargs):
     except Exception as e:
         return Result.fail(f"梦境整理失败: {e}")
     if result.get("skipped"):
-        return Result.ok(f"⏭ 跳过梦境整理: {result.get('reason', '?')}")
+        return Result.ok(f"[>>] 跳过梦境整理: {result.get('reason', '?')}")
     data = result.get("data", {})
     summary = data.get("summary", "")
     themes = data.get("themes", [])
-    msg = f"🌙 梦境整理完成 ({result.get('saved_at', '?')[:16]})\n"
+    msg = f"梦境整理完成 ({result.get('saved_at', '?')[:16]})\n"
     if summary:
         msg += f"  摘要: {summary}\n"
     if themes:

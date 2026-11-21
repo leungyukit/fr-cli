@@ -61,12 +61,12 @@ def crawl(url, depth=1, output_base=None, lang="zh", state=None):
         stats["total_pages"] += 1
         stats["domains"].add(urlparse(current_url).netloc)
 
-        print(f"{CYAN}🕷️ 爬取 [{current_depth+1}/{depth}]: {current_url[:80]}...{RESET}")
+        print(f"{CYAN}爬取 [{current_depth+1}/{depth}]: {current_url[:80]}...{RESET}")
 
         html, err, method = _fetch_adaptive(current_url, state, memory=memory)
         if err or not html:
             errors.append(f"{current_url}: {err}")
-            print(f"{RED}  ❌ 爬取失败: {err}{RESET}")
+            print(f"{RED} [x] 爬取失败: {err}{RESET}")
             continue
 
         if method == "requests":
@@ -76,7 +76,7 @@ def crawl(url, depth=1, output_base=None, lang="zh", state=None):
 
         filepath = _save_page(current_url, html, output_base)
         saved.append(filepath)
-        print(f"{GREEN}  ✅ 已保存: {filepath} (via {method}){RESET}")
+        print(f"{GREEN} [OK] 已保存: {filepath} (via {method}){RESET}")
 
         if current_depth + 1 < depth:
             links, extraction_method = _extract_links_smart(html, current_url, state, memory=memory)
@@ -190,7 +190,7 @@ def handle_spider(user_input, state):
     if state.vfs and state.vfs.cwd:
         output_dir = state.vfs.cwd
 
-    print(f"{CYAN}🕷️ 开始自适应爬取: {url} | 深度: {depth}{RESET}")
+    print(f"{CYAN}开始自适应爬取: {url} | 深度: {depth}{RESET}")
     print(f"{DIM}  爬虫会根据页面结构自动分析最优策略...{RESET}")
 
     saved, errors, stats = crawl(url, depth, output_dir, state.lang, state=state).unwrap()

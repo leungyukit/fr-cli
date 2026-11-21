@@ -44,7 +44,7 @@ class HermesEngineTaskMixin:
         if execution_mode == "autonomous":
             if source == "repl" and confirm_prompt:
                 from fr_cli.ui.ui import YELLOW, RED, GREEN, RESET
-                print(f"{YELLOW}⚠️  即将创建 autonomous 任务:{RESET}")
+                print(f"{YELLOW}[!] 即将创建 autonomous 任务:{RESET}")
                 print(f"   描述: {description[:80]}")
                 print(f"   {RED}该任务将自动执行系统级操作(shell/exec/邮件/MCP 等),不再逐条询问。{RESET}")
                 try:
@@ -53,10 +53,10 @@ class HermesEngineTaskMixin:
                     c = "n"
                 if c in ("y", "yes"):
                     user_confirmed_at = time.time()
-                    print(f"{GREEN}✅ 已授权,任务将在后台以 autonomous 模式执行。{RESET}")
+                    print(f"{GREEN}[OK] 已授权,任务将在后台以 autonomous 模式执行。{RESET}")
                 else:
                     initial_status = TaskStatus.PAUSED
-                    print(f"{YELLOW}⏸️  任务已暂停,可稍后执行 /hermes confirm <id> 授权。{RESET}")
+                    print(f"{YELLOW}[||] 任务已暂停,可稍后执行 /hermes confirm <id> 授权。{RESET}")
             else:
                 # HTTP 或其他非交互来源:默认暂停,等待显式确认
                 initial_status = TaskStatus.PAUSED
@@ -237,7 +237,7 @@ class HermesEngineTaskMixin:
         counts = self.task_manager.counts()
         stats = self.analytics.get_stats()
         lines = [
-            "📊 Hermes 状态",
+            "Hermes 状态",
             f"  任务: pending={counts['pending']} running={counts['running']} "
             f"completed={counts['completed']} failed={counts['failed']} paused={counts['paused']}",
             f"  调度器: {'运行中' if self.scheduler.running else '已停止'}",

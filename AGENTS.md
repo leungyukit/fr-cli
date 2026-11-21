@@ -276,8 +276,8 @@ docker compose up fr-cli
   - **新增一个内置工具只需在此文件注册一个 handler**
 
 - **`command/executor.py`**：轻量解析与调度器（~150 行）
-  - `invoke_tool(tool_name, kwargs)` → 调用 `registry.dispatch()`
-  - `execute(cmd_str)` → 调用 `registry.dispatch_cmd()`
+  - `invoke_tool(tool_name, kwargs)`→ 调用 `registry.dispatch()`
+  - `execute(cmd_str)`→ 调用 `registry.dispatch_cmd()`
   - `process_ai_commands(ai_response)`：解析三种格式并执行
 
 - **`core/core.py`**：`AppState` —— 本命元神 / DI 容器
@@ -309,22 +309,22 @@ docker compose up fr-cli
 
 ```
 main.py
-├── core.core           → AppState（DI 容器，聚合所有子系统）
-├── core.usage          → ~/.fr_cli/usage.json（LLM 用量统计）
-├── core.store          → JsonStore 统一 JSON 持久化
-├── core.result         → Result 统一错误返回风格
-├── core.stream         → 流式调用 ZhipuAI，代码高亮输出
-├── core.recommender    → 功能推荐
-├── core.thinking       → 思维模式引擎（CoT/ToT/ReAct）
-├── command.executor    → 解析 AI 回复，调度注册表（动态构建依赖）
-├── repl.commands       → 40 个命令处理器
-├── memory.history      → ~/.fr_cli/sessions/manual/ (JSON)
-├── memory.context      → ~/.fr_cli/context.json（会话摘要）
-├── memory.session      → ~/.fr_cli/sessions/auto/ (按日期自动存档)
-├── addon.plugin        → ~/.fr_cli/plugins/ (*.py)
-├── weapon.loader       → 从注册表生成工具描述
-├── weapon.cron         → CronManager（threading.Timer）
-├── agent.master        → ~/.fr_cli_master/ (记忆与进化)
+├── core.core → AppState（DI 容器，聚合所有子系统）
+├── core.usage → ~/.fr_cli/usage.json（LLM 用量统计）
+├── core.store → JsonStore 统一 JSON 持久化
+├── core.result → Result 统一错误返回风格
+├── core.stream → 流式调用 ZhipuAI，代码高亮输出
+├── core.recommender → 功能推荐
+├── core.thinking → 思维模式引擎（CoT/ToT/ReAct）
+├── command.executor → 解析 AI 回复，调度注册表（动态构建依赖）
+├── repl.commands → 40 个命令处理器
+├── memory.history → ~/.fr_cli/sessions/manual/ (JSON)
+├── memory.context → ~/.fr_cli/context.json（会话摘要）
+├── memory.session → ~/.fr_cli/sessions/auto/ (按日期自动存档)
+├── addon.plugin → ~/.fr_cli/plugins/ (*.py)
+├── weapon.loader → 从注册表生成工具描述
+├── weapon.cron → CronManager（threading.Timer）
+├── agent.master → ~/.fr_cli_master/ (记忆与进化)
 └── breakthrough.update → 远程更新
 ```
 
@@ -336,10 +336,10 @@ main.py
    - 若禁用 → 继续传统流式对话流程
 3. 组装 `messages`（system prompt + 工具清单 + 上下文摘要 + 历史）。
 4. 通过 `should_inject_tools()` 判定是否需要注入工具信息。
-5. 调用 `stream_cnt()` → 逐 token 输出到 stdout。
+5. 调用 `stream_cnt()`→ 逐 token 输出到 stdout。
 6. 收到完整回复后，`executor.process_ai_commands()` 解析调用标记：
-   - `【调用：tool_name({"参数": "值"})】` → `registry.dispatch()` → 执行 handler
-   - `【命令：/command args】` → `registry.dispatch_cmd()` → 执行同一 handler
+   - `【调用：tool_name({"参数": "值"})】`→ `registry.dispatch()`→ 执行 handler
+   - `【命令：/command args】`→ `registry.dispatch_cmd()`→ 执行同一 handler
 7. 自动执行提取的命令，打印结果，并将结果回写到 `messages`。
 8. 再次调用 AI 生成最终回复（命令标记从显示文本中清除）。
 9. 显示 token 统计，并将用量（provider/model/tokens/cost）持久化到 `~/.fr_cli/usage.json`；显示功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
@@ -439,7 +439,7 @@ Agent 存储在 `~/.fr_cli/agents/<name>/` 目录下。
 2. **@ 前缀快捷调用（REPL）**
    ```
    >>> @my_agent 请帮我总结 README.md
-   🧙 正在召唤 Agent [my_agent]...
+   正在召唤 Agent [my_agent]...
    ...
    ```
    主循环会拦截以 `@` 开头的输入，解析 Agent 名称和任务后直接进入 Agent 执行器，不会当作普通对话发送给大模型。
@@ -554,7 +554,7 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 **@local — 本地系统操作**
 ```
 >>> @local 查看当前目录下最大的10个文件
-🧙 正在分析本地操作...
+正在分析本地操作...
 建议命令: find . -type f -exec ls -lh {} + | sort -k5 -rh | head -10
 是否执行? [Y/n]: Y
 ```
@@ -562,7 +562,7 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 **@remote — 远程 SSH 操作**
 ```
 >>> @remote myserver 查看磁盘空间
-🧙 正在为 [myserver](Linux) 生成远程命令...
+正在为 [myserver](Linux) 生成远程命令...
 建议命令 (myserver): df -h
 是否执行? [Y/n]: Y
 ```
@@ -571,7 +571,7 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 **@spider — 智能网页爬虫**
 ```
 >>> @spider https://example.com 2
-🕷️ 开始爬取: https://example.com | 深度: 2
+开始爬取: https://example.com | 深度: 2
 爬取完成 | 成功: 15 个页面 | 保存目录: web_20240115/
 ```
 - 依赖: `pip install requests selenium`
@@ -579,7 +579,7 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 **@db — 数据库智能助手**
 ```
 >>> @db mydb 查询最近7天注册用户
-📊 正在分析 Schema...
+正在分析 Schema...
 生成 SQL: SELECT COUNT(*) FROM users WHERE created_at >= DATE_SUB(NOW(), INTERVAL 7 DAY);
 是否执行? [Y/n]: Y
 返回 1 行: {'COUNT(*)': 342}
@@ -590,21 +590,21 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 **@RAG — 本地知识库问答**
 ```
 >>> @RAG 项目的部署流程是什么
-📚 正在同步知识库...
-🔍 正在检索知识库并生成回答...
+正在同步知识库...
+正在检索知识库并生成回答...
 ```
 - 向量库：ChromaDB（嵌入式 `PersistentClient`，自动启动，无需单独服务）
 
 **@stock — 股票/量化交易助手**
 ```
 >>> @stock 查询茅台股价
-🧙 正在分析股票数据...
+正在分析股票数据...
 贵州茅台 当前价格 ...
 
 >>> @stock 买入 600519 1500.00 100
 模拟交易确认: 动作=BUY 代码=600519.SH 数量=100 价格=1500.00
 是否执行? [y/N]: y
-✅ 模拟交易已记录
+[OK] 模拟交易已记录
 ```
 - 数据源：akshare（免 key）、麦蕊 API（需 token）、tushare（需 token）
 - 交易能力：当前仅提供模拟交易记录，真实交易 API 需自行扩展

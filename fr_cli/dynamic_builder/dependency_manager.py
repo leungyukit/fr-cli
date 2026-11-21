@@ -65,7 +65,7 @@ def install_dependency(package: str, lang: str = "zh", confirm: bool = True) -> 
         return Result.ok(f"{package} 已安装")
 
     msg = f"需要安装依赖: {package}" if lang == "zh" else f"Dependency required: {package}"
-    print(f"{YELLOW}📦 {msg}{RESET}")
+    print(f"{YELLOW}{msg}{RESET}")
 
     if confirm:
         try:
@@ -76,7 +76,7 @@ def install_dependency(package: str, lang: str = "zh", confirm: bool = True) -> 
             return Result.fail("用户拒绝安装")
 
     try:
-        print(f"{CYAN}🔄 正在安装 {package}...{RESET}")
+        print(f"{CYAN}正在安装 {package}...{RESET}")
         res = subprocess.run(
             [sys.executable, "-m", "pip", "install", package],
             capture_output=True,
@@ -84,11 +84,11 @@ def install_dependency(package: str, lang: str = "zh", confirm: bool = True) -> 
             timeout=300,
         )
         if res.returncode == 0:
-            print(f"{GREEN}✅ {package} 安装成功{RESET}")
+            print(f"{GREEN}[OK] {package} 安装成功{RESET}")
             return Result.ok(f"{package} 安装成功")
         else:
             err = res.stderr.strip()[-500:] if res.stderr else "未知错误"
-            print(f"{RED}❌ {package} 安装失败: {err}{RESET}")
+            print(f"{RED}[x] {package} 安装失败: {err}{RESET}")
             return Result.fail(f"安装失败: {err}")
     except subprocess.TimeoutExpired:
         return Result.fail("安装超时（300秒）")

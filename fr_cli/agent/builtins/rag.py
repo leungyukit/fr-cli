@@ -169,7 +169,7 @@ def handle_rag(user_input, state):
     mgr = get_rag_manager(kb_dir)
 
     # 首次同步
-    print(f"{CYAN}📚 正在同步知识库...{RESET}")
+    print(f"{CYAN}正在同步知识库...{RESET}")
     ok, msg = mgr.sync_directory()
     if ok:
         print(f"{GREEN}{msg}{RESET}")
@@ -179,13 +179,13 @@ def handle_rag(user_input, state):
     # 如果独立守护进程在运行，不启动内置 watcher
     watcher = RAGWatcherManager()
     if watcher.is_running():
-        print(f"{DIM}ℹ️ 独立守护进程正在后台运行，知识库将自动同步。{RESET}")
+        print(f"{DIM}[i] 独立守护进程正在后台运行，知识库将自动同步。{RESET}")
     else:
         # 启动内置后台监控（如果未启动）
         if mgr._watcher_thread is None or not mgr._watcher_thread.is_alive():
             mgr.start_watcher()
 
-    print(f"{CYAN}🔍 正在检索知识库并生成回答...{RESET}")
+    print(f"{CYAN}正在检索知识库并生成回答...{RESET}")
     result, err = mgr.query(question, state.client, state.model_name, state.lang)
     if err:
         print(f"{RED}{err}{RESET}")

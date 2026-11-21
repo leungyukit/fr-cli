@@ -201,10 +201,10 @@ class MailClient:
         # 安全校验：防止邮件头注入
         import email.utils
         if '\n' in to or '\r' in to or '\n' in subject or '\r' in subject:
-            return Result.fail("❌ 邮件地址或主题包含非法字符")
+            return Result.fail("[x] 邮件地址或主题包含非法字符")
         parsed = email.utils.parseaddr(to)
         if not parsed[1] or '@' not in parsed[1]:
-            return Result.fail("❌ 收件人地址格式无效")
+            return Result.fail("[x] 收件人地址格式无效")
 
         server = None
         try:

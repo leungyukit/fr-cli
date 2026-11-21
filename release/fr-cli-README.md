@@ -1,6 +1,6 @@
 # 凡人打字机 (fr-cli) 安装指南
 
-## 📦 快速安装
+## 快速安装
 
 ### 方式一：双击运行安装程序（推荐）
 
@@ -22,7 +22,7 @@ chmod +x fr-cli-install
 python fr-cli-install
 ```
 
-## 🚀 使用
+## 使用
 
 安装完成后，在 release 目录下会生成 `fr-cli` 启动器：
 
@@ -35,15 +35,15 @@ export PATH="$(pwd):$PATH"
 fr-cli
 ```
 
-## 📝 快速上手
+## 快速上手
 
 ```bash
 fr-cli
 
 # 与 AI 对话，描述需求即可自动调用工具
 >>> 搜索 Python 最新特性并保存到文件
-🧙 仙人 【调用：search_web({"query": "Python 最新特性"})】
-🧙 仙人 【调用：write_file({"path": "python_news.md", "content": "..."})】
+仙人 【调用：search_web({"query": "Python 最新特性"})】
+仙人 【调用：write_file({"path": "python_news.md", "content": "..."})】
 
 # 启动 Agent HTTP API 服务（供外部系统调用）
 >>> /agent_server start 8080
@@ -61,23 +61,23 @@ fr-cli
 >>> /exit
 ```
 
-## 📋 环境要求
+## 环境要求
 
 - **Python 3.8+**（安装程序会自动检测，未安装会提示下载）
 - 安装时自动创建虚拟环境，**不需要管理员权限**
 
-## 🛠️ 手动安装（已有 Python 环境）
+## 手动安装（已有 Python 环境）
 
 ```bash
 pip install fr_cli-2.1.0-py3-none-any.whl
 fr-cli
 ```
 
-## 🗑️ 卸载
+## 卸载
 
 直接删除 release 目录即可，所有文件（含虚拟环境）都在该目录内。
 
-## 📁 文件说明
+## 文件说明
 
 | 文件 | 说明 |
 |------|------|
@@ -88,7 +88,7 @@ fr-cli
 | `fr-cli-install.bat` | Windows 安装脚本（备用） |
 | `fr_cli-2.1.0-py3-none-any.whl` | 程序安装包 |
 
-## ❓ 常见问题
+## [?] 常见问题
 
 **Q: macOS 提示 "无法打开，因为无法验证开发者"？**
 A: 右键点击 `fr-cli-installer`，选择 "打开"，然后在弹出的对话框中再次点击 "打开"。

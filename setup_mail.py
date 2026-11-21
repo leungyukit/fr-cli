@@ -16,7 +16,7 @@ PRESETS = {
 }
 
 print("=" * 60)
-print("  📧 凡人打字机 — 邮件账户配置向导")
+print("凡人打字机 — 邮件账户配置向导")
 print("=" * 60)
 print()
 print("请选择您的邮箱服务商：")
@@ -24,9 +24,9 @@ for k, (name, imap, smtp) in PRESETS.items():
     print(f"  {k}. {name}")
 print()
 
-choice = input("👉 输入编号 (1-6): ").strip()
+choice = input("输入编号 (1-6): ").strip()
 if choice not in PRESETS:
-    print("❌ 无效选择")
+    print("[x] 无效选择")
     exit(1)
 
 name, imap_server, smtp_server = PRESETS[choice]
@@ -39,7 +39,7 @@ email = input(f"  邮箱地址 (如 xxx@{name.replace('邮箱', '').lower()}.com
 password = input("  密码/授权码: ").strip()
 
 if not all([imap_server, smtp_server, email, password]):
-    print("❌ 所有字段都必须填写")
+    print("[x] 所有字段都必须填写")
     exit(1)
 
 # 加载现有配置（统一走新路径 ~/.fr_cli/config.json）
@@ -55,7 +55,7 @@ cfg["mail"] = {
 if save_config(cfg):
     print()
     print("=" * 60)
-    print("  ✅ 邮件配置已保存")
+    print("[OK] 邮件配置已保存")
     print("=" * 60)
     print()
     print("配置内容：")
@@ -71,5 +71,5 @@ if save_config(cfg):
     print("  【调用：mail_send({\"to\": \"...\", \"subject\": \"...\", \"body\": \"...\"})】")
     print()
 else:
-    print("❌ 保存配置失败")
+    print("[x] 保存配置失败")
     exit(1)

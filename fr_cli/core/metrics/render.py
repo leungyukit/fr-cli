@@ -115,13 +115,13 @@ class MetricsRenderMixin:
         """人类可读摘要"""
         with self._lock:
             lines = ["=" * 60]
-            lines.append(f"📊 Metrics Summary (uptime: {round(time.time() - self._started_at, 1)}s)")
+            lines.append(f"Metrics Summary (uptime: {round(time.time() - self._started_at, 1)}s)")
             lines.append(f"   Total events received: {self._total_events}")
             lines.append("=" * 60)
 
             # counters
             if self._counters:
-                lines.append("\n🔢 Counters:")
+                lines.append("\nCounters:")
                 # 按 name 分组
                 by_name: Dict[str, List[Tuple[frozenset, int]]] = defaultdict(list)
                 for (name, label_set), value in self._counters.items():
@@ -137,7 +137,7 @@ class MetricsRenderMixin:
 
             # histograms
             if self._histograms:
-                lines.append("\n📈 Histograms:")
+                lines.append("\nHistograms:")
                 for name, h in sorted(self._histograms.items()):
                     if h["count"] == 0:
                         continue
@@ -152,7 +152,7 @@ class MetricsRenderMixin:
 
             # timers
             if self._timers:
-                lines.append("\n⏱️  Timers:")
+                lines.append("\nTimers:")
                 for name in sorted(self._timers.keys()):
                     s = self.timer_summary(name)
                     if s:
@@ -163,7 +163,7 @@ class MetricsRenderMixin:
 
             # gauges
             if self._gauges:
-                lines.append("\n📍 Gauges:")
+                lines.append("\nGauges:")
                 for name, value in sorted(self._gauges.items()):
                     lines.append(f"   {name}: {value}")
 

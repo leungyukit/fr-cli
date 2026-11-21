@@ -64,7 +64,7 @@ def cmd_local_llm(state, parts) -> str:
     info = detect_local_ollama()
     if not info:
         return (
-            "❌ 未检测到本地 ollama 服务\n"
+            "[x] 未检测到本地 ollama 服务\n"
             "   安装: https://ollama.com/download\n"
             "   启动: ollama serve"
         )
@@ -72,7 +72,7 @@ def cmd_local_llm(state, parts) -> str:
     state.cfg["provider"] = "ollama"
     state.cfg["model"] = info["models"][0]
     state.reinit_client()
-    return f"✅ 已切换到本地 ollama: {info['models']}\n   URL: {info['url']}", None
+    return f"[OK] 已切换到本地 ollama: {info['models']}\n   URL: {info['url']}", None
 
 
 # ==================== 长线-3：并行工具调用 ====================

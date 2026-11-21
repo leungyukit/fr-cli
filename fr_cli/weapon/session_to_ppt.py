@@ -5,9 +5,9 @@
 - 读取 sessions/auto/<file>.json 的 messages
 - 提取每轮对话(user + assistant)作为一张幻灯片
 - 标题 = 会话日期 / 第一条 user 消息
-- 用户消息 → "需求"幻灯片
-- AI 回答 → "回答"幻灯片(支持 Markdown 简化)
-- 关键工具调用 → "步骤"幻灯片
+- 用户消息 →"需求"幻灯片
+- AI 回答 →"回答"幻灯片(支持 Markdown 简化)
+- 关键工具调用 →"步骤"幻灯片
 
 依赖:python-pptx(可选,无则回退到 Markdown 大纲)
 """
@@ -205,7 +205,7 @@ def export_to_pptx(outline: List[Dict[str, Any]], output_path: str,
             elif item["type"] in ("user", "ai"):
                 bg = colors["user_bg"] if item["type"] == "user" else colors["ai_bg"]
                 fg = colors["user_fg"] if item["type"] == "user" else colors["ai_fg"]
-                role_label = "👤 用户" if item["type"] == "user" else "🤖 AI"
+                role_label = "用户" if item["type"] == "user" else "AI"
                 # 标题栏
                 _add_text_box(
                     slide, f"{role_label} - {item.get('title', '')}",
@@ -275,11 +275,11 @@ def export_to_markdown(outline: List[Dict[str, Any]], output_path: str) -> Dict[
                 lines.append(f"# {item['title']}")
                 lines.append(f"\n*{item['subtitle']}*\n")
             elif item["type"] == "user":
-                lines.append(f"## 👤 {item.get('title', '用户')}\n")
+                lines.append(f"## {item.get('title', '用户')}\n")
                 lines.append(item["content"])
                 lines.append("")
             elif item["type"] == "ai":
-                lines.append(f"## 🤖 {item.get('title', 'AI')}\n")
+                lines.append(f"## {item.get('title', 'AI')}\n")
                 lines.append(item["content"])
                 lines.append("")
             elif item["type"] == "summary":

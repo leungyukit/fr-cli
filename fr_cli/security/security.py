@@ -61,7 +61,7 @@ def ask(k, d, l, fconfirm, sconfirm, config):
     print(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
 
     while True:
-        c = input(f"{BOLD}    👉 {RESET}").strip().lower()
+        c = input(f"{BOLD} {RESET}").strip().lower()
         if c == 'y':
             return True, sconfirm, fconfirm
         elif c == 'a':
@@ -81,16 +81,16 @@ def ask(k, d, l, fconfirm, sconfirm, config):
         elif c == 'n' or c == '':
             return False, sconfirm, fconfirm
         # 未识别输入：重新提示（保留原 UX）
-        print(f"  {YELLOW}⚠️ 请输入 Y/A/F/N 之一{RESET}")
+        print(f"  {YELLOW}[!] 请输入 Y/A/F/N 之一{RESET}")
 
 
 def _migrate_fconfirm(fconfirm):
     """把旧版 fconfirm = bool 迁移为 v2.4.4 的 dict 形式。
 
-    - bool True  →  {"sec_read": True, "sec_write": True, "sec_exec": True, ...所有已知 sec_*}
+    - bool True → {"sec_read": True, "sec_write": True, "sec_exec": True, ...所有已知 sec_*}
       （保守策略：旧版一键放行所有类别，迁移时维持语义）
     - bool False → {}
-    - dict      → 原样返回
+    - dict → 原样返回
     """
     if isinstance(fconfirm, dict):
         return fconfirm

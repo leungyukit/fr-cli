@@ -317,18 +317,18 @@ def import_chrome_bookmarks(html_file: str) -> Dict[str, Any]:
 def format_bookmarks_list(bookmarks: List[Dict[str, Any]], lang: str = "zh") -> str:
     """格式化书签列表"""
     if not bookmarks:
-        return "📚 没有书签"
+        return "没有书签"
 
     if lang == "zh":
-        title = f"📚 书签列表 ({len(bookmarks)})"
+        title = f"书签列表 ({len(bookmarks)})"
     else:
-        title = f"📚 Bookmarks ({len(bookmarks)})"
+        title = f"Bookmarks ({len(bookmarks)})"
 
     lines = [title]
     for b in bookmarks:
         tags_str = " ".join(f"#{t}" for t in b.get("tags", []))
         title_short = b.get("title", b.get("url", "?"))[:50]
-        rag_marker = " 🧠" if b.get("in_rag") else ""
+        rag_marker = "" if b.get("in_rag") else ""
         ts = datetime.fromtimestamp(b.get("created_at", 0)).strftime("%Y-%m-%d")
         lines.append(f"  [{b['id']}] {title_short}{rag_marker}")
         lines.append(f"    {b.get('url', '')}")

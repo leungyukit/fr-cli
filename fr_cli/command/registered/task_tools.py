@@ -155,11 +155,11 @@ def _list_background_tasks(deps, **kwargs):
         lines = [f"后台任务 (共 {len(tasks)} 个):"]
         for t in tasks[:limit]:
             marker = {
-                "pending": "⏳",
-                "running": "🏃",
-                "completed": "✅",
-                "failed": "❌",
-                "paused": "⏸️",
+                "pending": "[..]",
+                "running": "[>]",
+                "completed": "[OK]",
+                "failed": "[x]",
+                "paused": "[||]",
             }.get(t.status.value, "?")
             desc = t.description[:50]
             lines.append(f"  {marker} {t.id} | {t.status.value:<10} | {desc}")

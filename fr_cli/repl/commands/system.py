@@ -119,20 +119,20 @@ def _cmd_hermes_daemon(state, parts):
             state.hermes_daemon = daemon
             t = threading.Thread(target=daemon.start, daemon=True)
             t.start()
-            print(f"{GREEN}🧚 Hermes 守护进程已启动: http://127.0.0.1:{port}{RESET}")
+            print(f"{GREEN}Hermes 守护进程已启动: http://127.0.0.1:{port}{RESET}")
         except Exception as e:
             print(f"{RED}启动失败: {e}{RESET}")
 
     elif arg1 == "stop":
         if hasattr(state, "hermes_daemon") and state.hermes_daemon:
             state.hermes_daemon.running = False
-            print(f"{GREEN}🛑 守护进程已停止{RESET}")
+            print(f"{GREEN}[STOP] 守护进程已停止{RESET}")
         else:
             print(f"{YELLOW}守护进程未运行{RESET}")
 
     elif arg1 == "status":
         if hasattr(state, "hermes_daemon") and state.hermes_daemon:
-            print(f"{CYAN}🧚 守护进程运行中{RESET}")
+            print(f"{CYAN}守护进程运行中{RESET}")
             print(f"   端口: {state.hermes_daemon.port}")
         else:
             print(f"{DIM}守护进程未运行{RESET}")

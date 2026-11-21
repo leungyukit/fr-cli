@@ -86,7 +86,7 @@ def _summarize_interactions_for_prompt(interactions):
     lines = []
     for item in interactions:
         time = item.get("time", "?")[:16]
-        status = "✅" if item.get("success") else "❌"
+        status = "[OK]" if item.get("success") else "[x]"
         err = f" ({item.get('error_type')})" if not item.get("success") and item.get("error_type") else ""
         tool = item.get("tool", "?")
         inp = (item.get("input") or "")[:60]
@@ -245,7 +245,7 @@ class DreamEngine:
 
     def _render_dream_markdown(self, dream_data, interactions, timestamp):
         """把梦境结果格式化成 Markdown 章节"""
-        lines = [f"\n## 🌙 梦境 #{datetime.fromisoformat(timestamp).strftime('%Y-%m-%d %H:%M')}"]
+        lines = [f"\n## 梦境 #{datetime.fromisoformat(timestamp).strftime('%Y-%m-%d %H:%M')}"]
         lines.append(f"\n> 来源：{len(interactions)} 条近期交互\n")
 
         summary = dream_data.get("summary", "").strip()

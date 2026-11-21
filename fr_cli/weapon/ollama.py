@@ -167,10 +167,10 @@ def format_status(base_url: str = DEFAULT_OLLAMA_URL) -> str:
     det = detect_ollama(base_url)
     if not det["ok"]:
         return (
-            f"❌ Ollama 未运行\n"
+            f"[x] Ollama 未运行\n"
             f"  地址: {base_url}\n"
             f"  错误: {det.get('error', '?')}\n\n"
-            f"💡 启动方式:\n"
+            f"启动方式:\n"
             f"  1. 安装: https://ollama.com/download\n"
             f"  2. 运行: ollama serve\n"
             f"  3. 下载模型: ollama pull llama3.2"
@@ -191,7 +191,7 @@ def format_status(base_url: str = DEFAULT_OLLAMA_URL) -> str:
             models_text = "\n".join(lines)
 
     return (
-        f"✅ Ollama 运行中\n"
+        f"[OK] Ollama 运行中\n"
         f"  版本: {version}\n"
         f"  地址: {base_url}\n"
         f"  模型 ({len(models_r.get('models', []))}):\n{models_text}"

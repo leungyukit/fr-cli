@@ -160,14 +160,14 @@ def format_history_summary(session_id: str, lang: str = "zh") -> str:
     summary = history_summary(session_id)
     if lang == "zh":
         return (
-            f"📚 Plan 历史: "
-            f"↩️ 可撤销 {summary['undo_count']} 步 | "
-            f"↪️ 可重做 {summary['redo_count']} 步 | "
-            f"📍 当前{'有' if summary['has_current'] else '无'} plan"
+            f"Plan 历史: "
+            f"[Enter] 可撤销 {summary['undo_count']} 步 | "
+            f"[Tab] 可重做 {summary['redo_count']} 步 | "
+            f"当前{'有' if summary['has_current'] else '无'} plan"
         )
     return (
-        f"📚 Plan History: "
-        f"↩️ {summary['undo_count']} undo | "
-        f"↪️ {summary['redo_count']} redo | "
-        f"📍 {'has' if summary['has_current'] else 'no'} current"
+        f"Plan History: "
+        f"[Enter] {summary['undo_count']} undo | "
+        f"[Tab] {summary['redo_count']} redo | "
+        f"{'has' if summary['has_current'] else 'no'} current"
     )

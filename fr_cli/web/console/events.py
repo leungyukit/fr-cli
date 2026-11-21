@@ -52,7 +52,7 @@ def _on_event_to_sse(event):
     """v3 EventBus → SSE 桥接
 
     把所有 v3/v2 事件自动推到 console 的 SSE 流上。
-    'tool.invoked' → channel='tool', sub='invoked'
+    'tool.invoked'→ channel='tool', sub='invoked'
     """
     try:
         etype = event.type

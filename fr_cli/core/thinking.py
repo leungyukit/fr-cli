@@ -109,7 +109,7 @@ REACT_SYSTEM_ENHANCEMENT_ZH = """
 
 4. Final Answer（最终答案）：
    - 只有当所有子问题都解决、所有验证都通过后，才给出最终答案
-   - 最终答案前必须包含一行："✅ 验证通过，以下是最终结论："
+   - 最终答案前必须包含一行："[OK] 验证通过，以下是最终结论："
 
 重要：
 - 不要在 Thought 中编造不存在的信息
@@ -140,7 +140,7 @@ When answering the user's question, strictly follow the ReAct (Reasoning + Actin
 
 4. Final Answer:
    - Only provide the final answer after all sub-problems are resolved and all checks pass
-   - Must include a line before the final answer: "✅ Verification passed. Final conclusion:"
+   - Must include a line before the final answer: "[OK] Verification passed. Final conclusion:"
 
 Important:
 - Do not fabricate information in Thought
@@ -192,7 +192,7 @@ class ThinkingEngine:
         prompt = prompt_template.format(question=user_input)
         messages = [{"role": "user", "content": prompt}]
 
-        hint = "🧠 正在深度思考..." if lang == "zh" else "🧠 Deep thinking..."
+        hint = "正在深度思考..." if lang == "zh" else "Deep thinking..."
         print(f"{DIM}{hint}{RESET}")
         txt, _, _, _ = stream_cnt(
             state.client, state.model_name, messages, lang,
@@ -209,7 +209,7 @@ class ThinkingEngine:
         prompt = prompt_template.format(question=user_input)
         messages = [{"role": "user", "content": prompt}]
 
-        hint = "🧠 正在深度思考..." if lang == "zh" else "🧠 Deep thinking..."
+        hint = "正在深度思考..." if lang == "zh" else "Deep thinking..."
         print(f"{DIM}{hint}{RESET}")
         txt, _, _, _ = stream_cnt(
             state.client, state.model_name, messages, lang,

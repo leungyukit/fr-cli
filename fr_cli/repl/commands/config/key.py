@@ -63,12 +63,12 @@ def _cmd_providers(state, parts):
         for p in list_providers():
             pcfg = providers_cfg.get(p["id"], {})
             has_key = _provider_has_key(state, p["id"])
-            key_status = "✅" if has_key else "❌"
+            key_status = "[OK]" if has_key else "[x]"
             model = pcfg.get("model", p["default_model"])
             pinfo = get_provider_info(p["id"])
             base_url = pcfg.get("base_url") or pinfo.get("base_url", "默认")
             token_plan_url = pcfg.get("token_plan_base_url") or pinfo.get("token_plan_base_url")
-            active = f" {YELLOW}👈 当前使用{RESET}" if p["id"] == state.provider else ""
+            active = f" {YELLOW}当前使用{RESET}" if p["id"] == state.provider else ""
             print(f"\n  {key_status} {CYAN}{p['id']}{RESET} — {p['name']}{active}")
             print(f"      模型: {DIM}{model}{RESET}")
             print(f"      接口: {DIM}{base_url}{RESET}")
@@ -157,7 +157,7 @@ def _cmd_providers(state, parts):
             # 检查新提供商是否已配置 API Key
             if not _provider_has_key(state, state.provider):
                 warning(f"[{state.provider}] 尚未配置 API Key")
-                k = input(f"👉 请输入 [{state.provider}] 的 API Key: ").strip()
+                k = input(f"请输入 [{state.provider}] 的 API Key: ").strip()
                 if k:
                     state.update_key(k)
                     success(f"[{state.provider}] API Key 已保存")

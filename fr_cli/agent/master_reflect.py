@@ -58,7 +58,7 @@ class MasterAgentReflectMixin:
         recent = interactions[-5:]
         lines = []
         for item in recent:
-            status = "✅" if item["success"] else "❌"
+            status = "[OK]" if item["success"] else "[x]"
             err = f" ({item.get('error_type')})" if not item["success"] and item.get("error_type") else ""
             lines.append(f"{status} [{item['tool']}{err}] {item['input']} → {item['detail'][:80]}")
         return "\n".join(lines)

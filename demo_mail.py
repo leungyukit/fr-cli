@@ -51,12 +51,12 @@ executor = CommandExecutor(
 )
 
 print("\n" + "█"*60)
-print("█" + "  📧 凡人打字机 — 邮件功能演示".center(54) + "█")
+print("█" + "凡人打字机 — 邮件功能演示".center(54) + "█")
 print("█"*60)
 
 # ========== 场景1: AI 调用查看收件箱 ==========
 print(f"\n{BOLD}{CYAN}>>> 场景 1: 用户说 '查看我的邮件'{RESET}\n")
-print("  🤖 AI 回复:")
+print("AI 回复:")
 print("  " + "-"*50)
 ai_reply = '''好的，我来查看您的收件箱。
 
@@ -69,19 +69,19 @@ print("  " + "-"*50)
 
 clean, results = executor.process_ai_commands(ai_reply)
 
-print(f"\n  ⚡ 执行结果:")
+print(f"\n 执行结果:")
 for r in results:
     print(f"     {r}")
 
 # 手动展示邮件列表（模拟控制台显示效果）
-print(f"\n  {BOLD}{GREEN}📬 收件箱邮件列表:{RESET}")
+print(f"\n  {BOLD}{GREEN}收件箱邮件列表:{RESET}")
 mails, _ = mail_c.inbox("zh")
 for i, m in enumerate(mails, 1):
     print(f"     {YELLOW}[{i}]{RESET} ID:{m['id']} | {m['sub'][:40]} | 来自: {m['from']}")
 
 # ========== 场景2: AI 调用读取指定邮件 ==========
 print(f"\n{BOLD}{CYAN}>>> 场景 2: 用户说 '读一下第3封邮件'{RESET}\n")
-print("  🤖 AI 回复:")
+print("AI 回复:")
 print("  " + "-"*50)
 ai_reply2 = '''为您读取第3封邮件。
 
@@ -94,13 +94,13 @@ print("  " + "-"*50)
 
 clean2, results2 = executor.process_ai_commands(ai_reply2)
 
-print(f"\n  ⚡ 执行结果:")
+print(f"\n 执行结果:")
 for r in results2:
     print(f"     {r}")
 
 # 手动展示邮件详情
 mail_data, _ = mail_c.read("1003", "zh")
-print(f"\n  {BOLD}{GREEN}📧 邮件详情:{RESET}")
+print(f"\n  {BOLD}{GREEN}邮件详情:{RESET}")
 print(f"     主题: {mail_data['sub']}")
 print(f"     发件人: {mail_data['from']}")
 print(f"     时间: {mail_data['date']}")
@@ -110,7 +110,7 @@ for line in mail_data['body'].split('\n'):
 
 # ========== 场景3: AI 调用发送邮件 ==========
 print(f"\n{BOLD}{CYAN}>>> 场景 3: 用户说 '回复这封邮件说收到了'{RESET}\n")
-print("  🤖 AI 回复:")
+print("AI 回复:")
 print("  " + "-"*50)
 ai_reply3 = '''为您回复邮件。
 
@@ -123,8 +123,8 @@ print("  " + "-"*50)
 
 clean3, results3 = executor.process_ai_commands(ai_reply3)
 
-print(f"\n  ⚡ 执行结果:")
+print(f"\n 执行结果:")
 for r in results3:
     print(f"     {r}")
 
-print(f"\n{BOLD}{GREEN}✅ 邮件功能演示完成{RESET}\n")
+print(f"\n{BOLD}{GREEN}[OK] 邮件功能演示完成{RESET}\n")

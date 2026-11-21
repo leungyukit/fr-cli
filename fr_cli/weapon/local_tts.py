@@ -207,9 +207,9 @@ def list_voices() -> List[Dict[str, str]]:
 def format_voices(voices: List[Dict[str, str]], lang: str = "zh") -> str:
     """格式化声音列表"""
     if not voices:
-        return "📢 没有可用声音"
+        return "没有可用声音"
 
-    lines = [f"📢 可用声音 ({len(voices)}):"]
+    lines = [f"可用声音 ({len(voices)}):"]
     for v in voices[:30]:
         name = v.get("name", "")
         language = v.get("lang", "")

@@ -179,7 +179,7 @@ def generate_agent(client, model, name: str, description: str, lang: str = "zh")
     prompt = GENERATION_PROMPT_ZH.replace("{name}", name).replace("{description}", description)
     messages = [{"role": "user", "content": prompt}]
 
-    sys.stdout.write("🧙 正在创建分身... ")
+    sys.stdout.write("正在创建分身... ")
     sys.stdout.flush()
     raw, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
 

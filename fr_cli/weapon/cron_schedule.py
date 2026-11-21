@@ -27,9 +27,9 @@ def _parse_schedule(spec) -> Tuple[str, object]:
     """解析调度规格，返回 (mode, value) 元组。
 
     支持：
-      - "every 60s" / "every 60" / "interval:60"  → ("interval", 60.0)
-      - "0 9 * * *" / "cron:0 9 * * *"            → ("cron", "0 9 * * *")
-      - "2026-12-31 23:59:59" / "at:..."           → ("at", datetime)
+      - "every 60s" / "every 60" / "interval:60"→ ("interval", 60.0)
+      - "0 9 * * *" / "cron:0 9 * * *"→ ("cron", "0 9 * * *")
+      - "2026-12-31 23:59:59" / "at:..."→ ("at", datetime)
 
     如果无法解析，抛 ValueError。
     """

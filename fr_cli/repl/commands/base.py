@@ -29,7 +29,7 @@ def _cmd_shell(state, parts):
     shell_mgr.current_mode = ShellMode.SHELL if shell_mgr.current_mode == ShellMode.AGENT else ShellMode.AGENT
 
     if shell_mgr.current_mode == ShellMode.SHELL:
-        print(f"{GREEN}🆗 进入 Shell 模式 - 直接执行命令，输入 exit 返回{RESET}")
+        print(f"{GREEN}[OK] 进入 Shell 模式 - 直接执行命令，输入 exit 返回{RESET}")
         while shell_mgr.current_mode == ShellMode.SHELL:
             try:
                 cmd = input("(shell) $ ").strip()
@@ -88,7 +88,7 @@ def _cmd_see(state, parts):
     state.messages.append({"role": "assistant", "content": txt})
     sys_stats = get_sys_stats(state.lang)
     stats_extra = f" | {sys_stats}" if sys_stats else ""
-    print(f"{DIM}📊 {T('stats_model', state.lang)}: {state.display_model} | {T('stats_time', state.lang)}: {response_time:.2f}{T('stats_seconds', state.lang)}{stats_extra}{RESET}")
+    print(f"{DIM}{T('stats_model', state.lang)}: {state.display_model} | {T('stats_time', state.lang)}: {response_time:.2f}{T('stats_seconds', state.lang)}{stats_extra}{RESET}")
     return False
 
 
@@ -145,13 +145,13 @@ def _cmd_mode(state, parts):
                 "dev": "开发模式 — AI 可以读写文件、执行命令、搜索等",
                 "agent": "Agent 模式 — 启用自我进化主控，AI 自主规划执行",
             }
-            print(f"{GREEN}✅ UI 模式已切换: {ui_desc.get(ui_mode, ui_mode)}{RESET}")
+            print(f"{GREEN}[OK] UI 模式已切换: {ui_desc.get(ui_mode, ui_mode)}{RESET}")
         return False
 
     # 思维模式切换: /mode <direct|cot|tot|react>
     # MasterAgent 模式下思维模式由其内部 ReAct 循环控制，/mode 无效
     if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
-        print(f"{YELLOW}⚠️ MasterAgent 主控模式下，思维模式由其内部 ReAct 循环自主管理，/mode 命令无效。{RESET}")
+        print(f"{YELLOW}[!] MasterAgent 主控模式下，思维模式由其内部 ReAct 循环自主管理，/mode 命令无效。{RESET}")
         print(f"{DIM}  提示: 使用 /master off 关闭主控后可切换思维模式。{RESET}")
         return False
 
@@ -176,7 +176,7 @@ def _cmd_mode(state, parts):
         "react": "ReAct — 每一步先思考再行动，循环直到问题解决",
         "plan": "计划模式 — 先制定结构化计划，确认后按步骤执行并汇总",
     }
-    print(f"{GREEN}✅ 思维模式已切换: {mode_desc.get(mode, mode)}{RESET}")
+    print(f"{GREEN}[OK] 思维模式已切换: {mode_desc.get(mode, mode)}{RESET}")
     return False
 
 
@@ -187,11 +187,11 @@ def _cmd_banner(state, parts):
     if arg1.lower() in ("on", "1", "true", "enable"):
         state.cfg["banner_enabled"] = True
         state.save_cfg()
-        print(f"{GREEN}✅ 启动画面已开启{RESET}")
+        print(f"{GREEN}[OK] 启动画面已开启{RESET}")
     elif arg1.lower() in ("off", "0", "false", "disable"):
         state.cfg["banner_enabled"] = False
         state.save_cfg()
-        print(f"{GREEN}✅ 启动画面已关闭{RESET}")
+        print(f"{GREEN}[OK] 启动画面已关闭{RESET}")
     else:
         status = "开启" if state.cfg.get("banner_enabled", True) else "关闭"
         print(f"{CYAN}启动画面: {status}{RESET}")

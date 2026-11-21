@@ -292,7 +292,7 @@ class AgentHTTPServer:
             f"  能力声明: curl -H 'Authorization: Bearer {self._token}' http://{self.host}:{self.port}/capabilities"
         )
         if self.host == "127.0.0.1":
-            msg += "\n  ⚠️ 当前仅绑定 127.0.0.1，外部无法访问。如需公网暴露请使用 ngrok 或修改 host。"
+            msg += "\n [!] 当前仅绑定 127.0.0.1，外部无法访问。如需公网暴露请使用 ngrok 或修改 host。"
         return Result.ok(msg)
 
     def stop(self):

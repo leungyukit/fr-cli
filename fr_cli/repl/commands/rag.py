@@ -20,7 +20,7 @@ def _cmd_rag_dir(state, parts):
     else:
         state.cfg["rag_dir"] = str(p.resolve())
         state.save_cfg()
-        print(f"{GREEN}✅ 知识库目录已设置: {p.resolve()}{RESET}")
+        print(f"{GREEN}[OK] 知识库目录已设置: {p.resolve()}{RESET}")
         from fr_cli.agent.builtins.rag import get_rag_manager, RAGWatcherManager
         mgr = get_rag_manager(str(p.resolve()))
         ok, msg = mgr.sync_directory()
@@ -108,14 +108,14 @@ def _cmd_rag_sync(state, parts):
             return False
 
     mgr = get_rag_manager(kb_dir)
-    print(f"{CYAN}📚 正在同步知识库...{RESET}")
+    print(f"{CYAN}正在同步知识库...{RESET}")
     ok, msg = mgr.sync_directory()
     color = GREEN if ok else YELLOW
     print(f"{color}{msg}{RESET}")
 
     watcher = RAGWatcherManager()
     if watcher.is_running():
-        print(f"{DIM}ℹ️ 独立守护进程正在运行，知识库将自动保持同步。{RESET}")
+        print(f"{DIM}[i] 独立守护进程正在运行，知识库将自动保持同步。{RESET}")
     return False
 
 

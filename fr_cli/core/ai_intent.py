@@ -100,7 +100,7 @@ def format_intent_preview(intent: Dict[str, Any], use_color: bool = True) -> str
 
     lines = []
     if use_color:
-        lines.append(f"{CYAN}🤖 AI 意图{RESET}")
+        lines.append(f"{CYAN}AI 意图{RESET}")
 
     if "tool" in intent:
         lines.append(f"  {YELLOW}工具:{RESET} {intent['tool']}")
@@ -136,7 +136,7 @@ def enhance_ai_response_with_intent(ai_response: str, use_color: bool = True) ->
     # 2. 尝试解析【理由：...】标记
     reason = parse_reason_marker(ai_response)
     if reason:
-        preview = f"{CYAN if use_color else ''}🤖 AI 理由:{RESET if use_color else ''} {reason}"
+        preview = f"{CYAN if use_color else ''}AI 理由:{RESET if use_color else ''} {reason}"
         cleaned = REASON_MARKER_PATTERN.sub("", ai_response).strip()
         return cleaned, preview
 

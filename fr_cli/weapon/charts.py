@@ -49,7 +49,7 @@ def bar_chart(labels, values, title=None, width=40, color=True):
     max_label_len = max(len(str(l)) for l in labels)
     lines = []
     if title:
-        lines.append(_color(f"📊 {title}", CYAN, color))
+        lines.append(_color(f"{title}", CYAN, color))
         lines.append("")
 
     for label, val in zip(labels, nums):
@@ -96,7 +96,7 @@ def pie_chart(labels, values, title=None, width=30, color=True):
 
     lines = []
     if title:
-        lines.append(_color(f"🥧 {title}", CYAN, color))
+        lines.append(_color(f"{title}", CYAN, color))
         lines.append("")
 
     lines.append("".join(segments))
@@ -151,7 +151,7 @@ def line_chart(labels, values, title=None, width=60, height=15, color=True):
     # 构造输出
     lines = []
     if title:
-        lines.append(_color(f"📈 {title}", CYAN, color))
+        lines.append(_color(f"{title}", CYAN, color))
         lines.append("")
 
     # Y 轴刻度

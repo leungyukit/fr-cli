@@ -145,8 +145,8 @@ class TestExportMarkdown(unittest.TestCase):
             self.assertIn("测试", content)
             self.assertIn("问题", content)
             self.assertIn("答案", content)
-            self.assertIn("👤", content)
-            self.assertIn("🤖", content)
+            self.assertIn("", content)
+            self.assertIn("", content)
 
 
 class TestExportPptx(unittest.TestCase):

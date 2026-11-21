@@ -45,7 +45,7 @@ def _render_timeline_head(
 </head>
 <body>
 <header>
-  <h1>📜 {_escape(title)}</h1>
+  <h1>{_escape(title)}</h1>
   <div style="color: var(--text-secondary); font-size: 13px;">
     {_escape(session_filename) if session_filename else ""}
   </div>
@@ -79,7 +79,7 @@ def _render_timeline_messages(messages: List[Dict[str, Any]]) -> str:
 
         if tool_calls:
             parts.append('  <div class="tool-calls">\n')
-            parts.append('    <strong>🔧 工具调用</strong>\n')
+            parts.append('    <strong>工具调用</strong>\n')
             for tc in tool_calls:
                 parts.append(
                     f'    <div class="tool-call">\n'

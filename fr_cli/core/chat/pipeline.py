@@ -48,7 +48,7 @@ def handle_ai_chat(state, u):
     # 模型未配置时阻止调用
     if not state.model_name:
         print(
-            f"{YELLOW}⚠️ 模型未配置,请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}"
+            f"{YELLOW}[!] 模型未配置,请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}"
         )
         return
 

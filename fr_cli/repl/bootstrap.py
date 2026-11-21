@@ -193,9 +193,9 @@ def _autostart_background_services(state, cfg):
     try:
         if not state.master_agent.is_enabled():
             state.master_agent.toggle(True)
-            print(f"  {DIM}✅ MasterAgent 已启用{RESET}")
+            print(f"  {DIM}[OK] MasterAgent 已启用{RESET}")
     except Exception as e:
-        print(f"  {DIM}⚠️ MasterAgent 启用失败: {e}{RESET}")
+        print(f"  {DIM}[!] MasterAgent 启用失败: {e}{RESET}")
 
     if not autostart_daemons:
         return
@@ -207,11 +207,11 @@ def _autostart_background_services(state, cfg):
         if not mgr.is_running():
             res = mgr.start(port=8765, host="127.0.0.1", lang=state.lang)
             if res.ok:
-                print(f"  {DIM}✅ Hermes 守护进程: {res.data}{RESET}")
+                print(f"  {DIM}[OK] Hermes 守护进程: {res.data}{RESET}")
             else:
-                print(f"  {DIM}⚠️ Hermes 启动失败: {res.error}{RESET}")
+                print(f"  {DIM}[!] Hermes 启动失败: {res.error}{RESET}")
     except Exception as e:
-        print(f"  {DIM}⚠️ Hermes 启动异常: {e}{RESET}")
+        print(f"  {DIM}[!] Hermes 启动异常: {e}{RESET}")
 
     # 3. Gatekeeper 守护进程
     try:
@@ -220,11 +220,11 @@ def _autostart_background_services(state, cfg):
             state._sync_gatekeeper_config()
             res = state.gatekeeper.start()
             if res.ok:
-                print(f"  {DIM}✅ Gatekeeper 守护进程: {res.data}{RESET}")
+                print(f"  {DIM}[OK] Gatekeeper 守护进程: {res.data}{RESET}")
             else:
-                print(f"  {DIM}⚠️ Gatekeeper 启动失败: {res.error}{RESET}")
+                print(f"  {DIM}[!] Gatekeeper 启动失败: {res.error}{RESET}")
     except Exception as e:
-        print(f"  {DIM}⚠️ Gatekeeper 启动异常: {e}{RESET}")
+        print(f"  {DIM}[!] Gatekeeper 启动异常: {e}{RESET}")
 
 
 def bootstrap(show_logo: bool = False, show_banner: bool = True, show_art: bool = True):
@@ -267,7 +267,7 @@ def bootstrap(show_logo: bool = False, show_banner: bool = True, show_art: bool 
         # 启动横幅显示完后,若使用了 backup 模型,在下方追加一行提示
         if getattr(state, '_fallback_notice', None):
             from fr_cli.ui.ui import YELLOW, RESET
-            print(f"  {YELLOW}⚠️ {state._fallback_notice}{RESET}")
+            print(f"  {YELLOW}[!] {state._fallback_notice}{RESET}")
             print()
 
     # v3.0+:app.started 事件

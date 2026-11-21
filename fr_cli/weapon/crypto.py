@@ -1,7 +1,7 @@
 """
 Crypto Wallet —— 加密货币查询(只读)
 
-⚠️ 安全原则:
+[!] 安全原则:
 - 不存私钥/助记词
 - 不发起交易签名
 - 仅查询公开链上数据
@@ -174,7 +174,7 @@ def get_balance(address: str, chain: str = "eth",
 def format_balance(result: Dict[str, Any], lang: str = "zh") -> str:
     """格式化余额结果"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     chain = result["chain"]
     symbol = {"eth": "ETH", "bsc": "BNB", "polygon": "MATIC",
@@ -183,14 +183,14 @@ def format_balance(result: Dict[str, Any], lang: str = "zh") -> str:
 
     if lang == "zh":
         return (
-            f"💰 余额:\n"
+            f"余额:\n"
             f"  地址: {result['address']}\n"
             f"  链: {chain} (id={result['chain_id']})\n"
             f"  余额: {result['balance']} {symbol}\n"
             f"  Wei: {result['balance_wei']}"
         )
     return (
-        f"💰 Balance:\n"
+        f"Balance:\n"
         f"  Address: {result['address']}\n"
         f"  Chain: {chain} (id={result['chain_id']})\n"
         f"  Balance: {result['balance']} {symbol}\n"
@@ -259,13 +259,13 @@ def get_transactions(address: str, chain: str = "eth",
 def format_transactions(result: Dict[str, Any], lang: str = "zh") -> str:
     """格式化交易列表"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     txs = result["txs"]
     if not txs:
-        return "📭 没有交易记录"
+        return "没有交易记录"
 
-    lines = [f"📜 最近 {len(txs)} 笔交易:"]
+    lines = [f"最近 {len(txs)} 笔交易:"]
     for tx in txs:
         h = tx.get("hash", "")
         h_short = (h[:10] + "...") if h else "?"
@@ -320,14 +320,14 @@ def get_price(symbol: str = "ethereum",
 def format_price(result: Dict[str, Any], lang: str = "zh") -> str:
     """格式化价格"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     vs = result["vs_currency"].upper()
     sym = result["symbol"]
     price = result["price"]
     if lang == "zh":
-        return f"💲 {sym} 价格: {price:,.4f} {vs}"
-    return f"💲 {sym} price: {price:,.4f} {vs}"
+        return f"{sym} 价格: {price:,.4f} {vs}"
+    return f"{sym} price: {price:,.4f} {vs}"
 
 
 # --------------------------- 配置 ---------------------------

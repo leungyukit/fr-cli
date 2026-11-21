@@ -48,7 +48,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     if not state.model_name:
         return Result.fail("模型未配置，无法动态构建")
 
-    print(f"{CYAN}🛠️ 正在分析需求: {requirement}{RESET}")
+    print(f"{CYAN}正在分析需求: {requirement}{RESET}")
 
     # 1. 规划
     plan = plan_build(requirement, state, lang)
@@ -59,11 +59,11 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     reasoning = plan.get("reasoning", "")
 
     if reasoning:
-        print(f"{DIM}💡 {reasoning}{RESET}")
+        print(f"{DIM}{reasoning}{RESET}")
 
     if not need_build:
         suggestion = plan.get("suggestion") or "该需求可由现有能力覆盖，请直接使用相关命令或工具。"
-        print(f"{GREEN}✅ {suggestion}{RESET}")
+        print(f"{GREEN}[OK] {suggestion}{RESET}")
         return Result.ok(suggestion)
 
     tool_name = plan.get("tool_name", "")
@@ -75,7 +75,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     if not re.match(r'^[a-zA-Z_][a-zA-Z0-9_]*$', tool_name):
         return Result.fail(f"非法工具名: {tool_name}")
 
-    print(f"{CYAN}📋 构建计划:{RESET}")
+    print(f"{CYAN}构建计划:{RESET}")
     print(f"  工具名: {DIM}{tool_name}{RESET}")
     print(f"  描述:   {DIM}{plan.get('description', '')}{RESET}")
     deps = plan.get("dependencies", []) or []
@@ -85,7 +85,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     # 2. 用户确认
     if confirm:
         try:
-            ans = input(f"\n{YELLOW}👉 是否继续构建 [{tool_name}]? [Y/n]: {RESET}").strip().lower()
+            ans = input(f"\n{YELLOW}是否继续构建 [{tool_name}]? [Y/n]: {RESET}").strip().lower()
         except (EOFError, KeyboardInterrupt):
             return Result.fail("用户取消构建")
         if ans and ans not in ("y", "yes"):
@@ -98,7 +98,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
             return Result.fail(dep_result.error)
 
     # 4. 生成代码
-    print(f"{CYAN}🤖 正在生成工具代码...{RESET}")
+    print(f"{CYAN}正在生成工具代码...{RESET}")
     code = generate_tool_code(requirement, state, lang)
     if not code or "def run(" not in code:
         return Result.fail("代码生成失败或缺少 run(deps, **kwargs) 入口")
@@ -136,7 +136,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
 
     # 6. 自测：用示例参数或默认值调用一次
     test_kwargs = plan.get("test_params") or default_kwargs_for_params(params)
-    print(f"{CYAN}🧪 正在自测工具 [{tool_name}]...{RESET}")
+    print(f"{CYAN}正在自测工具 [{tool_name}]...{RESET}")
     self_test = get_registry().dispatch(
         _build_deps(state), tool_name, skip_security=True, **test_kwargs
     )
@@ -148,7 +148,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
         )
         return Result.fail(f"自测失败，已自动回滚: {self_test.error}")
 
-    print(f"{GREEN}✅ 工具 [{tool_name}] 构建并自测通过！{RESET}")
+    print(f"{GREEN}[OK] 工具 [{tool_name}] 构建并自测通过！{RESET}")
     usage = f"【调用：{tool_name}({plan.get('params', {})})】"
     if aliases:
         usage += f" 或 {aliases[0]}"

@@ -249,7 +249,7 @@ class TestExportFormats:
         m.timer_observe("op", 0.1)
 
         s = m.metrics_summary()
-        assert "📊 Metrics Summary" in s
+        assert "Metrics Summary" in s
         assert "Counters:" in s
         assert "Histograms:" in s
         assert "Timers:" in s

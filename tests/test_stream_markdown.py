@@ -62,7 +62,7 @@ class TestStreamMarkdownRendering:
         """默认路径:标题/代码块标签/列表/引用/表格都被实时渲染"""
         out, (txt, usage, rt, interrupted) = _run()
         assert "# 标题一" in out
-        assert "📦 python" in out          # 代码块语言标签
+        assert "python" in out          # 代码块语言标签
         assert "•" in out                  # 列表符号
         assert "│" in out                  # 引用/表格竖线
         assert "结尾没有换行" in out        # flush 吐出未换行残行
@@ -81,12 +81,12 @@ class TestStreamMarkdownRendering:
         _out, (txt, *_rest) = _run()
         assert "```python" in txt
         assert "**粗体**" in txt
-        assert "📦" not in txt
+        assert "•" not in txt             # 渲染器专属符号不泄漏进原始返回值
 
     def test_chunk_size_one_still_renders(self):
         """极端逐字符流也能正确渲染(围栏/标签跨 chunk 状态机)"""
         out, (txt, *_rest) = _run(chunk_size=1)
-        assert "📦 python" in out
+        assert "python" in out
         assert "•" in out
         assert txt.endswith("结尾没有换行")
 
@@ -118,7 +118,7 @@ class TestDegradedColorizePath:
 
     def test_markdown_false_no_renderer_elements(self):
         out, _ = _run(markdown=False)
-        assert "📦" not in out
+        assert "•" not in out             # 降级路径不套用完整渲染器的列表符号
         assert "│" not in out
 
 

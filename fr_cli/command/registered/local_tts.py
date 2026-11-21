@@ -43,7 +43,7 @@ def _register_say(deps, **kwargs):
     if output:
         extra += f"\n  保存到: {output}"
     return Result.ok(
-        f"🔊 朗读成功 ({result['engine']}){extra}\n"
+        f"朗读成功 ({result['engine']}){extra}\n"
         f"  文本: {text[:50]}{'...' if len(text) > 50 else ''}"
     )
 
@@ -74,7 +74,7 @@ def _register_tts_status(deps, **kwargs):
     if not det["ok"]:
         return Result.fail(det.get("error", "TTS 不可用"))
     return Result.ok(
-        f"✅ TTS 可用:\n"
+        f"[OK] TTS 可用:\n"
         f"  平台: {det['platform']}\n"
         f"  引擎: {det['engine']}"
     )
@@ -115,11 +115,11 @@ def _register_say_stream(deps, **kwargs):
         extra = f" (后台线程: {result.get('thread')})"
     err_lines = ""
     if result.get("errors"):
-        err_lines = "\n⚠️ 部分失败:\n" + "\n".join(
+        err_lines = "\n[!] 部分失败:\n" + "\n".join(
             f"  chunk {e['chunk']}: {e['error']}" for e in result["errors"]
         )
     return Result.ok(
-        f"🔊 流式朗读 ({result['engine']}) {result['chunks']} 块{extra}\n"
+        f"流式朗读 ({result['engine']}) {result['chunks']} 块{extra}\n"
         f"  文本: {text[:60]}{'...' if len(text) > 60 else ''}"
         f"{err_lines}"
     )

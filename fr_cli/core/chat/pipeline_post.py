@@ -28,12 +28,12 @@ def _post_process(state, updated_messages, txt, usage, response_time, u, lang):
         total_tokens = usage.get("total_tokens", 0)
         usage_pct = f" ({total_tokens / state.limit * 100:.0f}%)" if state.limit else ""
         print(
-            f"{DIM}⏱ {response_time:.1f}s · {state.display_model} · "
+            f"{DIM}{response_time:.1f}s · {state.display_model} · "
             f"↓{input_tokens} ↑{output_tokens} Σ{total_tokens}{usage_pct}"
             f"{stats_extra}{RESET}"
         )
     else:
-        print(f"{DIM}⏱ {response_time:.1f}s · {state.display_model}{stats_extra}{RESET}")
+        print(f"{DIM}{response_time:.1f}s · {state.display_model}{stats_extra}{RESET}")
 
     # 智能功能推荐
     from fr_cli.core.recommender import recommend_features
@@ -61,7 +61,7 @@ def _post_process(state, updated_messages, txt, usage, response_time, u, lang):
         path = create_session(state.messages, session_id=getattr(state, "session_id", None))
         if path:
             state.auto_session_path = path
-            print(f"{DIM}💾 {Path(path).name}{RESET}")
+            print(f"{DIM}{Path(path).name}{RESET}")
     else:
         update_session(state.auto_session_path, state.messages)
 

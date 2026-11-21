@@ -40,7 +40,7 @@ class MockLLMClient(BaseLLMClient):
         else:
             short = last_user[:200]
             response = (
-                f"【Mock 模式 🧪】当前未配置 API Key 或 LLM 不可用。\n"
+                f"【Mock 模式】当前未配置 API Key 或 LLM 不可用。\n"
                 f"你刚才说的是:{short}\n\n"
                 f"**配置真实 LLM 的方式:**\n"
                 f"- `/key sk-xxx` 设置当前提供商的 key\n"

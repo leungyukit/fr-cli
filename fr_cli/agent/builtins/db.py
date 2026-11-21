@@ -230,7 +230,7 @@ def handle_db(user_input, state):
         return
 
     try:
-        print(f"{CYAN}📊 正在分析 {db_cfg['type'].upper()} [{alias}]({db_cfg.get('database','')}) 的 Schema...{RESET}")
+        print(f"{CYAN}正在分析 {db_cfg['type'].upper()} [{alias}]({db_cfg.get('database','')}) 的 Schema...{RESET}")
         schema = _get_schema_info(conn, db_cfg["type"])
 
         prompt = DB_SYS_PROMPT.format(
@@ -243,7 +243,7 @@ def handle_db(user_input, state):
             {"role": "user", "content": query},
         ]
 
-        print(f"{CYAN}🧙 正在生成 SQL...{RESET}")
+        print(f"{CYAN}正在生成 SQL...{RESET}")
         sql_text, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
         sql_text = sql_text.strip()
 
@@ -262,7 +262,7 @@ def handle_db(user_input, state):
 
         exec_result = _exec_sql(conn, sql_text, db_cfg["type"])
         if exec_result.is_fail():
-            print(f"{RED}❌ 执行失败: {exec_result.error}{RESET}")
+            print(f"{RED}[x] 执行失败: {exec_result.error}{RESET}")
         else:
             result = exec_result.unwrap()
             if isinstance(result, list):
@@ -312,4 +312,4 @@ def _setup_wizard(lang="zh"):
         "database": database,
     }
     _save_dbs(dbs)
-    print(f"{GREEN}✅ 数据库 [{alias}] ({db_type}) 已保存。{RESET}")
+    print(f"{GREEN}[OK] 数据库 [{alias}] ({db_type}) 已保存。{RESET}")

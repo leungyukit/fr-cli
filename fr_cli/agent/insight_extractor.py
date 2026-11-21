@@ -6,7 +6,7 @@
 工作流（分批-聚合模式，应对 100-1000 条规模）：
   1. 加载：source.load(since) → SelectionRecord 列表
   2. 切批：每 batch_size 条切一刀
-  3. 批提炼：每批独立调 LLM，提炼"该批的爆款共性" → batch summary 列表
+  3. 批提炼：每批独立调 LLM，提炼"该批的爆款共性"→ batch summary 列表
   4. 聚合：把所有 batch summary 二次喂给 LLM，输出全局洞察
   5. 持久化：save(insights) → ~/.fr_cli/master/insights/
   6. 注入：format_for_prompt(insights) → 给 master_prompt_builder 用

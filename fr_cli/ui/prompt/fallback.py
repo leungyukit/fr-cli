@@ -16,8 +16,8 @@ class FallbackPrompt:
     """非 TTY 环境的 fallback（HTTP 服务 / CI）
 
     在 fallback 模式下：
-    - 用户输入 `/` → 打印分类命令列表（替代 TUI 弹窗）
-    - 用户输入 `/xxx` → 如果是已知命令，照常返回让 main 路由处理
+    - 用户输入 `/`→ 打印分类命令列表（替代 TUI 弹窗）
+    - 用户输入 `/xxx`→ 如果是已知命令，照常返回让 main 路由处理
     """
 
     def __init__(self, state):
@@ -29,7 +29,7 @@ class FallbackPrompt:
             if prefix_hint:
                 print(prefix_hint)
             line = input().strip()
-            # 用户只输入 `/` → 触发分类命令列表
+            # 用户只输入 `/`→ 触发分类命令列表
             if line == "/":
                 self._print_command_categories()
                 # 让用户重新输入

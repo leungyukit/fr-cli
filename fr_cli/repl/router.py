@@ -271,7 +271,7 @@ def _cmd_category(cmd: str) -> str:
     for prefix, cat in FanRenCompleter.CATEGORY_HINTS.items():
         if cmd.startswith("/" + prefix) or cmd_no_slash.startswith(prefix):
             return cat
-    return "📦其他"
+    return "其他"
 
 
 def _print_similar_cmds(cmd, all_cmds):
@@ -286,8 +286,8 @@ def _print_similar_cmds(cmd, all_cmds):
 def handle_smart_cmd(state, cmd, u, parts):
     """智能命令提示与首字母补全
 
-    - 输入 `/` → 显示所有命令分类列表
-    - 输入 `/a` → 查找以 'a' 开头的命令，唯一则自动执行，多个则提示选择
+    - 输入 `/`→ 显示所有命令分类列表
+    - 输入 `/a`→ 查找以 'a' 开头的命令，唯一则自动执行，多个则提示选择
     - 输入其他不存在的命令 → 显示错误和相似命令建议
 
     Returns:
@@ -295,7 +295,7 @@ def handle_smart_cmd(state, cmd, u, parts):
     """
     all_cmds = sorted(COMMAND_ROUTES.keys())
 
-    # 1. 只有 `/` → 打印命令列表
+    # 1. 只有 `/`→ 打印命令列表
     if cmd == "/":
         print(f"{CYAN}命令列表（按 Tab 补全 或 直接输入）{RESET}")
         categories = {}

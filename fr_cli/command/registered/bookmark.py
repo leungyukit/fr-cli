@@ -41,12 +41,12 @@ def _register_bookmark_add(deps, **kwargs):
 
     extra = ""
     if result.get("rag_synced"):
-        extra = "\n  🧠 已同步到 RAG(下次可用 /RAG 查询)"
+        extra = "\n 已同步到 RAG(下次可用 /RAG 查询)"
     elif result.get("rag_error"):
-        extra = f"\n  ⚠️ RAG 同步失败: {result['rag_error']}"
+        extra = f"\n [!] RAG 同步失败: {result['rag_error']}"
 
     return Result.ok(
-        f"✅ 书签已添加:\n"
+        f"[OK] 书签已添加:\n"
         f"  ID: {result['id']}\n"
         f"  标题: {result['title']}\n"
         f"  标签: {', '.join(result.get('tags', []))}{extra}"
@@ -87,7 +87,7 @@ def _register_bookmark_get(deps, **kwargs):
         return Result.fail(f"书签不存在: {bid}")
 
     text = (
-        f"📖 书签详情:\n"
+        f"书签详情:\n"
         f"  ID: {bm['id']}\n"
         f"  标题: {bm.get('title', '?')}\n"
         f"  URL: {bm.get('url', '?')}\n"
@@ -126,8 +126,8 @@ def _register_bookmark_search(deps, **kwargs):
     from fr_cli.weapon.bookmark import search_bookmarks, format_bookmarks_list
     results = search_bookmarks(query)
     if not results:
-        return Result.ok(f"🔍 没找到匹配 '{query}' 的书签")
-    return Result.ok(f"🔍 找到 {len(results)} 个匹配:\n\n" + format_bookmarks_list(results, lang="zh"))
+        return Result.ok(f"没找到匹配 '{query}' 的书签")
+    return Result.ok(f"找到 {len(results)} 个匹配:\n\n" + format_bookmarks_list(results, lang="zh"))
 
 
 @register(
@@ -144,7 +144,7 @@ def _register_bookmark_rm(deps, **kwargs):
 
     from fr_cli.weapon.bookmark import remove_bookmark
     if remove_bookmark(bid):
-        return Result.ok(f"✅ 书签 {bid} 已删除")
+        return Result.ok(f"[OK] 书签 {bid} 已删除")
     return Result.fail(f"书签不存在: {bid}")
 
 
@@ -163,11 +163,11 @@ def _register_bookmark_rag(deps, **kwargs):
         from fr_cli.weapon.bookmark_rag import sync_all_bookmarks_to_rag
         result = sync_all_bookmarks_to_rag()
         return Result.ok(
-            f"🧠 全部同步:\n"
+            f"全部同步:\n"
             f"  新增: {result['synced']}\n"
             f"  跳过(已入 RAG): {result['skipped']}\n"
             f"  错误: {len(result['errors'])}\n\n"
-            f"💡 下次可用 /RAG 查询这些收藏的内容"
+            f"下次可用 /RAG 查询这些收藏的内容"
         )
 
     if not bid:
@@ -178,7 +178,7 @@ def _register_bookmark_rag(deps, **kwargs):
     if not result["ok"]:
         return Result.fail(result.get("error", "同步失败"))
     return Result.ok(
-        f"✅ 已入 RAG:\n"
+        f"[OK] 已入 RAG:\n"
         f"  ID: {bid}\n"
         f"  路径: {result['path']}"
     )
@@ -200,7 +200,7 @@ def _register_bookmark_chrome(deps, **kwargs):
     result = import_chrome_bookmarks(path)
     if not result["ok"]:
         return Result.fail(result.get("error", "导入失败"))
-    return Result.ok(f"✅ 已从 Chrome 导入 {result['imported']} 个书签")
+    return Result.ok(f"[OK] 已从 Chrome 导入 {result['imported']} 个书签")
 
 
 import os  # noqa: E402

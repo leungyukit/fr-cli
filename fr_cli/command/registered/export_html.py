@@ -48,9 +48,9 @@ def _register_export_html(deps, **kwargs):
     if not result["ok"]:
         return Result.fail(result.get("error", "导出失败"))
 
-    extra = "\n🌐 已在浏览器打开" if result.get("auto_opened") else ""
+    extra = "\n已在浏览器打开" if result.get("auto_opened") else ""
     return Result.ok(
-        f"✅ HTML 时间线已生成:\n"
+        f"[OK] HTML 时间线已生成:\n"
         f"  标题: {result['title']}\n"
         f"  路径: {result['path']}\n"
         f"  消息: {result['messages']} 条{extra}"

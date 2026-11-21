@@ -60,7 +60,7 @@ class MasterAgentLoopMixin:
         # 模型未配置时阻止调用
         if not self.state.model_name:
             from fr_cli.ui.ui import YELLOW, CYAN
-            print(f"{YELLOW}⚠️ 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
+            print(f"{YELLOW}[!] 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
             return None, False
 
         self._step_count = 0
@@ -140,10 +140,10 @@ class MasterAgentLoopMixin:
                 }
                 self.session["current_task"]["steps"].append(step_info)
                 if error:
-                    observation_lines.append(f"❌ 工具 {call['tool']} 失败: {error}")
+                    observation_lines.append(f"[x] 工具 {call['tool']} 失败: {error}")
                     self._record_interaction(user_input, call["tool"], False, error, tool_params=call.get("params", {}))
                 else:
-                    observation_lines.append(f"✅ 工具 {call['tool']} 结果: {str(result)[:500]}")
+                    observation_lines.append(f"[OK] 工具 {call['tool']} 结果: {str(result)[:500]}")
                     self._record_interaction(user_input, call["tool"], True, str(result)[:200], tool_params=call.get("params", {}))
 
             observation_text = "\n".join(observation_lines)
@@ -200,7 +200,7 @@ class MasterAgentLoopMixin:
                 path = create_session(self.state.messages, session_id=getattr(self.state, "session_id", None))
                 if path:
                     self.state.auto_session_path = path
-                    print(f"{DIM}📁 自动会话已创建: {Path(path).name}{RESET}")
+                    print(f"{DIM}自动会话已创建: {Path(path).name}{RESET}")
             else:
                 update_session(self.state.auto_session_path, self.state.messages)
 

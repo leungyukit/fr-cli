@@ -32,15 +32,15 @@
 HermesAgent（赫尔墨斯后台自治引擎）是 **fr-cli** 内置的后台任务调度与自治执行引擎。它的设计灵感来源于希腊神话中的信使神 Hermes——负责在后台默默传递信息、执行任务。
 
 **核心能力**：
-- 🔄 **持久化任务队列**：任务不随进程退出而丢失，重启后自动恢复
-- 🤖 **AI 驱动执行**：每个任务通过 MasterAgent（ReAct 循环）自主调用工具完成
-- 🎯 **目标自动分解**：用 LLM 将高层目标拆分为可执行的步骤链
-- 🔗 **依赖与链式调度**：支持任务间的前置依赖和线性链式执行
-- 🔁 **自动重试**：失败后指数退避重试，最多 3 次（可配置）
-- 🧠 **跨任务记忆**：相似任务自动继承历史上下文
-- 📊 **使用统计**：任务成功率、Token 消耗、模型使用分布
-- 🌐 **HTTP 接口**：独立的 RESTful API，支持外部系统集成
-- 🔍 **产物审核队列**：AI 自动生成的插件/Agent 代码需人工审核后方可安装
+- **持久化任务队列**：任务不随进程退出而丢失，重启后自动恢复
+- **AI 驱动执行**：每个任务通过 MasterAgent（ReAct 循环）自主调用工具完成
+- **目标自动分解**：用 LLM 将高层目标拆分为可执行的步骤链
+- **依赖与链式调度**：支持任务间的前置依赖和线性链式执行
+- **自动重试**：失败后指数退避重试，最多 3 次（可配置）
+- **跨任务记忆**：相似任务自动继承历史上下文
+- **使用统计**：任务成功率、Token 消耗、模型使用分布
+- **HTTP 接口**：独立的 RESTful API，支持外部系统集成
+- **产物审核队列**：AI 自动生成的插件/Agent 代码需人工审核后方可安装
 
 ### 1.2 系统定位
 
@@ -151,9 +151,9 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 
 | 模式 | 描述 | 适用场景 | 安全级别 |
 |------|------|----------|----------|
-| `sandbox`（默认） | 沙盒模式，文件操作自动放行，系统操作在非交互时拒绝 | 后台常规任务 | ⭐⭐⭐ 中等 |
-| `autonomous` | 完全自治模式，所有操作自动放行，但需用户显式授权 | 完全可信的自动化流程 | ⭐ 最低（需谨慎） |
-| `interactive` | 交互模式，不进入后台，仅占位执行 | 临时任务，不走后台队列 | ⭐⭐⭐⭐ 高 |
+| `sandbox`（默认） | 沙盒模式，文件操作自动放行，系统操作在非交互时拒绝 | 后台常规任务 | 中等 |
+| `autonomous` | 完全自治模式，所有操作自动放行，但需用户显式授权 | 完全可信的自动化流程 | 最低（需谨慎） |
+| `interactive` | 交互模式，不进入后台，仅占位执行 | 临时任务，不走后台队列 | 高 |
 
 ### 2.4 任务优先级
 
@@ -191,10 +191,10 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 
 启动成功后的输出示例：
 ```
-🧚 Hermes 守护进程已启动: http://127.0.0.1:8765
-🔑 Bearer Token: abc123xyz456...
+Hermes 守护进程已启动: http://127.0.0.1:8765
+Bearer Token: abc123xyz456...
    (已保存到 ~/.fr_cli/daemon/token，权限 600)
-📡 监听命令中...
+监听命令中...
 ```
 
 ### 3.2 创建第一个任务
@@ -205,7 +205,7 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 
 输出：
 ```
-✅ 任务已创建: hms-a1b2c3d4-1718900000 [pending]
+[OK] 任务已创建: hms-a1b2c3d4-1718900000 [pending]
 ```
 
 查看任务状态：
@@ -275,7 +275,7 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 
 **输出内容**：
 ```
-📊 Hermes 状态
+Hermes 状态
   任务: pending=2 running=0 completed=15 failed=1 paused=0
   调度器: 运行中
   成功率: 93.8%
@@ -300,7 +300,7 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
    ```
    输出：
    ```
-   ✅ 任务已创建: hms-xxxx-1718900000 [pending]
+   [OK] 任务已创建: hms-xxxx-1718900000 [pending]
    ```
 
 2. **Autonomous 模式**：
@@ -309,17 +309,17 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
    ```
    输出：
    ```
-   ⚠️  即将创建 autonomous 任务：
+   [!] 即将创建 autonomous 任务：
       描述: 自动备份所有 .py 文件到 backup 目录
-      🔴 该任务将自动执行系统级操作(shell/exec/邮件/MCP 等)，不再逐条询问。
+      [x] 该任务将自动执行系统级操作(shell/exec/邮件/MCP 等)，不再逐条询问。
    是否确认授权? [y/N]: y
-   ✅ 已授权，任务将在后台以 autonomous 模式执行。
-   ✅ autonomous 任务已创建并授权: hms-xxxx-1718900001 [pending]
+   [OK] 已授权，任务将在后台以 autonomous 模式执行。
+   [OK] autonomous 任务已创建并授权: hms-xxxx-1718900001 [pending]
    ```
 
    若拒绝授权：
    ```
-   ⏸️  任务已暂停，可稍后执行 /hermes confirm hms-xxxx-1718900001 授权。
+   [||] 任务已暂停，可稍后执行 /hermes confirm hms-xxxx-1718900001 授权。
    ```
 
 ---
@@ -345,7 +345,7 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 
 输出：
 ```
-✅ 目标已创建: goal-xxxx-1718900000
+[OK] 目标已创建: goal-xxxx-1718900000
 步骤:
   1. 搜索 Python asyncio 最新教程和最佳实践
   2. 整理异步编程的核心概念（event loop、coroutine、await）
@@ -365,7 +365,7 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 ```
 输出：
 ```
-✅ 任务已授权: hms-xxxx-1718900001
+[OK] 任务已授权: hms-xxxx-1718900001
 ```
 
 ---
@@ -387,14 +387,14 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 输出格式：
 ```
 任务列表 (5 个):
-  ⏳ 🤖✓ hms-xxxx-1 [HIGH] [pending] 自动备份文件
-  🏃 hms-xxxx-2 [NORMAL] [running]  读取README
-  ✅ hms-xxxx-3 [NORMAL] [completed] 总结文档
-  ❌ hms-xxxx-4 [LOW] [failed] 搜索资料（错误：网络超时）
-  ⏸️  hms-xxxx-5 [NORMAL] [paused] 待授权任务
+  ✓ hms-xxxx-1 [HIGH] [pending] 自动备份文件
+  hms-xxxx-2 [NORMAL] [running]  读取README
+  [OK] hms-xxxx-3 [NORMAL] [completed] 总结文档
+  [x] hms-xxxx-4 [LOW] [failed] 搜索资料（错误：网络超时）
+  [||] hms-xxxx-5 [NORMAL] [paused] 待授权任务
 ```
 
-> **图标说明**：⏳ 等待 🏃 运行中 ✅ 完成 ❌ 失败 ⏸️ 暂停 🤖 autonomous ✓ 已授权
+> **图标说明**：等待 运行中 [OK] 完成 [x] 失败 [||] 暂停 autonomous ✓ 已授权
 
 ---
 
@@ -436,7 +436,7 @@ Hermes 有三种执行模式，控制任务在执行时的权限和安全边界�
 ```
 输出：
 ```
-✅ 任务已暂停: hms-xxxx-1718900002
+[OK] 任务已暂停: hms-xxxx-1718900002
 ```
 
 ---
@@ -494,7 +494,7 @@ Authorization: Bearer <token>
 Token 存储在 `~/.fr_cli/daemon/token`，文件权限为 `0o600`（仅所有者可读写）。  
 首次启动时自动生成随机 Token（`secrets.token_urlsafe(24)`）。
 
-> ⚠️ **安全提示**：不要泄露 Token，任何持有 Token 的客户端都可以创建和管理任务。
+> [!] **安全提示**：不要泄露 Token，任何持有 Token 的客户端都可以创建和管理任务。
 
 ### 5.2 健康检查
 
@@ -601,9 +601,9 @@ Authorization: Bearer <token>
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `task` | string | ✅ | - | 任务描述 |
-| `priority` | string | ❌ | `"normal"` | 优先级：low/normal/high/critical |
-| `execution_mode` | string | ❌ | `"sandbox"` | 执行模式：sandbox/autonomous/interactive |
+| `task` | string | [OK] | - | 任务描述 |
+| `priority` | string | [x] | `"normal"` | 优先级：low/normal/high/critical |
+| `execution_mode` | string | [x] | `"sandbox"` | 执行模式：sandbox/autonomous/interactive |
 
 **响应**（202 Accepted）：
 ```json
@@ -652,11 +652,11 @@ Authorization: Bearer <token>
 
 | 字段 | 类型 | 必填 | 默认值 | 说明 |
 |------|------|------|--------|------|
-| `description` | string | ✅ | - | 目标描述 |
-| `milestones` | array | ❌ | `[]` | 里程碑列表 |
-| `decompose` | bool | ❌ | `false` | 是否调用 LLM 自动分解 |
-| `execution_mode` | string | ❌ | `"sandbox"` | 子任务执行模式 |
-| `tags` | array | ❌ | `[]` | 上下文标签 |
+| `description` | string | [OK] | - | 目标描述 |
+| `milestones` | array | [x] | `[]` | 里程碑列表 |
+| `decompose` | bool | [x] | `false` | 是否调用 LLM 自动分解 |
+| `execution_mode` | string | [x] | `"sandbox"` | 子任务执行模式 |
+| `tags` | array | [x] | `[]` | 上下文标签 |
 
 **响应**（`decompose=true` 时）：
 ```json
@@ -861,14 +861,14 @@ Sandbox 模式在安全性和自动化之间取得平衡。
 
 | 操作类型 | Sandbox 模式 |
 |----------|-------------|
-| 文件读取 | ✅ 自动放行 |
-| 文件写入 | ✅ 自动放行 |
-| 网页搜索 | ✅ 自动放行 |
-| 图片生成 | ✅ 自动放行 |
-| Shell 命令 | ❌ 非交互时默认拒绝 |
-| 执行代码 | ❌ 非交互时默认拒绝 |
-| 发送邮件 | ❌ 非交互时默认拒绝 |
-| MCP 调用 | ❌ 非交互时默认拒绝 |
+| 文件读取 | [OK] 自动放行 |
+| 文件写入 | [OK] 自动放行 |
+| 网页搜索 | [OK] 自动放行 |
+| 图片生成 | [OK] 自动放行 |
+| Shell 命令 | [x] 非交互时默认拒绝 |
+| 执行代码 | [x] 非交互时默认拒绝 |
+| 发送邮件 | [x] 非交互时默认拒绝 |
+| MCP 调用 | [x] 非交互时默认拒绝 |
 
 ### 6.2 Autonomous 模式
 
@@ -887,9 +887,9 @@ Autonomous 模式授予任务完全权限，所有操作自动放行。
 
 | 操作类型 | Autonomous 模式 |
 |----------|----------------|
-| 所有操作 | ✅ 自动放行 |
+| 所有操作 | [OK] 自动放行 |
 
-> ⚠️ **安全警告**：Autonomous 模式等效于授予任务完全的 shell 和系统访问权限。仅对完全可信的任务使用此模式。
+> [!] **安全警告**：Autonomous 模式等效于授予任务完全的 shell 和系统访问权限。仅对完全可信的任务使用此模式。
 
 ### 6.3 Interactive 模式
 
@@ -956,7 +956,7 @@ Interactive 模式不进入后台队列，直接在当前会话中执行。
 
 ```
 任务 A (hms-aaa)
-  └── 依赖：任务 B (hms-bbb) ✅
+  └── 依赖：任务 B (hms-bbb) [OK]
         └── 依赖：任务 C (hms-ccc)
 ```
 
@@ -1504,8 +1504,8 @@ tail -f ~/.fr_cli/hermes/hermes.log
 ### 14.1 任务设计建议
 
 1. **描述要具体**：任务描述越具体，MasterAgent 的执行效果越好
-   - ❌ `做点什么`
-   - ✅ `读取 README.md，提取项目核心功能列表，保存到 features.md`
+   - [x] `做点什么`
+   - [OK] `读取 README.md，提取项目核心功能列表，保存到 features.md`
 
 2. **合理使用优先级**：不要将所有任务设为 CRITICAL
    - 常规任务：NORMAL

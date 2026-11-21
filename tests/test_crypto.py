@@ -113,7 +113,7 @@ class TestFormatBalance(unittest.TestCase):
 
     def test_fail(self):
         out = format_balance({"ok": False, "error": "网络失败"}, "zh")
-        self.assertIn("❌", out)
+        self.assertIn("[x]", out)
         self.assertIn("网络失败", out)
 
 
@@ -178,7 +178,7 @@ class TestFormatTransactions(unittest.TestCase):
 
     def test_fail(self):
         out = format_transactions({"ok": False, "error": "x"}, "zh")
-        self.assertIn("❌", out)
+        self.assertIn("[x]", out)
 
 
 class TestGetPrice(unittest.TestCase):
@@ -223,7 +223,7 @@ class TestFormatPrice(unittest.TestCase):
 
     def test_fail(self):
         out = format_price({"ok": False, "error": "x"})
-        self.assertIn("❌", out)
+        self.assertIn("[x]", out)
 
 
 class TestConstants(unittest.TestCase):

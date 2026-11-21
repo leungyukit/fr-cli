@@ -41,8 +41,8 @@ def init_executor():
 
     disk_c = MagicMock()
     disk_c.ls.return_value = (["云端文件1.txt", "云端文件2.pdf"], None)
-    disk_c.up.return_value = (True, "✅ 上传成功")
-    disk_c.down.return_value = (True, "✅ 下载成功")
+    disk_c.up.return_value = (True, "[OK] 上传成功")
+    disk_c.down.return_value = (True, "[OK] 下载成功")
 
     mail_c.inbox.return_value = (
         [{"id": "1", "sub": "欢迎邮件", "from": "admin@example.com"}],
@@ -79,7 +79,7 @@ def run_scenario(executor, name, ai_response, msgs=None):
     for r in results:
         print(f"  {r}")
 
-    success = all("❌" not in r for r in results) and len(results) > 0
+    success = all("[x]" not in r for r in results) and len(results) > 0
     return clean, results, success
 
 
@@ -249,7 +249,7 @@ file_operations
 
     report_lines.append("\n## 详细结果\n")
     for tool, name, ok, results in scenarios:
-        status = "✅ 通过" if ok else "❌ 失败"
+        status = "[OK] 通过" if ok else "[x] 失败"
         report_lines.append(f"\n### {name} (`{tool}`) — {status}")
         for r in results:
             report_lines.append(f"- {r}")

@@ -99,7 +99,7 @@ def _login_device_code(app, token_cache, cfg: Dict[str, Any], lang: str = "zh") 
     if "user_code" not in flow:
         return Result.fail("无法启动设备代码流，请检查 client_id 和 tenant_id")
 
-    print(f"{CYAN}🔐 Microsoft 365 登录{RESET}")
+    print(f"{CYAN}Microsoft 365 登录{RESET}")
     print(f"{DIM}请在浏览器中打开以下链接并输入代码完成登录（支持 MFA）:{RESET}")
     print(f"  链接: {YELLOW}{flow['verification_uri']}{RESET}")
     print(f"  代码: {YELLOW}{flow['user_code']}{RESET}")
@@ -118,7 +118,7 @@ def _login_device_code(app, token_cache, cfg: Dict[str, Any], lang: str = "zh") 
 
     if result and "access_token" in result:
         _save_token_cache(token_cache, cfg)
-        print(f"{GREEN}✅ Microsoft 365 登录成功{RESET}")
+        print(f"{GREEN}[OK] Microsoft 365 登录成功{RESET}")
         return Result.ok(result["access_token"])
 
     error = result.get("error_description", "登录超时或失败") if result else "登录超时"
@@ -138,7 +138,7 @@ def _login_authorization_code(app, token_cache, cfg: Dict[str, Any], lang: str =
         redirect_uri=redirect_uri,
     )
 
-    print(f"{CYAN}🔐 Microsoft 365 登录{RESET}")
+    print(f"{CYAN}Microsoft 365 登录{RESET}")
     print(f"{DIM}正在打开浏览器...{RESET}")
     try:
         webbrowser.open(auth_url)
@@ -199,7 +199,7 @@ def _login_authorization_code(app, token_cache, cfg: Dict[str, Any], lang: str =
     )
     if "access_token" in result:
         _save_token_cache(token_cache, cfg)
-        print(f"{GREEN}✅ Microsoft 365 登录成功{RESET}")
+        print(f"{GREEN}[OK] Microsoft 365 登录成功{RESET}")
         return Result.ok(result["access_token"])
 
     return Result.fail(f"Microsoft 365 登录失败: {result.get('error_description', '未知错误')}")

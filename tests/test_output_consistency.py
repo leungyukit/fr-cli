@@ -33,7 +33,7 @@ class TestBasicFunctions:
         from fr_cli.ui.output import success
         success("任务完成")
         out = capsys.readouterr().out
-        assert "✅" in out
+        assert "[OK]" in out
         assert "任务完成" in out
         assert "\x1b[" in out  # 含颜色码
 
@@ -41,7 +41,7 @@ class TestBasicFunctions:
         from fr_cli.ui.output import failure
         failure("加载失败", reason="网络超时", suggestion="重试或检查网络")
         out = capsys.readouterr().out
-        assert "❌" in out
+        assert "[x]" in out
         assert "加载失败" in out
         assert "网络超时" in out
         assert "重试" in out
@@ -50,7 +50,7 @@ class TestBasicFunctions:
         from fr_cli.ui.output import warning
         warning("目录已存在", detail="/tmp/foo")
         out = capsys.readouterr().out
-        assert "⚠️" in out
+        assert "[!]" in out
         assert "目录已存在" in out
         assert "/tmp/foo" in out
 
@@ -58,7 +58,7 @@ class TestBasicFunctions:
         from fr_cli.ui.output import info
         info("正在分析...")
         out = capsys.readouterr().out
-        assert "ℹ️" in out
+        assert "[i]" in out
         assert "正在分析" in out
 
     def test_step_with_progress(self, capsys):
@@ -151,14 +151,14 @@ class TestResultAdapter:
         from fr_cli.ui.output import result
         result(("data ok", None))
         out = capsys.readouterr().out
-        assert "✅" in out
+        assert "[OK]" in out
         assert "data ok" in out
 
     def test_result_tuple_failure(self, capsys):
         from fr_cli.ui.output import result
         result((None, "出错啦"))
         out = capsys.readouterr().out
-        assert "❌" in out
+        assert "[x]" in out
         assert "出错啦" in out
 
     def test_result_object_success(self, capsys):
@@ -166,7 +166,7 @@ class TestResultAdapter:
         r = MagicMock(error=None, data="loaded")
         result(r, success_msg="ok")
         out = capsys.readouterr().out
-        assert "✅" in out
+        assert "[OK]" in out
         assert "ok" in out
 
     def test_result_object_failure(self, capsys):
@@ -174,7 +174,7 @@ class TestResultAdapter:
         r = MagicMock(error="网络错误", data=None)
         result(r)
         out = capsys.readouterr().out
-        assert "❌" in out
+        assert "[x]" in out
         assert "网络错误" in out
 
 
@@ -194,7 +194,7 @@ class TestTTYFallback:
         # 无颜色码
         assert "\x1b[" not in out
         # 但 emoji 仍保留
-        assert "✅" in out
+        assert "[OK]" in out
         assert "test" in out
 
     def test_fr_cli_no_color_env(self, capsys, monkeypatch):
@@ -205,7 +205,7 @@ class TestTTYFallback:
         output.failure("bad")
         out = capsys.readouterr().out
         assert "\x1b[" not in out
-        assert "❌" in out
+        assert "[x]" in out
         assert "bad" in out
 
 
@@ -219,7 +219,7 @@ class TestInsightIntegration:
         state = MagicMock(lang="zh")
         insight._cmd_insight(state, ["/insight", "nonexistent_subcmd"])
         out = capsys.readouterr().out
-        assert "❌" in out
+        assert "[x]" in out
         assert "nonexistent_subcmd" in out
 
     def test_insight_sources_uses_info(self, capsys):
@@ -227,7 +227,7 @@ class TestInsightIntegration:
         state = MagicMock(lang="zh")
         insight._cmd_insight(state, ["/insight", "sources"])
         out = capsys.readouterr().out
-        assert "ℹ️" in out
+        assert "[i]" in out
         assert "可用选品数据源" in out
 
     def test_competitor_gaps_unknown_subcommand(self, capsys):
@@ -235,5 +235,5 @@ class TestInsightIntegration:
         state = MagicMock(lang="zh")
         competitor_gaps._cmd_competitor_gaps(state, ["/competitor_gaps", "weird"])
         out = capsys.readouterr().out
-        assert "❌" in out
+        assert "[x]" in out
         assert "weird" in out

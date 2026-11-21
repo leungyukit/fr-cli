@@ -332,13 +332,13 @@ def render_diff_stats(diff_text: str, lang: str = "zh") -> str:
     stats = diff_stats(diff_text)
     if lang == "zh":
         return (
-            f"📊 Diff 统计: "
+            f"Diff 统计: "
             f"+{stats['added']} -{stats['deleted']} "
             f"修改块 {stats['hunks']} "
             f"文件 {stats['files']}"
         )
     return (
-        f"📊 Diff stats: "
+        f"Diff stats: "
         f"+{stats['added']} -{stats['deleted']} "
         f"hunks {stats['hunks']} "
         f"files {stats['files']}"

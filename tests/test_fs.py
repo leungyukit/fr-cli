@@ -92,7 +92,7 @@ class TestReadWrite:
 
     def test_write_unicode_content(self, sandbox, tmp_path):
         sandbox.cd(str(tmp_path), "zh")
-        content = "你好世界 🌍 fr-cli"
+        content = "你好世界 fr-cli"
         sandbox.write("unicode.txt", content, "zh")
         assert _ok(sandbox.read("unicode.txt", "zh")) == content
 

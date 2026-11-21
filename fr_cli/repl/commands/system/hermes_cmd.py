@@ -56,12 +56,12 @@ def _cmd_hermes_daemon(state, parts):
             return False
         task = state.hermes.create_task(description, source="repl", execution_mode=execution_mode)
         if task.execution_mode == "autonomous" and task.user_confirmed_at:
-            print(f"{GREEN}✅ autonomous 任务已创建并授权: {task.id} [{task.status.value}]{RESET}")
+            print(f"{GREEN}[OK] autonomous 任务已创建并授权: {task.id} [{task.status.value}]{RESET}")
         elif task.execution_mode == "autonomous":
-            print(f"{YELLOW}⏸️  autonomous 任务已创建但未授权: {task.id} [{task.status.value}]{RESET}")
+            print(f"{YELLOW}[||] autonomous 任务已创建但未授权: {task.id} [{task.status.value}]{RESET}")
             print(f"{DIM}      执行 /hermes confirm {task.id} 授权后才会以 full_auto 运行{RESET}")
         else:
-            print(f"{GREEN}✅ 任务已创建: {task.id} [{task.status.value}]{RESET}")
+            print(f"{GREEN}[OK] 任务已创建: {task.id} [{task.status.value}]{RESET}")
 
     elif arg1 == "goal":
         # 解析 --autonomous / -a 和 --tags 标志
@@ -85,7 +85,7 @@ def _cmd_hermes_daemon(state, parts):
         if goal is None:
             print(f"{RED}目标分解失败{RESET}")
             return False
-        print(f"{GREEN}✅ 目标已创建: {goal.id}{RESET}")
+        print(f"{GREEN}[OK] 目标已创建: {goal.id}{RESET}")
         print(f"{CYAN}步骤:{RESET}")
         for i, cid in enumerate(goal.children_ids, 1):
             child = state.hermes.get_task(cid)
@@ -98,7 +98,7 @@ def _cmd_hermes_daemon(state, parts):
             print(f"{YELLOW}用法: /hermes confirm <id>{RESET}")
             return False
         if state.hermes.confirm_task(task_id):
-            print(f"{GREEN}✅ 任务已授权: {task_id}{RESET}")
+            print(f"{GREEN}[OK] 任务已授权: {task_id}{RESET}")
         else:
             print(f"{RED}未找到任务或该任务不是 autonomous 模式: {task_id}{RESET}")
 
@@ -111,10 +111,10 @@ def _cmd_hermes_daemon(state, parts):
         print(f"{CYAN}任务列表 ({len(tasks)} 个):{RESET}")
         for t in tasks:
             flag = {
-                "pending": "⏳", "running": "🏃", "completed": "✅",
-                "failed": "❌", "paused": "⏸️"
-            }.get(t.status.value, "❓")
-            mode_flag = "🤖" if t.execution_mode == "autonomous" else ""
+                "pending": "[..]", "running": "[>]", "completed": "[OK]",
+                "failed": "[x]", "paused": "[||]"
+            }.get(t.status.value, "[?]")
+            mode_flag = "[auto]" if t.execution_mode == "autonomous" else ""
             confirm_flag = "✓" if (t.execution_mode == "autonomous" and t.user_confirmed_at) else ""
             print(f"  {flag} {mode_flag}{confirm_flag} {t.id} [{t.priority.name}] [{t.status.value}] {t.description[:50]}")
 
@@ -146,7 +146,7 @@ def _cmd_hermes_daemon(state, parts):
             print(f"{YELLOW}用法: /hermes cancel <id>{RESET}")
             return False
         if state.hermes.cancel_task(task_id):
-            print(f"{GREEN}✅ 任务已暂停: {task_id}{RESET}")
+            print(f"{GREEN}[OK] 任务已暂停: {task_id}{RESET}")
         else:
             print(f"{RED}未找到任务: {task_id}{RESET}")
 
@@ -173,7 +173,7 @@ def _cmd_hermes_daemon(state, parts):
             else:
                 ok, msg = False, f"未知产物类型: {item.artifact_type}"
             if ok:
-                print(f"{GREEN}✅ 已批准并安装: {item_id} ({item.artifact_type}){RESET}")
+                print(f"{GREEN}[OK] 已批准并安装: {item_id} ({item.artifact_type}){RESET}")
             else:
                 print(f"{RED}批准成功但安装失败: {msg}{RESET}")
         elif sub == "reject":
@@ -182,7 +182,7 @@ def _cmd_hermes_daemon(state, parts):
                 print(f"{YELLOW}用法: /hermes review reject <id>{RESET}")
                 return False
             if queue.reject(item_id):
-                print(f"{GREEN}✅ 已拒绝: {item_id}{RESET}")
+                print(f"{GREEN}[OK] 已拒绝: {item_id}{RESET}")
             else:
                 print(f"{RED}未找到审核项: {item_id}{RESET}")
         else:

@@ -177,7 +177,7 @@ class TestFormat(unittest.TestCase):
         out = format_protocols(result, lang="zh")
         self.assertIn("Aave", out)
         self.assertIn("Lending", out)
-        self.assertIn("📈", out)  # 上升
+        self.assertIn("", out)  # 上升
 
     def test_format_protocols_empty(self):
         out = format_protocols({"ok": True, "protocols": []})

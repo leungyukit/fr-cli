@@ -34,12 +34,12 @@ def _fmt_tool_result(label: str, name: str, res: Result) -> str:
         res: Result 实例
     """
     if res.is_fail():
-        return f"❌ {label}失败: {name}\n   {res.error}"
+        return f"[x] {label}失败: {name}\n   {res.error}"
     r = str(res.unwrap()) if res.unwrap() is not None else ""
     if len(r) > _RESULT_MAX_CHARS:
         # 注意:len(r) 在赋值完成前仍是原始长度,截断提示里的字符数是准确的
         r = r[:_RESULT_MAX_CHARS] + f"\n   ... (结果共 {len(r)} 字符，已截断)"
-    return f"✅ {label}成功: {name}\n   结果: {r}"
+    return f"[OK] {label}成功: {name}\n   结果: {r}"
 
 
 class CommandAIMixin:
@@ -129,7 +129,7 @@ class CommandAIMixin:
         for tool_name, arg_str, marker in self._extract_tool_calls(ai_response):
             kwargs = self._parse_tool_kwargs(arg_str)
             if kwargs is None:
-                results.append(f"❌ 参数解析失败: {tool_name}\n   原始参数: {arg_str}")
+                results.append(f"[x] 参数解析失败: {tool_name}\n   原始参数: {arg_str}")
                 markers_to_remove.append(marker)
                 continue
             invoke_result = self.invoke_tool(

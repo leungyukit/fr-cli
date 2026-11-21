@@ -51,7 +51,7 @@ def _print_insights(payload, state):
             ks = c.get("key_signals") or []
             if ks:
                 for s in ks[:3]:
-                    print(f"      ↪ {s}")
+                    print(f"[Tab] {s}")
         print()
 
     price_bands = insights.get("price_bands") or []

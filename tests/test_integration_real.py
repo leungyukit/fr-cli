@@ -7,7 +7,7 @@
   - 实例化真实的 AppState、CommandExecutor
   - 验证所有模型配置相关功能的完整链路
 
-⚠️  不涉及真实 LLM API 调用（因无外部 Key），
+[!] 不涉及真实 LLM API 调用（因无外部 Key），
     但会验证客户端实例化、配置解析、缓存、上下文切换等全部内部逻辑。
 """
 import json
@@ -98,7 +98,7 @@ def test_real_config_load_save():
         backup_data = json.loads(paths.CONFIG_BACKUP.read_text(encoding="utf-8"))
         assert backup_data["providers"]["deepseek"]["model"] == "deepseek-chat"
 
-        print("✅ test_real_config_load_save 通过")
+        print("[OK] test_real_config_load_save 通过")
     finally:
         # 无论测试是否通过，都必须恢复全局常量
         paths._root_holder.value = orig_root
@@ -138,7 +138,7 @@ def test_real_providers_setup_flow():
         assert state.provider == "deepseek"
         assert state.model_name == "deepseek-chat"
 
-        print("✅ test_real_providers_setup_flow 通过")
+        print("[OK] test_real_providers_setup_flow 通过")
     finally:
         env.cleanup()
 
@@ -187,7 +187,7 @@ def test_real_llm_client_creation():
     cls, kwargs = _resolve_llm_kwargs("deepseek", cfg_custom)
     assert kwargs["base_url"] == "https://custom.example.com/v1"
 
-    print("✅ test_real_llm_client_creation 通过")
+    print("[OK] test_real_llm_client_creation 通过")
 
 
 def test_real_appstate_client_cache():
@@ -230,7 +230,7 @@ def test_real_appstate_client_cache():
         c5 = state.get_client_for("deepseek", "m1", override_key="special")
         assert c4 is c5, "override_key 缓存应命中"
 
-        print("✅ test_real_appstate_client_cache 通过")
+        print("[OK] test_real_appstate_client_cache 通过")
     finally:
         env.cleanup()
 
@@ -273,7 +273,7 @@ def test_real_agent_config_lifecycle():
         # 不存在的 Agent 返回空
         assert load_agent_config("ghost") == {}
 
-        print("✅ test_real_agent_config_lifecycle 通过")
+        print("[OK] test_real_agent_config_lifecycle 通过")
     finally:
         env.cleanup()
 
@@ -327,7 +327,7 @@ def test_real_agent_llm_resolution():
         client, provider, model = state.resolve_agent_llm("empty_agent")
         assert provider == "zhipu"
 
-        print("✅ test_real_agent_llm_resolution 通过")
+        print("[OK] test_real_agent_llm_resolution 通过")
     finally:
         env.cleanup()
 
@@ -387,7 +387,7 @@ def test_real_executor_agent_context():
         deps = executor._get_deps()
         assert deps.model_name == "glm-4-flash"
 
-        print("✅ test_real_executor_agent_context 通过")
+        print("[OK] test_real_executor_agent_context 通过")
     finally:
         env.cleanup()
 
@@ -436,7 +436,7 @@ def run(context, **kwargs):
         deps = state.executor._get_deps()
         assert deps.model_name == "glm-4-flash"
 
-        print("✅ test_real_executor_agent_context_in_run_agent 通过")
+        print("[OK] test_real_executor_agent_context_in_run_agent 通过")
     finally:
         env.cleanup()
 
@@ -503,7 +503,7 @@ def test_real_cmd_agent_model():
         cfg_loaded = load_agent_config("test_agent")
         assert cfg_loaded["provider"] == "zhipu"
 
-        print("✅ test_real_cmd_agent_model 通过")
+        print("[OK] test_real_cmd_agent_model 通过")
     finally:
         env.cleanup()
 
@@ -556,7 +556,7 @@ def test_real_workflow_agent_context():
         if err and "API" in str(err) or "密钥" in str(err) or "key" in str(err).lower():
             print("   (workflow 因无外部 API Key 而失败，属于预期行为)")
 
-        print("✅ test_real_workflow_agent_context 通过")
+        print("[OK] test_real_workflow_agent_context 通过")
     finally:
         env.cleanup()
 
@@ -589,7 +589,7 @@ def test_real_providers_list_no_crash():
         ok = _cmd_providers(state, ["/providers", "list"])
         assert ok is False
 
-        print("✅ test_real_providers_list_no_crash 通过")
+        print("[OK] test_real_providers_list_no_crash 通过")
     finally:
         env.cleanup()
 
@@ -620,7 +620,7 @@ def test_real_doubao_mimo_client_creation():
     assert client_mimo.api_key == "mimo-key"
     assert _PROVIDERS["mimo"]["base_url"] == "https://api.xiaomimimo.com/v1"
 
-    print("✅ test_real_doubao_mimo_client_creation 通过")
+    print("[OK] test_real_doubao_mimo_client_creation 通过")
 
 
 def test_real_doubao_mimo_agent_binding():
@@ -672,7 +672,7 @@ def test_real_doubao_mimo_agent_binding():
         assert m_mimo == "mimo-v2-pro"
         assert client_mimo.api_key == "mimo-key"
 
-        print("✅ test_real_doubao_mimo_agent_binding 通过")
+        print("[OK] test_real_doubao_mimo_agent_binding 通过")
     finally:
         env.cleanup()
 
@@ -694,7 +694,7 @@ def test_real_providers_list_includes_new_providers():
     assert mimo_info["name"] == "小米 MiMo"
     assert mimo_info["default_model"] == "mimo-v2-flash"
 
-    print("✅ test_real_providers_list_includes_new_providers 通过")
+    print("[OK] test_real_providers_list_includes_new_providers 通过")
 
 
 # ------------------------------------------------------------------
@@ -731,7 +731,7 @@ if __name__ == "__main__":
             passed += 1
         except Exception as e:
             failed += 1
-            print(f"❌ {t.__name__} 失败: {e}")
+            print(f"[x] {t.__name__} 失败: {e}")
             import traceback
             traceback.print_exc()
 

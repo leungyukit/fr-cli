@@ -77,7 +77,7 @@ def generate_plan(state, user_input: str, lang: str = "zh") -> Optional[Dict[str
     prompt = prompt_template.format(tools=tools_text, user_input=user_input)
 
     messages = [{"role": "user", "content": prompt}]
-    hint = "🗺️ 正在制定执行计划..." if lang == "zh" else "🗺️ Generating execution plan..."
+    hint = "正在制定执行计划..." if lang == "zh" else "Generating execution plan..."
     print(f"{DIM}{hint}{RESET}")
 
     txt, usage, response_time, interrupted = stream_cnt(
@@ -125,10 +125,10 @@ def render_plan(plan: Dict[str, Any], lang: str = "zh") -> str:
     steps = plan.get("steps", [])
 
     if lang == "zh":
-        lines.append(f"{CYAN}🎯 目标：{goal}{RESET}")
+        lines.append(f"{CYAN}目标：{goal}{RESET}")
         if summary:
-            lines.append(f"{DIM}📝 策略：{summary}{RESET}")
-        lines.append(f"{CYAN}📋 执行步骤：{RESET}")
+            lines.append(f"{DIM}策略：{summary}{RESET}")
+        lines.append(f"{CYAN}执行步骤：{RESET}")
         for i, step in enumerate(steps, 1):
             desc = step.get("description", "")
             tool = step.get("tool")
@@ -140,10 +140,10 @@ def render_plan(plan: Dict[str, Any], lang: str = "zh") -> str:
             if reasoning:
                 lines.append(f"     {DIM}理由：{reasoning}{RESET}")
     else:
-        lines.append(f"{CYAN}🎯 Goal: {goal}{RESET}")
+        lines.append(f"{CYAN}Goal: {goal}{RESET}")
         if summary:
-            lines.append(f"{DIM}📝 Strategy: {summary}{RESET}")
-        lines.append(f"{CYAN}📋 Steps:{RESET}")
+            lines.append(f"{DIM}Strategy: {summary}{RESET}")
+        lines.append(f"{CYAN}Steps:{RESET}")
         for i, step in enumerate(steps, 1):
             desc = step.get("description", "")
             tool = step.get("tool")

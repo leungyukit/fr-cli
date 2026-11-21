@@ -102,7 +102,7 @@ def execute_step(state, step: Dict[str, Any], step_idx: int,
 
         if error:
             err_text = str(error)
-            print(f"{RED}  ❌ {err_text}{RESET}")
+            print(f"{RED} [x] {err_text}{RESET}")
             return False, err_text
 
         result_text = str(result) if result is not None else ""
@@ -112,7 +112,7 @@ def execute_step(state, step: Dict[str, Any], step_idx: int,
 
     except Exception as e:
         err_text = str(e)
-        print(f"{RED}  ❌ {err_text}{RESET}")
+        print(f"{RED} [x] {err_text}{RESET}")
         return False, err_text
 
 
@@ -165,9 +165,9 @@ def summarize_execution(state, user_input: str, plan: Dict[str, Any],
     ]
 
     if lang == "zh":
-        print(f"{DIM}📝 正在汇总执行结果...{RESET}")
+        print(f"{DIM}正在汇总执行结果...{RESET}")
     else:
-        print(f"{DIM}📝 Summarizing results...{RESET}")
+        print(f"{DIM}Summarizing results...{RESET}")
 
     summary, usage, response_time, interrupted = stream_cnt(
         state.client,

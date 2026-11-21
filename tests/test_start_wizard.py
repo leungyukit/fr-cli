@@ -75,7 +75,7 @@ class TestStartCommand:
         from fr_cli.repl.commands.system.start import _cmd_start
         _cmd_start(state_with_model, ["/start", "skip"])
         out = capsys.readouterr().out
-        assert "✅" in out
+        assert "[OK]" in out
         assert state_with_model.cfg.get("start_wizard_done") is True
         state_with_model.save_cfg.assert_called_once()
 
@@ -89,7 +89,7 @@ class TestStartCommand:
         from fr_cli.repl.commands.system.start import _cmd_start
         _cmd_start(state_with_model, ["/start", "weird"])
         out = capsys.readouterr().out
-        assert "❌" in out
+        assert "[x]" in out
         assert "weird" in out
 
     def test_main_flow_5_steps(self, capsys, state_with_model):
@@ -123,15 +123,15 @@ class TestStartCommand:
             assert mock_wizard.called
 
     def test_main_flow_uses_output_api(self, capsys, state_with_model):
-        """主流程应使用统一 output API(✅ ❌ ⚠️ ℹ️)"""
+        """主流程应使用统一 output API([OK] [x] [!] [i])"""
         from fr_cli.repl.commands.system.start import _cmd_start
         with patch("builtins.input", return_value="n"):
             _cmd_start(state_with_model, ["/start"])
         out = capsys.readouterr().out
         # Step 1 用 header(═══)
         assert "═══" in out
-        # Step 2 用 info(ℹ️)— 已配模型
-        assert "ℹ️" in out
+        # Step 2 用 info([i])— 已配模型
+        assert "[i]" in out
         # 至少 1 个 ANSI 颜色码
         assert "\x1b[" in out
 

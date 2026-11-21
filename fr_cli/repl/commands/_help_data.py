@@ -10,15 +10,15 @@ from typing import Dict, List, Tuple
 
 # 最近新加的命令(显示在默认 /help 顶部 / /help new)
 # 格式: (命令, 简短说明, 类别)
-# 类别用 emoji + 标签: 🆕新功能 | ⭐推荐 | 🧪实验
+# 类别用 emoji + 标签:[NEW]新功能 | 推荐 | 实验
 _NEW_COMMANDS: List[Tuple[str, str, str]] = [
-    ("/insight", "选品洞察提炼(从历史数据提炼爆款规律)", "🆕新功能"),
-    ("/insight extract", "立即跑一次选品洞察提炼", "🆕新功能"),
-    ("/insight show / history / sources", "查看 / 历史 / 数据源", "🆕新功能"),
-    ("/competitor_gaps", "竞品监控能力缺口扫描(dynamic_builder 主动扫领域)", "🆕新功能"),
-    ("/competitor_gaps scan / show / add", "扫 / 看 / 推 review", "🆕新功能"),
-    ("/dream", "梦境整理(空闲时自动整理长期记忆)", "🆕新功能"),
-    ("/mcp_*", "MCP 外部神通(连接外部工具)", "🆕新功能"),
+    ("/insight", "选品洞察提炼(从历史数据提炼爆款规律)", "[NEW]新功能"),
+    ("/insight extract", "立即跑一次选品洞察提炼", "[NEW]新功能"),
+    ("/insight show / history / sources", "查看 / 历史 / 数据源", "[NEW]新功能"),
+    ("/competitor_gaps", "竞品监控能力缺口扫描(dynamic_builder 主动扫领域)", "[NEW]新功能"),
+    ("/competitor_gaps scan / show / add", "扫 / 看 / 推 review", "[NEW]新功能"),
+    ("/dream", "梦境整理(空闲时自动整理长期记忆)", "[NEW]新功能"),
+    ("/mcp_*", "MCP 外部神通(连接外部工具)", "[NEW]新功能"),
 ]
 
 # 单个命令的简短说明(用于 /help <command>)

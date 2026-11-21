@@ -85,7 +85,7 @@ def get_sys_stats(lang="zh"):
     """
     获取完整的系统状态字符串（用于直接拼接显示）
     :param lang: 语言代码 "zh" 或 "en"
-    :return: 形如 "CPU: 12% | 内存: 4.2/16.0GB(26%) | 网络: ↑0.5 ↓1.2 MB/s" 的字符串
+    :return: 形如 "CPU: 12% | 内存: 4.2/16.0GB(26%) | 网络:↑0.5 ↓1.2 MB/s" 的字符串
              或空字符串（无 psutil 时）
     """
     if not _has_psutil():

@@ -35,7 +35,7 @@ def handle_plan_mode(state, u):
     plan = generate_plan(state, u, lang)
     if not plan:
         print(
-            f"{RED}{'❌ 计划生成失败' if lang == 'zh' else '❌ Failed to generate plan'}{RESET}"
+            f"{RED}{'[x] 计划生成失败' if lang == 'zh' else '[x] Failed to generate plan'}{RESET}"
         )
         return
 
@@ -50,7 +50,7 @@ def handle_plan_mode(state, u):
     # 3. 用户确认
     confirm_msg = "是否执行该计划?" if lang == "zh" else "Execute this plan?"
     if not prompt.confirm(confirm_msg, default=True):
-        print(f"{YELLOW}{'🛑 已取消执行' if lang == 'zh' else '🛑 Cancelled'}{RESET}")
+        print(f"{YELLOW}{'[STOP] 已取消执行' if lang == 'zh' else '[STOP] Cancelled'}{RESET}")
         state.active_plan = None
         return
 
@@ -95,7 +95,7 @@ def handle_plan_mode(state, u):
         path = create_session(state.messages, session_id=getattr(state, "session_id", None))
         if path:
             state.auto_session_path = path
-            print(f"{DIM}💾 {Path(path).name}{RESET}")
+            print(f"{DIM}{Path(path).name}{RESET}")
     else:
         update_session(state.auto_session_path, state.messages)
 

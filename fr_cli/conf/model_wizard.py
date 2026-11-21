@@ -12,9 +12,9 @@
      → 否:设为 backup_provider(若已有 backup 则覆盖)
 
 兼容模式含义:
-  - openai    → OpenAI 兼容协议(默认)
+  - openai → OpenAI 兼容协议(默认)
   - anthropic → Anthropic Messages 协议
-  - zhipu     → 智谱原生 SDK(只对 zhipu/zhipu-coding 可选)
+  - zhipu → 智谱原生 SDK(只对 zhipu/zhipu-coding 可选)
 
 特殊模式:
   - mode="setup"   : 首次配置向导,完整 6 步
@@ -60,9 +60,9 @@ def _box(title, lines, width=58):
 def _prompt(label, default=""):
     """带默认值的输入提示"""
     if default:
-        val = input(f"{CYAN}👉 {label} [{default}]: {RESET}").strip()
+        val = input(f"{CYAN}{label} [{default}]: {RESET}").strip()
         return val if val else default
-    return input(f"{CYAN}👉 {label}: {RESET}").strip()
+    return input(f"{CYAN}{label}: {RESET}").strip()
 
 
 def _confirm(text, default=True):
@@ -81,9 +81,9 @@ def _choose_from_list(prompt, items, *, allow_back=True, allow_custom=False):
 
     行为:
       - 数字 → 选中对应项
-      - q     → 取消(返回 None,无论 allow_back)
-      - c     → 自定义(若 allow_custom=True)
-      - 空    → 取消(若 allow_back) 或 重试(否则)
+      - q → 取消(返回 None,无论 allow_back)
+      - c → 自定义(若 allow_custom=True)
+      - 空 → 取消(若 allow_back) 或 重试(否则)
     """
     while True:
         try:
@@ -99,17 +99,17 @@ def _choose_from_list(prompt, items, *, allow_back=True, allow_custom=False):
             if allow_back:
                 print(f"{DIM}已取消。{RESET}")
                 return None
-            print(f"{RED}❌ 请输入有效编号{RESET}")
+            print(f"{RED}[x] 请输入有效编号{RESET}")
             continue
         if raw.isdigit():
             idx = int(raw) - 1
             if 0 <= idx < len(items):
                 return idx
-            print(f"{RED}❌ 编号超出范围 (1-{len(items)}){RESET}")
+            print(f"{RED}[x] 编号超出范围 (1-{len(items)}){RESET}")
             continue
         if allow_custom and raw.lower() == "c":
             return "custom"
-        print(f"{RED}❌ 无效输入{RESET}")
+        print(f"{RED}[x] 无效输入{RESET}")
 
 
 # ---------------------------------------------------------------------------
@@ -129,7 +129,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
     """
     providers = list_providers()
     if not providers:
-        print(f"{RED}❌ 没有可用的模型提供商,请检查 default_models.yaml{RESET}")
+        print(f"{RED}[x] 没有可用的模型提供商,请检查 default_models.yaml{RESET}")
         return cfg
 
     # =================================================================
@@ -139,7 +139,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
         provider_id = preset_provider
         info = get_provider_info(provider_id)
         if not info:
-            print(f"{RED}❌ 无效的 provider: {provider_id}{RESET}")
+            print(f"{RED}[x] 无效的 provider: {provider_id}{RESET}")
             return cfg
         print(f"\n{CYAN}当前供应商: {info['name']} ({provider_id}){RESET}")
     else:
@@ -159,7 +159,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             compat = (info.get("compat") or "?") if info else "?"
             print(f"  {marker} [{CYAN}{i:>2}{RESET}] {p['id']:<22} {DIM}{_pad(p['name'], 14)} 默认:{default_model:<24} compat:{compat}{RESET}")
 
-        idx = _choose_from_list("👉 供应商编号", providers, allow_back=False)
+        idx = _choose_from_list("供应商编号", providers, allow_back=False)
         if idx is None:
             print(f"{DIM}已取消。{RESET}")
             return cfg
@@ -190,7 +190,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
         # 默认值提示
         default_choice = "1" if default_compat == "openai" else "2"
         try:
-            raw = input(f"{YELLOW}👉 选择 [1/2] (默认 {default_choice}): {RESET}").strip()
+            raw = input(f"{YELLOW}选择 [1/2] (默认 {default_choice}): {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print(f"\n{DIM}已取消。{RESET}")
             return cfg
@@ -202,7 +202,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
         elif raw == "" or raw == "1":
             compat = "openai"
         else:
-            print(f"{RED}❌ 无效输入,使用默认 OpenAI 兼容{RESET}")
+            print(f"{RED}[x] 无效输入,使用默认 OpenAI 兼容{RESET}")
             compat = "openai"
 
     # =================================================================
@@ -225,7 +225,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             print(f"  [{CYAN}{i:>2}{RESET}] {m}{marker}")
     print(f"  [{CYAN} c{RESET}] {DIM}自定义输入模型名{RESET}")
 
-    idx = _choose_from_list("👉 模型编号", models, allow_back=False, allow_custom=True)
+    idx = _choose_from_list("模型编号", models, allow_back=False, allow_custom=True)
     if idx is None:
         print(f"{DIM}已取消。{RESET}")
         return cfg
@@ -262,7 +262,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
         masked = existing_key[:4] + "****" + existing_key[-4:] if len(existing_key) > 8 else "****"
         print(f"{DIM}  已有 key: {masked}(回车保留,或粘贴新 key){RESET}")
         try:
-            raw = input(f"{CYAN}👉 API Key(回车保留): {RESET}").strip()
+            raw = input(f"{CYAN}API Key(回车保留): {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print(f"\n{DIM}已取消。{RESET}")
             return cfg
@@ -272,7 +272,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             api_key = existing_key
     else:
         try:
-            api_key = getpass.getpass(f"{CYAN}👉 API Key(隐藏显示): {RESET}").strip()
+            api_key = getpass.getpass(f"{CYAN}API Key(隐藏显示): {RESET}").strip()
         except (EOFError, KeyboardInterrupt):
             print(f"\n{DIM}已取消。{RESET}")
             return cfg
@@ -281,9 +281,9 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             import os
             api_key = os.environ.get(env_key_name, "")
             if api_key:
-                print(f"{GREEN}✅ 已从环境变量 {env_key_name} 读取{RESET}")
+                print(f"{GREEN}[OK] 已从环境变量 {env_key_name} 读取{RESET}")
     if not api_key:
-        print(f"{RED}❌ API Key 不能为空{RESET}")
+        print(f"{RED}[x] API Key 不能为空{RESET}")
         return cfg
 
     # =================================================================
@@ -319,7 +319,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             cfg["default_provider"] = provider_id
             cfg["provider"] = provider_id
             cfg["model"] = target_model
-            print(f"{GREEN}✅ 已设为默认模型: [{provider_id}] {target_model}{RESET}")
+            print(f"{GREEN}[OK] 已设为默认模型: [{provider_id}] {target_model}{RESET}")
         else:
             # 已有 default,询问是否覆盖
             print()
@@ -327,27 +327,27 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             print(f"  [{CYAN}2{RESET}] 设为 {GREEN}backup{RESET}(覆盖当前 backup={existing_backup or '(空)'})")
             print(f"  [{CYAN}3{RESET}] {DIM}仅保存配置,不修改 default/backup{RESET}")
             try:
-                pick = input(f"{YELLOW}👉 选择 [1/2/3] (默认 2): {RESET}").strip()
+                pick = input(f"{YELLOW}选择 [1/2/3] (默认 2): {RESET}").strip()
             except (EOFError, KeyboardInterrupt):
                 pick = "2"
             if pick == "1":
                 cfg["default_provider"] = provider_id
                 cfg["provider"] = provider_id
                 cfg["model"] = target_model
-                print(f"{GREEN}✅ 已设为默认模型: [{provider_id}] {target_model}{RESET}")
+                print(f"{GREEN}[OK] 已设为默认模型: [{provider_id}] {target_model}{RESET}")
             elif pick == "3":
                 print(f"{DIM}已保存配置,不修改 default/backup{RESET}")
             else:
                 cfg["backup_provider"] = provider_id
-                print(f"{GREEN}✅ 已设为备用模型: [{provider_id}] {target_model}{RESET}")
+                print(f"{GREEN}[OK] 已设为备用模型: [{provider_id}] {target_model}{RESET}")
 
     # 标记向导已通过(避免下次启动再次提示)
     cfg["model_wizard_skipped"] = True
 
     # 持久化
     if save_config(cfg):
-        print(f"\n{GREEN}✅ 配置已保存{RESET}")
+        print(f"\n{GREEN}[OK] 配置已保存{RESET}")
     else:
-        print(f"\n{RED}❌ 配置保存失败,请检查 ~/.fr_cli/config.json 权限{RESET}")
+        print(f"\n{RED}[x] 配置保存失败,请检查 ~/.fr_cli/config.json 权限{RESET}")
 
     return cfg

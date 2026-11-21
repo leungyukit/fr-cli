@@ -43,7 +43,7 @@ check_python() {
 
     local py_ver
     py_ver=$($PYTHON_CMD --version 2>&1)
-    echo -e "✅ 检测到 ${GREEN}${py_ver}${RESET}" >&2
+    echo -e "[OK] 检测到 ${GREEN}${py_ver}${RESET}" >&2
     echo "$PYTHON_CMD"
 }
 
@@ -52,15 +52,15 @@ install_wheel() {
     local VENV_DIR="$SCRIPT_DIR/.venv"
 
     echo ""
-    echo -e "${YELLOW}📦 步骤 1/3：创建虚拟环境...${RESET}"
+    echo -e "${YELLOW}步骤 1/3：创建虚拟环境...${RESET}"
     "$PYTHON" -m venv "$VENV_DIR"
 
-    echo -e "${YELLOW}📦 步骤 2/3：安装 fr-cli 及依赖...${RESET}"
+    echo -e "${YELLOW}步骤 2/3：安装 fr-cli 及依赖...${RESET}"
     source "$VENV_DIR/bin/activate"
     pip install --quiet --upgrade pip
     pip install --quiet "$WHEEL_FILE"
 
-    echo -e "${YELLOW}📦 步骤 3/3：创建启动器...${RESET}"
+    echo -e "${YELLOW}步骤 3/3：创建启动器...${RESET}"
     cat > "$SCRIPT_DIR/fr-cli" << 'LAUNCHER'
 #!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
@@ -72,15 +72,15 @@ LAUNCHER
 
 verify_install() {
     echo ""
-    echo -e "${YELLOW}🔍 验证安装...${RESET}"
+    echo -e "${YELLOW}验证安装...${RESET}"
     if "$SCRIPT_DIR/fr-cli" --help &> /dev/null; then
-        echo -e "${GREEN}✅ fr-cli 安装验证通过！${RESET}"
+        echo -e "${GREEN}[OK] fr-cli 安装验证通过！${RESET}"
     else
         # 交互式程序没有 --help，直接检查入口是否存在
         if [ -f "$SCRIPT_DIR/.venv/bin/fr-cli" ]; then
-            echo -e "${GREEN}✅ fr-cli 安装验证通过！${RESET}"
+            echo -e "${GREEN}[OK] fr-cli 安装验证通过！${RESET}"
         else
-            echo -e "${RED}❌ 安装验证失败，请检查错误信息。${RESET}"
+            echo -e "${RED}[x] 安装验证失败，请检查错误信息。${RESET}"
             exit 1
         fi
     fi
@@ -88,7 +88,7 @@ verify_install() {
 
 print_footer() {
     echo ""
-    echo -e "${GREEN}${BOLD}🎉 安装完成！${RESET}"
+    echo -e "${GREEN}${BOLD}安装完成！${RESET}"
     echo ""
     echo -e "${BOLD}使用方式：${RESET}"
     echo "  直接运行：$SCRIPT_DIR/fr-cli"

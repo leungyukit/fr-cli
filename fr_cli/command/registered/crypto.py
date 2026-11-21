@@ -76,11 +76,11 @@ def _register_crypto_price(deps, **kwargs):
 )
 def _register_crypto_chains(deps, **kwargs):
     from fr_cli.weapon.crypto import PUBLIC_RPCS, CHAIN_IDS
-    lines = ["🔗 支持的链:"]
+    lines = ["支持的链:"]
     for chain, rpc in PUBLIC_RPCS.items():
         cid = CHAIN_IDS.get(chain, "?")
         lines.append(f"  • {chain} (id={cid}) → {rpc}")
-    lines.append("\n💡 用法:")
+    lines.append("\n用法:")
     lines.append("  /crypto_balance 0x... --chain bsc")
     lines.append("  /crypto_tx 0x... --chain polygon")
     return Result.ok("\n".join(lines))
@@ -100,5 +100,5 @@ def _register_crypto_apikey(deps, **kwargs):
 
     from fr_cli.weapon.crypto import set_api_key
     if set_api_key(key):
-        return Result.ok("✅ Etherscan API key 已保存到 ~/.fr_cli/config.json")
+        return Result.ok("[OK] Etherscan API key 已保存到 ~/.fr_cli/config.json")
     return Result.fail("保存失败")

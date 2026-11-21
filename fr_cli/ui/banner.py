@@ -78,7 +78,7 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
         sess_display = "全新"
 
     if is_mock:
-        model_display = f"🧪 mock/{model_name}"
+        model_display = f"mock/{model_name}"
     else:
         model_display = f"{provider}/{model_name}"
 
@@ -96,7 +96,7 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
         f"  {DIM}·{RESET} {YELLOW}{limit}{RESET}{DIM} tokens{RESET}"
         f"  {DIM}·{RESET} {YELLOW}{mode}{RESET}{DIM} mode{RESET}"
     )
-    footer_line = f"{DIM}✨ fr-cli {__version__} — 9 提供商 · Agent 分身 · RAG · MasterAgent 自我进化{RESET}"
+    footer_line = f"{DIM}fr-cli {__version__} — 9 提供商 · Agent 分身 · RAG · MasterAgent 自我进化{RESET}"
 
     all_lines = [
         title_line,

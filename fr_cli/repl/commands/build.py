@@ -28,16 +28,16 @@ def _cmd_build(state, parts):
     if sub == "check":
         requirement = " ".join(parts[2:]) if len(parts) > 2 else ""
         if not requirement:
-            print(f"{RED}❌ 用法: /build check <需求描述>{RESET}")
+            print(f"{RED}[x] 用法: /build check <需求描述>{RESET}")
             return False
         tools = get_registry().get_available_tools(state.plugins)
         analyzer = CapabilityGapAnalyzer()
         report = analyzer.analyze(requirement, tools, state=state, lang=state.lang)
         if report.get("gap"):
-            print(f"{YELLOW}⚠️ 发现能力缺口{RESET}")
+            print(f"{YELLOW}[!] 发现能力缺口{RESET}")
             print(f"  {DIM}建议工具名: {report.get('suggested_tool_name') or '-'}{RESET}")
         else:
-            print(f"{GREEN}✅ 现有工具已覆盖该需求{RESET}")
+            print(f"{GREEN}[OK] 现有工具已覆盖该需求{RESET}")
         print(f"  {DIM}置信度: {report.get('confidence', 0):.2f}{RESET}")
         print(f"  {DIM}理由: {report.get('reasoning', '')}{RESET}")
         return False
@@ -47,7 +47,7 @@ def _cmd_build(state, parts):
         if not tools:
             print(f"{DIM}暂无动态构建的工具。{RESET}")
             return False
-        print(f"{CYAN}🛠️ 已构建的动态工具 ({len(tools)}):{RESET}")
+        print(f"{CYAN}已构建的动态工具 ({len(tools)}):{RESET}")
         for t in tools:
             print(f"  • {GREEN}{t['name']}{RESET}: {DIM}{t.get('description', '')}{RESET}")
             aliases = t.get("aliases", [])
@@ -58,25 +58,25 @@ def _cmd_build(state, parts):
     if sub == "del":
         name = parts[2] if len(parts) > 2 else ""
         if not name:
-            print(f"{RED}❌ 用法: /build del <工具名>{RESET}")
+            print(f"{RED}[x] 用法: /build del <工具名>{RESET}")
             return False
         result = remove_built_tool(name)
         if result.is_ok():
-            print(f"{GREEN}✅ {result.unwrap()}{RESET}")
+            print(f"{GREEN}[OK] {result.unwrap()}{RESET}")
         else:
-            print(f"{RED}❌ {result.error}{RESET}")
+            print(f"{RED}[x] {result.error}{RESET}")
         return False
 
     # 构建新工具
     requirement = " ".join(parts[1:]) if len(parts) > 1 else ""
     if not requirement:
-        print(f"{RED}❌ 用法: /build <需求描述>{RESET}")
+        print(f"{RED}[x] 用法: /build <需求描述>{RESET}")
         print(f"{DIM}示例: /build 生成一个二维码识别工具{RESET}")
         return False
 
     result = build_tool(requirement, state, lang=state.lang, confirm=True)
     if result.is_ok():
-        print(f"{GREEN}✅ {result.unwrap()}{RESET}")
+        print(f"{GREEN}[OK] {result.unwrap()}{RESET}")
     else:
-        print(f"{RED}❌ {result.error}{RESET}")
+        print(f"{RED}[x] {result.error}{RESET}")
     return False

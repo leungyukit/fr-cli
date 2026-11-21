@@ -26,7 +26,7 @@ def _cmd_dirs(state, parts):
     if result.is_fail():
         print(result.error)
     else:
-        print(f"{CYAN}📂 已挂载的目录:{RESET}")
+        print(f"{CYAN}已挂载的目录:{RESET}")
         for item in result.unwrap():
             print(item)
     return False

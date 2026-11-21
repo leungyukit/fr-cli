@@ -142,6 +142,6 @@ def test_hermes_research_demo():
         assert persisted is not None
         assert persisted.status.value == "completed"
 
-        print("✅ test_hermes_research_demo 通过")
+        print("[OK] test_hermes_research_demo 通过")
     finally:
         env.cleanup()

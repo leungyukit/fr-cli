@@ -154,7 +154,7 @@ def handle_remote(user_input, state):
         {"role": "user", "content": requirement},
     ]
 
-    print(f"{CYAN}🧙 正在为 [{alias}]({os_name}) 生成远程命令...{RESET}")
+    print(f"{CYAN}正在为 [{alias}]({os_name}) 生成远程命令...{RESET}")
     cmd_text, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
     cmd_text = cmd_text.strip()
 
@@ -177,13 +177,13 @@ def handle_remote(user_input, state):
 
     exec_result = _exec_ssh(host_cfg, cmd_text)
     if exec_result.is_fail():
-        print(f"{RED}❌ 执行失败: {exec_result.error}{RESET}")
+        print(f"{RED}[x] 执行失败: {exec_result.error}{RESET}")
     else:
         out = exec_result.unwrap()
         if out.strip():
             print(f"\n{GREEN}{out.strip()[:3000]}{RESET}")
         else:
-            print(f"{GREEN}✅ 命令执行完成（无输出）{RESET}")
+            print(f"{GREEN}[OK] 命令执行完成（无输出）{RESET}")
 
 
 def _setup_wizard(lang="zh"):
@@ -211,4 +211,4 @@ def _setup_wizard(lang="zh"):
         auth_value = input(f"{DIM}密码: {RESET}").strip()
 
     save_host(alias, ip, port, user, auth, auth_value)
-    print(f"{GREEN}✅ 主机 [{alias}] ({ip}) 已保存。{RESET}")
+    print(f"{GREEN}[OK] 主机 [{alias}] ({ip}) 已保存。{RESET}")

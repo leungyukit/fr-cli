@@ -20,33 +20,33 @@ def _cmd_autostart(state, parts):
             try:
                 ports["agent_server"] = int(parts[i + 1])
             except ValueError:
-                print(f"{YELLOW}⚠️  --agent-server 需要端口号{RESET}")
+                print(f"{YELLOW}[!] --agent-server 需要端口号{RESET}")
                 return False
             i += 2
         elif arg in ("--hermes", "-h") and i + 1 < len(parts):
             try:
                 ports["hermes"] = int(parts[i + 1])
             except ValueError:
-                print(f"{YELLOW}⚠️  --hermes 需要端口号{RESET}")
+                print(f"{YELLOW}[!] --hermes 需要端口号{RESET}")
                 return False
             i += 2
         else:
             i += 1
 
-    print(f"{CYAN}🚀 正在一键启动所有后台服务...{RESET}")
+    print(f"{CYAN}正在一键启动所有后台服务...{RESET}")
     results = state.start_all_services(ports=ports)
 
     for name, result in results.items():
         label = {
-            "master_agent": "🧠 MasterAgent",
-            "agent_server": "🌐 Agent HTTP 服务",
-            "hermes_daemon": "🧚 Hermes 守护进程",
-            "gatekeeper": "🛡️ Gatekeeper",
-            "cron": "⏰ Cron 定时任务",
+            "master_agent": "MasterAgent",
+            "agent_server": "Agent HTTP 服务",
+            "hermes_daemon": "Hermes 守护进程",
+            "gatekeeper": "Gatekeeper",
+            "cron": "Cron 定时任务",
         }.get(name, name)
         if result.is_ok():
-            print(f"{GREEN}✅ {label}: {result.unwrap_or('运行中')}{RESET}")
+            print(f"{GREEN}[OK] {label}: {result.unwrap_or('运行中')}{RESET}")
         else:
-            print(f"{YELLOW}⚠️ {label}: {result.error}{RESET}")
+            print(f"{YELLOW}[!] {label}: {result.error}{RESET}")
 
     return False

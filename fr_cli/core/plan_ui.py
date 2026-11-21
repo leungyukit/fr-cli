@@ -4,7 +4,7 @@ Plan mode UI 增强 —— 彩色 + 进度条 + 步骤状态
 相比之前纯文本展示,现在:
 - ANSI 颜色高亮(标题/成功/失败/警告)
 - 进度条:██████░░░░ 60%
-- 步骤状态图标:✅ ❌ ⏳ 🏃 ⏭️
+- 步骤状态图标:[OK] [x] [>>]
 - 估算每步耗时(基于工具类型)
 - 步骤依赖可视化(箭头)
 - 实时执行进度
@@ -111,14 +111,14 @@ def render_plan_beautiful(plan: Dict[str, Any], lang: str = "zh",
 
         # 标题
         if lang == "zh":
-            title = "📋 执行计划"
+            title = "执行计划"
             goal_label = "目标"
             steps_label = "步骤"
             summary_label = "摘要"
             est_label = "预计耗时"
             action_label = "请审批"
         else:
-            title = "📋 Execution Plan"
+            title = "Execution Plan"
             goal_label = "Goal"
             steps_label = "Steps"
             summary_label = "Summary"
@@ -231,11 +231,11 @@ def render_execution_progress(step_idx: int, total_steps: int,
         bar = "█" * filled + "░" * (bar_len - filled)
 
         status_icons = {
-            "pending": ("⏳", YELLOW, "等待"),
-            "running": ("🏃", CYAN, "执行中"),
-            "completed": ("✅", GREEN, "完成"),
-            "failed": ("❌", RED, "失败"),
-            "skipped": ("⏭️", DIM, "跳过"),
+            "pending": ("", YELLOW, "等待"),
+            "running": ("", CYAN, "执行中"),
+            "completed": ("[OK]", GREEN, "完成"),
+            "failed": ("[x]", RED, "失败"),
+            "skipped": ("[>>]", DIM, "跳过"),
         }
         icon, color, label = status_icons.get(status, ("?", WHITE, status))
 
@@ -287,7 +287,7 @@ def render_execution_summary(results: List[Tuple[bool, str]],
 
     lines = []
     lines.append(_color("═" * 60, CYAN + BOLD))
-    lines.append(_color(f"  📊 {header}", CYAN + BOLD))
+    lines.append(_color(f"{header}", CYAN + BOLD))
     lines.append(_color("═" * 60, CYAN + BOLD))
     lines.append("")
 
@@ -314,7 +314,7 @@ def render_execution_summary(results: List[Tuple[bool, str]],
         steps = plan.get("steps", [])
         for i, (ok, text) in enumerate(results, 1):
             tool = steps[i-1].get("tool", "?") if i-1 < len(steps) else "?"
-            icon = "✅" if ok else "❌"
+            icon = "[OK]" if ok else "[x]"
             color = GREEN if ok else RED
             lines.append(f"    {_color(icon, color)} "
                         f"{_color(f'[{i}/{total}]', BOLD)} "
@@ -326,9 +326,9 @@ def render_execution_summary(results: List[Tuple[bool, str]],
 
     # 下一步建议
     if failed == 0:
-        lines.append(_color(f"  🎉 {next_label}: 计划完美执行!", GREEN))
+        lines.append(_color(f"{next_label}: 计划完美执行!", GREEN))
     else:
-        lines.append(_color(f"  ⚠️ {next_label}: 有 {failed} 步失败,建议 /context compress 后重试,"
+        lines.append(_color(f"[!] {next_label}: 有 {failed} 步失败,建议 /context compress 后重试,"
                             f"或重新进入 plan mode", YELLOW))
 
     lines.append("")

@@ -97,7 +97,7 @@ def format_pool_chart(result: Dict[str, Any], width: int = 50,
                       lang: str = "zh") -> str:
     """格式化池子历史图表为可读字符串"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     data = result["data"]
     symbol = data.get("symbol", "?")
@@ -106,7 +106,7 @@ def format_pool_chart(result: Dict[str, Any], width: int = 50,
     status = data.get("status", "?")
 
     if status == "INACTIVE":
-        return f"⏸️ 池 {symbol} ({project}/{chain}) 已下线"
+        return f"[||] 池 {symbol} ({project}/{chain}) 已下线"
 
     # 解析时间序列数据
     apy_data = data.get("apy", {}) or {}
@@ -117,9 +117,9 @@ def format_pool_chart(result: Dict[str, Any], width: int = 50,
 
     lines = []
     if lang == "zh":
-        lines.append(f"📈 {project} - {symbol} ({chain}) 历史")
+        lines.append(f"{project} - {symbol} ({chain}) 历史")
     else:
-        lines.append(f"📈 {project} - {symbol} ({chain}) History")
+        lines.append(f"{project} - {symbol} ({chain}) History")
 
     lines.append(f"  状态: {status}")
 
@@ -195,23 +195,23 @@ def _human_apy(apy: float) -> str:
 def format_protocols(result: Dict[str, Any], limit: int = 30, lang: str = "zh") -> str:
     """格式化协议列表"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     protocols = result["protocols"][:limit]
     if not protocols:
-        return "📭 没有匹配的协议"
+        return "没有匹配的协议"
 
     if lang == "zh":
-        title = f"🏦 DeFi 协议 (前 {len(protocols)})"
+        title = f"DeFi 协议 (前 {len(protocols)})"
     else:
-        title = f"🏦 DeFi Protocols (top {len(protocols)})"
+        title = f"DeFi Protocols (top {len(protocols)})"
 
     lines = [title]
     for p in protocols:
         change_1d = p.get("change_1d")
         change_str = ""
         if change_1d is not None and change_1d != 0:
-            emoji = "📈" if change_1d > 0 else "📉"
+            emoji = "" if change_1d > 0 else ""
             change_str = f" {emoji} {change_1d:+.2f}%"
 
         lines.append(
@@ -224,10 +224,10 @@ def format_protocols(result: Dict[str, Any], limit: int = 30, lang: str = "zh") 
 def format_protocol_detail(result: Dict[str, Any], lang: str = "zh") -> str:
     """格式化协议详情"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     if lang == "zh":
-        lines = [f"🏦 {result['name']}"]
+        lines = [f"{result['name']}"]
         lines.append(f"  类别: {result.get('category', '?')}")
         lines.append(f"  链: {result.get('chain', '?')}")
         lines.append(f"  总 TVL: {_human_tvl(result.get('tvl', 0))}")
@@ -250,16 +250,16 @@ def format_protocol_detail(result: Dict[str, Any], lang: str = "zh") -> str:
 def format_yields(result: Dict[str, Any], lang: str = "zh") -> str:
     """格式化收益池列表"""
     if not result["ok"]:
-        return f"❌ {result.get('error', '查询失败')}"
+        return f"[x] {result.get('error', '查询失败')}"
 
     pools = result["pools"]
     if not pools:
-        return "📭 没有匹配的池子"
+        return "没有匹配的池子"
 
     if lang == "zh":
-        title = f"💰 收益池 (前 {len(pools)})"
+        title = f"收益池 (前 {len(pools)})"
     else:
-        title = f"💰 Yield Pools (top {len(pools)})"
+        title = f"Yield Pools (top {len(pools)})"
 
     lines = [title]
     for p in pools:

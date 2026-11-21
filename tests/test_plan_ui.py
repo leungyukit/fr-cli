@@ -114,7 +114,7 @@ class TestExecutionSummary(unittest.TestCase):
         out = render_execution_summary(results, plan, lang="zh")
         self.assertIn("1 / 2", out)
         self.assertIn("失败", out)
-        self.assertIn("⚠️", out)
+        self.assertIn("[!]", out)
 
     def test_summary_all_failed(self):
         from fr_cli.core.plan_ui import render_execution_summary

@@ -55,7 +55,7 @@ class TestPrintNewCommands:
         # 至少包含一个 /insight
         assert "/insight" in out
         # 包含 badge
-        assert "🆕" in out
+        assert "[NEW]" in out
         # 包含使用提示
         assert "/help new" in out
 

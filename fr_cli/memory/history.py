@@ -88,7 +88,7 @@ def export_md(msgs, lang, out_dir=None):
                 role = m.get("role", "unknown")
                 content = m.get("content", "")
                 if role == "system": continue
-                tag = "### 🧑 凡人" if role == "user" else "### 🧙 飞书"
+                tag = "### 凡人" if role == "user" else "### 飞书"
                 f.write(f"{tag}\n\n{content}\n\n---\n\n")
         return True, fpath
     except Exception as e: return False, str(e)

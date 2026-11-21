@@ -126,7 +126,7 @@ def render_plan_for_user(plan: dict, lang: str = "zh") -> str:
         # 回退到原版
         text = render_plan(plan, lang=lang)
         text += "\n\n" + "=" * 50 + "\n"
-        text += "📋 计划已生成。请审批:\n"
+        text += "计划已生成。请审批:\n"
         text += "  y / 回车 = 批准并执行\n"
         text += "  n = 拒绝,继续普通对话\n"
         text += "  e = 编辑计划(用自然语言描述修改)\n"
@@ -165,7 +165,7 @@ def edit_pending_plan(state, edit_instruction: str) -> Result:
 
     save_pending_plan(session_id, new_plan)
     text = render_plan_for_user(new_plan, lang=state.lang if hasattr(state, "lang") else "zh")
-    text = f"✅ 计划已根据指令更新。\n\n{text}"
+    text = f"[OK] 计划已根据指令更新。\n\n{text}"
     return Result.ok(text)
 
 
@@ -211,7 +211,7 @@ def exit_plan_mode(state, approved: bool, edited_plan: Optional[Dict[str, Any]] 
         return Result.ok(render_execution_summary(results, plan, lang=lang))
     except Exception:
         # 回退
-        summary = "\n".join(f"步骤 {i+1}: {'✅' if ok else '❌'} {result[:80]}"
+        summary = "\n".join(f"步骤 {i+1}: {'[OK]' if ok else '[x]'} {result[:80]}"
                             for i, (ok, result) in enumerate(results))
         success_count = sum(1 for ok, _ in results if ok)
         return Result.ok(

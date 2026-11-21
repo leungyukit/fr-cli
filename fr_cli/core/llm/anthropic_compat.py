@@ -16,9 +16,9 @@ class AnthropicCompatibleClient(BaseLLMClient):
     流式响应(SSE):
       event: message_start
       event: content_block_start
-      event: content_block_delta    → delta.text 是真正的 token
+      event: content_block_delta → delta.text 是真正的 token
       event: content_block_stop
-      event: message_delta          → 包含 usage 信息
+      event: message_delta → 包含 usage 信息
       event: message_stop
     """
     ANTHROPIC_VERSION = "2023-06-01"

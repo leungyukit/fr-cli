@@ -114,7 +114,7 @@ class StreamingMarkdownRenderer:
             self.block_count += 1
             lang_label = self.code_lang or "code"
             sep = "─" * 60
-            return _color(sep, DIM, self.use_color) + "\n" + _color(f"  📦 {lang_label}", CYAN + BOLD, self.use_color)
+            return _color(sep, DIM, self.use_color) + "\n" + _color(f"{lang_label}", CYAN + BOLD, self.use_color)
 
         # 标题
         m = re.match(r"^(#{1,6})\s+(.+)$", stripped)

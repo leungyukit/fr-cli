@@ -56,7 +56,7 @@ def handle_local(user_input, state):
         {"role": "user", "content": requirement},
     ]
 
-    print(f"{CYAN}🧙 正在分析本地操作...{RESET}")
+    print(f"{CYAN}正在分析本地操作...{RESET}")
     cmd_text, _, _, _ = stream_cnt(state.client, state.model_name, messages, state.lang, custom_prefix="", max_tokens=1024)
     cmd_text = cmd_text.strip()
 
@@ -93,7 +93,7 @@ def handle_local(user_input, state):
         if out.strip():
             print(f"\n{GREEN}{out.strip()[:3000]}{RESET}")
         else:
-            print(f"{GREEN}✅ 命令执行完成（无输出）{RESET}")
+            print(f"{GREEN}[OK] 命令执行完成（无输出）{RESET}")
         # 将结果追加到记忆
         from fr_cli.agent.manager import save_memory, load_memory
         mem = load_memory("__local__")
@@ -101,9 +101,9 @@ def handle_local(user_input, state):
         new_mem = f"\n[{ts}] 执行: {cmd_text}\n结果: {out.strip()[:500]}\n"
         save_memory("__local__", (mem or "") + new_mem)
     except subprocess.TimeoutExpired:
-        print(f"{RED}⏱️ 命令执行超时（30秒）{RESET}")
+        print(f"{RED}命令执行超时（30秒）{RESET}")
     except Exception as e:
-        print(f"{RED}❌ 执行失败: {e}{RESET}")
+        print(f"{RED}[x] 执行失败: {e}{RESET}")
 
 
 def _run_cmd_safely(cmd_text: str, timeout: int = 30):

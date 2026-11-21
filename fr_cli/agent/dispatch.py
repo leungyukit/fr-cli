@@ -51,7 +51,7 @@ def _invoke_builtin_agent(agent_name: str, text: str, state) -> bool:
         handler(text, state)
         return True
     except Exception as e:
-        print(f"{RED}❌ 内置 Agent [{agent_name}] 执行失败: {e}{RESET}")
+        print(f"{RED}[x] 内置 Agent [{agent_name}] 执行失败: {e}{RESET}")
         return True
 
 
@@ -77,14 +77,14 @@ def dispatch_agent_call(state, text: str) -> bool:
 
     # 2) 用户自定义 Agent
     if not agent_exists(agent_name):
-        print(f"{RED}❌ Agent [{agent_name}] 不存在。{RESET}")
+        print(f"{RED}[x] Agent [{agent_name}] 不存在。{RESET}")
         print(f"{DIM}   使用 /agent_create {agent_name} <描述> 创建，或 /agent_list 查看已有分身。{RESET}")
         return True
 
-    print(f"{CYAN}🧙 正在召唤 Agent [{agent_name}]...{RESET}")
+    print(f"{CYAN}正在召唤 Agent [{agent_name}]...{RESET}")
     result = run_agent(agent_name, state, user_input=user_input)
     if result.is_fail():
-        print(f"{RED}❌ Agent [{agent_name}] 执行失败: {result.error}{RESET}")
+        print(f"{RED}[x] Agent [{agent_name}] 执行失败: {result.error}{RESET}")
     else:
         print(f"{result.unwrap()}")
     return True

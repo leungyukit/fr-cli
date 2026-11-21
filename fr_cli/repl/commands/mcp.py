@@ -17,7 +17,7 @@ def _cmd_mcp_list(state, parts):
         print(f"{DIM}用法: /mcp_add <名称> <命令> [参数...]{RESET}")
         return False
 
-    print(f"{CYAN}📡 MCP 服务器配置 ({len(servers)} 个):{RESET}")
+    print(f"{CYAN}MCP 服务器配置 ({len(servers)} 个):{RESET}")
     for s in servers:
         status = f"{GREEN}● 启用{RESET}" if s.get("enabled", True) else f"{RED}● 禁用{RESET}"
         print(f"\n  {CYAN}[{s['name']}]{RESET} {status}")
@@ -27,7 +27,7 @@ def _cmd_mcp_list(state, parts):
             print(f"    工作目录: {s['cwd']}")
 
     # 尝试获取工具列表
-    print(f"\n{CYAN}🔧 可用工具:{RESET}")
+    print(f"\n{CYAN}可用工具:{RESET}")
     tools = state.mcp.list_all_tools()
     if not tools:
         print(f"  {DIM}暂无可用工具（服务器可能未连接或已禁用）{RESET}")
@@ -52,11 +52,11 @@ def _cmd_mcp_add(state, parts):
     # 走 quick_add 走 stdio 快捷路径，避免参数错位
     try:
         state.mcp.quick_add(name, command, args)
-        print(f"{GREEN}✅ MCP 服务器 [{name}] 已添加。{RESET}")
+        print(f"{GREEN}[OK] MCP 服务器 [{name}] 已添加。{RESET}")
         print(f"{DIM}  命令: {command} {' '.join(args)}{RESET}")
         print(f"{DIM}  使用 /mcp_refresh 或重新启动以加载其工具。{RESET}")
     except Exception as e:
-        print(f"{RED}❌ 添加失败: {e}{RESET}")
+        print(f"{RED}[x] 添加失败: {e}{RESET}")
     return False
 
 
@@ -69,9 +69,9 @@ def _cmd_mcp_del(state, parts):
     name = parts[1]
     ok, err = state.mcp.remove_server(name)
     if ok:
-        print(f"{GREEN}✅ MCP 服务器 [{name}] 已删除。{RESET}")
+        print(f"{GREEN}[OK] MCP 服务器 [{name}] 已删除。{RESET}")
     else:
-        print(f"{RED}❌ 删除失败: {err}{RESET}")
+        print(f"{RED}[x] 删除失败: {err}{RESET}")
     return False
 
 
@@ -84,9 +84,9 @@ def _cmd_mcp_enable(state, parts):
     name = parts[1]
     ok, err = state.mcp.toggle_server(name, True)
     if ok:
-        print(f"{GREEN}✅ MCP 服务器 [{name}] 已启用。{RESET}")
+        print(f"{GREEN}[OK] MCP 服务器 [{name}] 已启用。{RESET}")
     else:
-        print(f"{RED}❌ 操作失败: {err}{RESET}")
+        print(f"{RED}[x] 操作失败: {err}{RESET}")
     return False
 
 
@@ -99,23 +99,23 @@ def _cmd_mcp_disable(state, parts):
     name = parts[1]
     ok, err = state.mcp.toggle_server(name, False)
     if ok:
-        print(f"{GREEN}✅ MCP 服务器 [{name}] 已禁用。{RESET}")
+        print(f"{GREEN}[OK] MCP 服务器 [{name}] 已禁用。{RESET}")
     else:
-        print(f"{RED}❌ 操作失败: {err}{RESET}")
+        print(f"{RED}[x] 操作失败: {err}{RESET}")
     return False
 
 
 
 def _cmd_mcp_refresh(state, parts):
     """刷新 MCP 服务器工具列表"""
-    print(f"{CYAN}🔄 正在刷新 MCP 工具列表...{RESET}")
+    print(f"{CYAN}正在刷新 MCP 工具列表...{RESET}")
     tools = state.mcp.list_all_tools()
     if tools:
-        print(f"{GREEN}✅ 发现 {len(tools)} 个工具:{RESET}")
+        print(f"{GREEN}[OK] 发现 {len(tools)} 个工具:{RESET}")
         for t in tools:
             print(f"  - {t['name']} ({t['server']}): {t['description']}")
     else:
-        print(f"{YELLOW}⚠️ 未发现可用工具。请检查服务器配置和连接状态。{RESET}")
+        print(f"{YELLOW}[!] 未发现可用工具。请检查服务器配置和连接状态。{RESET}")
     return False
 
 

@@ -73,7 +73,7 @@ def format_resume_prompt(session_info: Dict[str, Any], lang: str = "zh") -> str:
 
     if lang == "zh":
         return (
-            f"\n{CYAN_BOLD}📂 检测到上次会话{RESET}\n"
+            f"\n{CYAN_BOLD}检测到上次会话{RESET}\n"
             f"  文件: {filename}\n"
             f"  时间: {age_text}\n"
             f"  消息: {msg_count} 条\n"
@@ -82,7 +82,7 @@ def format_resume_prompt(session_info: Dict[str, Any], lang: str = "zh") -> str:
             f"{BLUE}s{WHITE}     = 选择其他会话"
         )
     return (
-        f"\n{CYAN_BOLD}📂 Previous session detected{RESET}\n"
+        f"\n{CYAN_BOLD}Previous session detected{RESET}\n"
         f"  File: {filename}\n"
         f"  Time: {age_text}\n"
         f"  Messages: {msg_count}\n"

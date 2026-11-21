@@ -18,7 +18,7 @@ class TestFriendlyPrint:
         text = friendly_print(e)
         assert "自定义错误" in text
         assert "试试重启" in text
-        assert "❌" in text
+        assert "[x]" in text
 
     def test_APIKeyError_has_specialized_hint(self):
         from fr_cli.core.errors import APIKeyError, friendly_print
@@ -26,7 +26,7 @@ class TestFriendlyPrint:
         e = APIKeyError()
         text = friendly_print(e)
         assert "/key" in text
-        assert "🔑" in text
+        assert "/providers use" in text  # APIKeyError 专属 hint
 
     def test_FileNotFoundError_maps_to_friendly_title_and_hint(self):
         from fr_cli.core.errors import friendly_print

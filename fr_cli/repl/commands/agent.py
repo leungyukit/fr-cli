@@ -35,7 +35,7 @@ def _cmd_agent_create(state, parts):
         save_agent_code(arg1, result["code"])
     if result["workflow"]:
         save_workflow(arg1, result["workflow"])
-    print(f"{GREEN}✅ Agent [{arg1}] 创建完成！{RESET}")
+    print(f"{GREEN}[OK] Agent [{arg1}] 创建完成！{RESET}")
     print(f"{DIM}  人设: {'已生成' if result['persona'] else '未生成'}{RESET}")
     print(f"{DIM}  技能: {'已生成' if result['skills'] else '未生成'}{RESET}")
     print(f"{DIM}  代码: {'已生成' if result['code'] else '未生成'}{RESET}")
@@ -70,7 +70,7 @@ def _cmd_agent_delete(state, parts):
     arg1 = parts[1] if len(parts) > 1 else ""
     if arg1:
         if delete_agent(arg1):
-            print(f"{GREEN}✅ Agent [{arg1}] 已删除。{RESET}")
+            print(f"{GREEN}[OK] Agent [{arg1}] 已删除。{RESET}")
         else:
             print(f"{RED}Agent [{arg1}] 不存在。{RESET}")
     return False
@@ -147,7 +147,7 @@ def _cmd_agent_edit(state, parts):
         save_agent_code(arg1, new_content)
     elif file_type == "workflow":
         save_workflow(arg1, new_content)
-    print(f"{GREEN}✅ {file_type} 已更新。{RESET}")
+    print(f"{GREEN}[OK] {file_type} 已更新。{RESET}")
     return False
 
 
@@ -188,7 +188,7 @@ def _cmd_agent_forge(state, parts):
     d = create_agent_dir(safe_name)
     save_agent_code(safe_name, code)
 
-    print(f"{GREEN}✅ Agent [{safe_name}] 创建完成！{RESET}")
+    print(f"{GREEN}[OK] Agent [{safe_name}] 创建完成！{RESET}")
     print(f"{DIM}  路径: {d}{RESET}")
     print(f"{DIM}  运行: /agent_run {safe_name} [参数]{RESET}")
     return False
@@ -228,18 +228,18 @@ def _cmd_agent_model(state, parts):
     if arg2 == "--key":
         key = parts[3] if len(parts) > 3 else ""
         if not key:
-            print(f"{RED}❌ 请提供 API Key{RESET}")
+            print(f"{RED}[x] 请提供 API Key{RESET}")
             return False
         agent_cfg["key"] = key
         save_agent_config(arg1, agent_cfg)
-        print(f"{GREEN}✅ Agent [{arg1}] 独立 API Key 已更新{RESET}")
+        print(f"{GREEN}[OK] Agent [{arg1}] 独立 API Key 已更新{RESET}")
         return False
 
     # 处理 clear 子命令
     if arg2 == "clear":
         if agent_cfg:
             save_agent_config(arg1, {})
-            print(f"{GREEN}✅ Agent [{arg1}] 专属配置已清除，恢复全局默认{RESET}")
+            print(f"{GREEN}[OK] Agent [{arg1}] 专属配置已清除，恢复全局默认{RESET}")
         else:
             print(f"{DIM}Agent [{arg1}] 无专属配置{RESET}")
         return False
@@ -277,18 +277,18 @@ def _cmd_agent_model(state, parts):
     model_name = model_name.strip()
 
     if not get_provider_info(provider_id):
-        print(f"{RED}❌ 无效提供商: {provider_id}{RESET}")
+        print(f"{RED}[x] 无效提供商: {provider_id}{RESET}")
         print(f"{DIM}可用提供商: {', '.join([p['id'] for p in list_providers()])}{RESET}")
         return False
 
     if not model_name:
-        print(f"{RED}❌ 模型名称不能为空{RESET}")
+        print(f"{RED}[x] 模型名称不能为空{RESET}")
         return False
 
     agent_cfg["provider"] = provider_id
     agent_cfg["model"] = model_name
     save_agent_config(arg1, agent_cfg)
-    print(f"{GREEN}✅ Agent [{arg1}] 专属模型已设置: [{provider_id}] {model_name}{RESET}")
+    print(f"{GREEN}[OK] Agent [{arg1}] 专属模型已设置: [{provider_id}] {model_name}{RESET}")
     return False
 
 

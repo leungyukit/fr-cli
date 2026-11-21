@@ -276,7 +276,7 @@ def format_report_text(report: dict) -> str:
         return "(无报告)"
     lines = []
     title = report.get("title") or report.get("domain") or "能力扫描"
-    lines.append(f"📊 {title} 能力扫描")
+    lines.append(f"{title} 能力扫描")
     if report.get("timestamp"):
         lines.append(f"   扫描时间: {report['timestamp'][:19]}")
     lines.append(
@@ -288,7 +288,7 @@ def format_report_text(report: dict) -> str:
 
     gaps = report.get("gaps") or []
     if not gaps:
-        lines.append("✅ 当前工具已覆盖该领域所有能力,无需补全。")
+        lines.append("[OK] 当前工具已覆盖该领域所有能力,无需补全。")
         return "\n".join(lines)
 
     # 兜底排序:高优先级在前,同优先级按置信度降序
@@ -299,10 +299,10 @@ def format_report_text(report: dict) -> str:
                        -float(g.get("confidence", 0.0))),
     )
 
-    lines.append(f"⚠️  发现 {len(gaps)} 项能力缺口:\n")
+    lines.append(f"[!] 发现 {len(gaps)} 项能力缺口:\n")
     for i, g in enumerate(gaps, 1):
-        priority_emoji = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(
-            g.get("priority", "medium"), "⚪"
+        priority_emoji = {"high": "[x]", "medium": "[!]", "low": "[*]"}.get(
+            g.get("priority", "medium"), "[ ]"
         )
         lines.append(
             f"  {i}. {priority_emoji} {g.get('name', '?')} "

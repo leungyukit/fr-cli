@@ -38,7 +38,7 @@ def _register_worktree_create(deps, **kwargs):
     if not result["ok"]:
         return Result.fail(result.get("error", "worktree 创建失败"))
     return Result.ok(
-        f"✅ Worktree 创建成功:\n"
+        f"[OK] Worktree 创建成功:\n"
         f"  路径: {result['path']}\n"
         f"  分支: {result.get('branch', '(detached)')}\n"
         f"  基于: {result.get('base', 'HEAD')}\n"
@@ -77,7 +77,7 @@ def _register_worktree_remove(deps, **kwargs):
     result = _worktree_remove(cwd=cwd, path=path, force=force)
     if not result["ok"]:
         return Result.fail(result.get("error", "worktree 删除失败"))
-    return Result.ok(f"✅ Worktree 已删除: {result['removed']}")
+    return Result.ok(f"[OK] Worktree 已删除: {result['removed']}")
 
 
 @register(
@@ -101,7 +101,7 @@ def _register_worktree_switch(deps, **kwargs):
         try:
             deps.vfs.cwd = path
             deps.vfs.cd(path, deps.lang)
-            return Result.ok(f"✅ 已切换到: {path}")
+            return Result.ok(f"[OK] 已切换到: {path}")
         except Exception as e:
             return Result.fail(f"切换失败: {e}")
     return Result.ok(f"提示:请 cd 到 {path}")

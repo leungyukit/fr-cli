@@ -63,7 +63,7 @@ class CloudDisk:
                     "type": f.type,
                     "parent_id": self._cwd,
                 }
-                prefix = "📁" if is_folder else "📄"
+                prefix = "" if is_folder else ""
                 items.append(f"{prefix} {f.name}")
             return Result.ok(items)
         except Exception as e:
@@ -80,19 +80,19 @@ class CloudDisk:
                 return Result.fail(f"{RED}已在根目录{RESET}")
             self._cwd_stack.pop()
             self._cwd = self._cwd_stack[-1][0]
-            return Result.ok(f"{GREEN}✅ 已切换至: {self._cwd_stack[-1][1]}{RESET}")
+            return Result.ok(f"{GREEN}[OK] 已切换至: {self._cwd_stack[-1][1]}{RESET}")
 
         # 进入子目录：先刷新当前目录列表
         self.ls(lang)
         file_info = self._path_map.get(path)
         if not file_info:
-            return Result.fail(f"{RED}⚠️ 目录不存在: {path}{RESET}")
+            return Result.fail(f"{RED}[!] 目录不存在: {path}{RESET}")
         if file_info["type"] != "folder":
-            return Result.fail(f"{RED}⚠️ {path} 不是目录{RESET}")
+            return Result.fail(f"{RED}[!] {path} 不是目录{RESET}")
 
         self._cwd = file_info["file_id"]
         self._cwd_stack.append((file_info["file_id"], path))
-        return Result.ok(f"{GREEN}✅ 已切换至: {path}{RESET}")
+        return Result.ok(f"{GREEN}[OK] 已切换至: {path}{RESET}")
 
     def up(self, local_path, cloud_name, lang):
         """本地文件上传至当前云盘目录，返回 Result。"""
@@ -132,7 +132,7 @@ class CloudDisk:
         if not file_info:
             return Result.fail(T("err_no_file", lang))
         if file_info["type"] == "folder":
-            return Result.fail(f"{RED}⚠️ {cloud_name} 是文件夹，暂不支持单文件下载方式下载文件夹{RED}")
+            return Result.fail(f"{RED}[!] {cloud_name} 是文件夹，暂不支持单文件下载方式下载文件夹{RED}")
 
         try:
             local_folder = os.path.dirname(local_path) or "."

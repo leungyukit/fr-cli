@@ -1,8 +1,8 @@
 # fr-cli 默认厂商配置
 # compat 字段表示 API 协议兼容模式：
-#   openai    → OpenAI 兼容协议（默认）
+#   openai → OpenAI 兼容协议（默认）
 #   anthropic → Anthropic Messages 协议
-#   zhipu     → 智谱原生 SDK
+#   zhipu → 智谱原生 SDK
 # client 字段仍然保留，作为显式客户端类覆盖（默认按 compat 推断）
 # env_key 表示该厂商 API Key 对应的环境变量名（仅作提示，不强制读取）
 

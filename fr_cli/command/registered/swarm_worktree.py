@@ -45,7 +45,7 @@ def _register_swarm_wt_create(deps, **kwargs):
     group_id = result["group_id"]
     text = format_group(group_id, "zh")
     if result.get("errors"):
-        text += f"\n\n⚠️ 部分失败: {result['errors']}"
+        text += f"\n\n[!] 部分失败: {result['errors']}"
     text += "\n\n下一步:\n"
     text += f"  每个 agent 在自己的 worktree 工作(cd {result['worktrees'][0]['path']} 等)\n"
     text += f"  /swarm_wt_merge {group_id}  合并到 {base}\n"
@@ -72,15 +72,15 @@ def _register_swarm_wt_merge(deps, **kwargs):
     result = merge_group(group_id, target_branch=target, squash=squash)
     if not result["ok"]:
         err_text = "\n".join(
-            f"  ❌ {e['branch']}: {e['error']}"
+            f"[x] {e['branch']}: {e['error']}"
             for e in result.get("errors", [])
         )
         return Result.fail(f"合并失败:\n{err_text}")
 
-    text = "✅ 蜂群合并成功:\n"
+    text = "[OK] 蜂群合并成功:\n"
     text += f"  合并 {len(result['merged'])} 个分支到 {target}\n"
     for m in result["merged"]:
-        text += f"    ✅ {m['branch']} ({m['agent']})\n"
+        text += f"[OK] {m['branch']} ({m['agent']})\n"
     if result["deleted"]:
         text += f"  删除 {len(result['deleted'])} 个 worktree\n"
     return Result.ok(text)
@@ -103,14 +103,14 @@ def _register_swarm_wt_discard(deps, **kwargs):
     if not result["ok"]:
         return Result.fail("丢弃失败")
 
-    text = "🗑️ 蜂群已丢弃:\n"
+    text = "蜂群已丢弃:\n"
     text += f"  删除 {len(result['deleted'])} 个 worktree\n"
     for p in result["deleted"]:
-        text += f"    ✅ {p}\n"
+        text += f"[OK] {p}\n"
     if result.get("errors"):
-        text += "\n⚠️ 部分失败:\n"
+        text += "\n[!] 部分失败:\n"
         for e in result["errors"]:
-            text += f"  ❌ {e['path']}: {e['error']}\n"
+            text += f"[x] {e['path']}: {e['error']}\n"
     return Result.ok(text)
 
 
@@ -126,9 +126,9 @@ def _register_swarm_wt_list(deps, **kwargs):
 
     groups = list_groups()
     if not groups:
-        return Result.ok("🐝 没有活跃的蜂群群组")
+        return Result.ok("没有活跃的蜂群群组")
 
-    lines = [f"🐝 蜂群 Worktree 群组 ({len(groups)}):"]
+    lines = [f"蜂群 Worktree 群组 ({len(groups)}):"]
     for g in groups:
         lines.append(f"\n  [{g['group_id']}] {g.get('status', '?')}")
         lines.append(f"    仓库: {g['main_repo']}")

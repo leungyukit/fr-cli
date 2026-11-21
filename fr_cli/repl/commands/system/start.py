@@ -80,7 +80,7 @@ def _step_master_agent(state) -> bool:
         success("MasterAgent 已启用")
         return True
     try:
-        yn = input(f"{CYAN}👉 启用 MasterAgent? [y/N]: {RESET}").strip().lower()
+        yn = input(f"{CYAN}启用 MasterAgent? [y/N]: {RESET}").strip().lower()
     except (EOFError, KeyboardInterrupt):
         return False
     if yn in ("y", "yes", "是"):
@@ -106,7 +106,7 @@ def _step_quick_commands(state) -> None:
 
 def _step_done(state) -> None:
     """步骤 5:写标志 + 收尾"""
-    header("Step 5/5 · 完成 🎉")
+    header("Step 5/5 · 完成")
     state.cfg["start_wizard_done"] = True
     state.save_cfg()
     info("已标记 /start 完成,下次启动不再弹向导")

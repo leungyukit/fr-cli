@@ -122,7 +122,7 @@ def _mcp_list(deps, **kwargs):
     servers = mcp.list_servers()
     if not servers:
         return Result.ok("暂无 MCP 服务器配置。")
-    lines = ["📡 MCP 服务器列表:"]
+    lines = ["MCP 服务器列表:"]
     for s in servers:
         status = f"{GREEN}● 启用{RESET}" if s.get("enabled", True) else f"{RED}● 禁用{RESET}"
         lines.append(f"  [{s['name']}] {status} | 传输: {s.get('transport', 'stdio')} | 命令: {s.get('command', 'N/A')}")
@@ -219,7 +219,7 @@ def _init_project(deps, **kwargs):
 )
 def _pref(deps, **kwargs):
     from fr_cli.core.recommender import get_top_commands
-    lines = ["📊 个人偏好统计："]
+    lines = ["个人偏好统计："]
     top = get_top_commands(10)
     if top:
         lines.append("  最常用命令:")
@@ -240,10 +240,10 @@ def _recent(deps, **kwargs):
     from fr_cli.memory.session import list_sessions
     sessions = list_sessions()
     if not sessions:
-        return Result.ok("📂 暂无自动会话存档")
-    lines = ["📚 最近会话（按日期倒序）："]
+        return Result.ok("暂无自动会话存档")
+    lines = ["最近会话（按日期倒序）："]
     for s in sessions[:5]:
-        lines.append(f"  📁 {s.get('path', '?').split('/')[-1]}  ({s.get('size_kb', 0):.1f} KB)")
+        lines.append(f"{s.get('path', '?').split('/')[-1]}  ({s.get('size_kb', 0):.1f} KB)")
     lines.append("\n  切换: /session_load <N>")
     return Result.ok("\n".join(lines))
 
@@ -259,9 +259,9 @@ def _cache(deps, **kwargs):
     s = cache_stats()
     if "clear" in str(kwargs):
         cache_clear()
-        return Result.ok("🗑️  缓存已清空")
+        return Result.ok("缓存已清空")
     return Result.ok(
-        f"💾 响应缓存统计：\n"
+        f"响应缓存统计：\n"
         f"  条目: {s['entries']} / 100\n"
         f"  命中: {s['hits']}\n"
         f"  未命中: {s['misses']}\n"

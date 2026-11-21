@@ -295,7 +295,7 @@ def _debug(deps, **kwargs):
     on = not is_debug()
     set_debug(on)
     state = "开" if on else "关"
-    return Result.ok(f"🔧 调试模式：{state}\n   错误日志：~/.fr_cli/logs/errors.log")
+    return Result.ok(f"调试模式：{state}\n   错误日志：~/.fr_cli/logs/errors.log")
 
 
 @register(
@@ -307,7 +307,7 @@ def _debug(deps, **kwargs):
 def _why(deps, **kwargs):
     """从最近一次 AI 回复中提取工具调用并展示"""
     return Result.ok(
-        "💡 /why 命令占位\n"
+        "/why 命令占位\n"
         "   查看完整 trace：~/.fr_cli/logs/errors.log\n"
         "   编辑上一条 AI 回答：按 e 键\n"
         "   重试上一条：按 r 键\n"
@@ -338,6 +338,6 @@ def _unconfirm(deps, **kwargs):
     categories = ", ".join(sorted(existing.keys())) if existing else "(legacy: auto_confirm_forever=True)"
     deps.security.unconfirm_all()
     return Result.ok(
-        f"✅ 已撤销所有永久放行（共 {len(existing)} 个类别：{categories}）\n"
+        f"[OK] 已撤销所有永久放行（共 {len(existing)} 个类别：{categories}）\n"
         f"   下次 sec_* 操作将重新弹窗确认。"
     )

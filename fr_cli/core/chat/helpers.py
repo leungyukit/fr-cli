@@ -35,7 +35,7 @@ def auto_compress_messages(state, messages):
         )
         if did_compress:
             saved = max(0, before - after)
-            print(f"{DIM}💡 已压缩早期对话摘要(估算节省约 {saved} tokens){RESET}")
+            print(f"{DIM}已压缩早期对话摘要(估算节省约 {saved} tokens){RESET}")
             messages[:] = compressed
     except Exception:
         pass

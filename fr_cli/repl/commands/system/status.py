@@ -31,14 +31,14 @@ def _cmd_status(state, parts):
     # 文本面板
     header("fr-cli 全局状态")
 
-    key_ok = "✅ 已配置" if summary.get("api_key_configured") else "❌ 未配置"
-    print(f"🤖 模型: {summary.get('provider')} / {summary.get('model')}")
-    print(f"🔑 API Key: {key_ok}")
-    print(f"🔐 自主模式: {summary.get('autonomous_mode')}")
+    key_ok = "[OK] 已配置" if summary.get("api_key_configured") else "[x] 未配置"
+    print(f"模型: {summary.get('provider')} / {summary.get('model')}")
+    print(f"API Key: {key_ok}")
+    print(f"自主模式: {summary.get('autonomous_mode')}")
 
     ma = summary.get("master_agent", {})
     ma_state = "已启用" if ma.get("enabled") else "未启用"
-    print(f"🧠 MasterAgent: {ma_state} (interactions: {ma.get('total_interactions', 0)})")
+    print(f"MasterAgent: {ma_state} (interactions: {ma.get('total_interactions', 0)})")
 
     print()
     agent_srv = summary.get("agent_server", {})
@@ -68,14 +68,14 @@ def _cmd_status(state, parts):
 
     print()
     rq = summary.get("review_queue", {})
-    print(f"📋 审核队列: {rq.get('pending', 0)} pending / {rq.get('total', 0)} total")
-    print(f"⏰ 定时任务: {summary.get('cron_jobs', 0)} 个")
-    print(f"📦 插件: {summary.get('plugins', 0)} | Agent 分身: {summary.get('agents', 0)}")
+    print(f"审核队列: {rq.get('pending', 0)} pending / {rq.get('total', 0)} total")
+    print(f"定时任务: {summary.get('cron_jobs', 0)} 个")
+    print(f"插件: {summary.get('plugins', 0)} | Agent 分身: {summary.get('agents', 0)}")
 
     rag = summary.get("rag_watcher", {})
     if rag.get("kb_dir"):
         rag_state = "运行中" if rag.get("running") else "未运行"
-        print(f"📚 RAG 监控: {rag_state} ({rag.get('kb_dir')})")
+        print(f"RAG 监控: {rag_state} ({rag.get('kb_dir')})")
 
     # 最近错误摘要
     failed_count = len(errors.get("hermes_failed_tasks", []))

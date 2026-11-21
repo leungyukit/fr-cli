@@ -34,7 +34,7 @@ def exec_plugin(name, path, args, lang):
     """
     # 安全检查：插件名必须是合法 Python 标识符
     if not name.isidentifier():
-        print(f"{RED}❌ 非法插件名: {name}{RESET}")
+        print(f"{RED}[x] 非法插件名: {name}{RESET}")
         return
 
     import json
@@ -64,6 +64,6 @@ else:
         if res.stderr.strip():
             print(f"{DIM}{res.stderr.strip()}{RESET}")
     except subprocess.TimeoutExpired:
-        print(f"{RED}⏳ {T('err_posix', lang)} Timeout (15s){RESET}")
+        print(f"{RED}{T('err_posix', lang)} Timeout (15s){RESET}")
     except Exception as e:
         print(f"{RED}{T('err_posix', lang)} {e}{RESET}")

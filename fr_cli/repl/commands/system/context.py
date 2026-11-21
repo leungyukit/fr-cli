@@ -35,10 +35,10 @@ def _cmd_context(state, parts):
         if did_compress:
             state.messages = compressed
             saved = max(0, before - after)
-            print(f"{GREEN}✅ {'已压缩早期对话' if is_zh else 'Compressed early conversation'}{RESET}")
+            print(f"{GREEN}[OK] {'已压缩早期对话' if is_zh else 'Compressed early conversation'}{RESET}")
             print(f"   {DIM}{'估算 token' if is_zh else 'Estimated tokens'}: {before} → {after} ({'节省' if is_zh else 'saved'} {saved}){RESET}")
         else:
-            print(f"{YELLOW}⚠️ {'没有可压缩的早期对话' if is_zh else 'No early conversation to compress'}{RESET}")
+            print(f"{YELLOW}[!] {'没有可压缩的早期对话' if is_zh else 'No early conversation to compress'}{RESET}")
         return False
 
     if sub == "threshold":
@@ -49,9 +49,9 @@ def _cmd_context(state, parts):
                 if v < 0:
                     raise ValueError
                 state.update_context_compress_threshold(v)
-                print(f"{GREEN}✅ {'自动压缩阈值已设为' if is_zh else 'Auto-compress threshold set to'} {v}{RESET}")
+                print(f"{GREEN}[OK] {'自动压缩阈值已设为' if is_zh else 'Auto-compress threshold set to'} {v}{RESET}")
             except ValueError:
-                print(f"{RED}❌ {'阈值必须是非负整数' if is_zh else 'Threshold must be a non-negative integer'}{RESET}")
+                print(f"{RED}[x] {'阈值必须是非负整数' if is_zh else 'Threshold must be a non-negative integer'}{RESET}")
         else:
             print(f"{DIM}{'当前自动压缩阈值' if is_zh else 'Current auto-compress threshold'}: {state.context_compress_threshold}{RESET}")
         return False
@@ -64,9 +64,9 @@ def _cmd_context(state, parts):
                 if v < 1:
                     raise ValueError
                 state.update_context_compress_keep_recent(v)
-                print(f"{GREEN}✅ {'保留最近轮数已设为' if is_zh else 'Keep-recent rounds set to'} {v}{RESET}")
+                print(f"{GREEN}[OK] {'保留最近轮数已设为' if is_zh else 'Keep-recent rounds set to'} {v}{RESET}")
             except ValueError:
-                print(f"{RED}❌ {'保留轮数必须是正整数' if is_zh else 'Keep-recent must be a positive integer'}{RESET}")
+                print(f"{RED}[x] {'保留轮数必须是正整数' if is_zh else 'Keep-recent must be a positive integer'}{RESET}")
         else:
             print(f"{DIM}{'当前保留最近轮数' if is_zh else 'Current keep-recent rounds'}: {state.context_compress_keep_recent}{RESET}")
         return False

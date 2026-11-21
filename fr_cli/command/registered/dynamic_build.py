@@ -112,7 +112,7 @@ def _build_missing_tool(deps, **kwargs):
 )
 def _build_cmd(deps, **kwargs):
     """占位：/build 由 main.py 路由处理"""
-    return Result.ok("💡 /build 由 main.py 路由处理")
+    return Result.ok("/build 由 main.py 路由处理")
 
 
 @register(

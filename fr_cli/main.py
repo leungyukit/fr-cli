@@ -294,7 +294,7 @@ def main():
             # 普通对话走队列（支持用户在 AI 回答期间继续输入）
             queue_mgr = state._queue_mgr
             if queue_mgr.is_processing:
-                print(f"{DIM}⏳ 已加入队列，AI 回答完成后自动处理...{RESET}")
+                print(f"{DIM}已加入队列，AI 回答完成后自动处理...{RESET}")
             queue_mgr.process(u)
 
 

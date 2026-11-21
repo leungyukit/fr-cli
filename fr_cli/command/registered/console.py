@@ -27,13 +27,13 @@ def _register_console_start(deps, **kwargs):
         return Result.fail(result.get("error", "启动失败"))
 
     return Result.ok(
-        f"✅ Web 控制台已启动\n"
+        f"[OK] Web 控制台已启动\n"
         f"  URL: {result['url']}\n"
         f"  Token: {result['token']}\n"
         f"  带 Token URL: {result['url_with_token']}\n\n"
-        f"💡 API 示例:\n"
+        f"API 示例:\n"
         f"  curl '{result['url_with_token'].replace('/?token=', '/api/status?token=')}'\n\n"
-        f"⚠️ Token 仅在本次启动显示,丢失需重启。"
+        f"[!] Token 仅在本次启动显示,丢失需重启。"
     )
 
 
@@ -49,7 +49,7 @@ def _register_console_stop(deps, **kwargs):
     result = stop_console()
     if not result["ok"]:
         return Result.fail(result.get("error"))
-    return Result.ok("✅ Web 控制台已停止")
+    return Result.ok("[OK] Web 控制台已停止")
 
 
 @register(
@@ -65,7 +65,7 @@ def _register_console_status(deps, **kwargs):
     if not s["running"]:
         return Result.ok("Web 控制台未运行")
     return Result.ok(
-        f"🟢 Web 控制台运行中\n"
+        f"[*] Web 控制台运行中\n"
         f"  URL: {s['url']}\n"
         f"  Token: {s['token']}"
     )

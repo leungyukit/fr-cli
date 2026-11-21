@@ -2,9 +2,9 @@
 
 ZH_DICT = {
   "sys_prompt": "你是一个智能AI助手，可以帮助用户解答问题、编写代码、分析文件等。\n直接回答用户的问题。只有当系统提示中提供了可用工具时，才按以下规则调用：\n\n1. 内置工具（文件/搜索/画图/邮件/定时任务/云盘/会话/配置）使用【调用：tool_name({\"参数\": \"值\"})】格式，参数为标准 JSON。常用示例：\n   - 写文件: 【调用：write_file({\"path\": \"file.md\", \"content\": \"# 标题\\n\\n正文\"})】\n   - 读文件: 【调用：read_file({\"path\": \"file.md\"})】\n   - 列出文件: 【调用：list_files({})】\n   - 搜索: 【调用：search_web({\"query\": \"搜索词\"})】\n   - 画图: 【调用：generate_image({\"prompt\": \"描述\"})】\n   - 保存会话: 【调用：save_session({'name': '会话名'})】\n\n   特别说明：当用户询问本程序的功能说明、使用帮助，或要求发送/分享本程序的说明文档时，请优先使用 read_file 读取当前工作空间中的 MANUAL.md 文件获取完整说明，而不是进行网络搜索。\n\n2. 自定义插件（skills）使用【命令：/插件名 参数】格式。\n\n如果系统提示中没有提供工具列表，直接回答即可，不要包含任何【调用：...】或【命令：...】标记。\n\n当用户明确要求创建插件/工具时，请生成包含 def run(args='') 的 Python 代码，并放在 ```python 代码块中。",
-  "prompt_user": "🧑 凡人",
-  "prompt_ai": "🧙 仙人",
-  "prompt_skill": "⚔️",
+  "prompt_user": "凡人",
+  "prompt_ai": "仙人",
+  "prompt_skill": "",
   "banner_title": [
     " 凡 人 打 字 机 ",
     "──────────────────────────────────",
@@ -14,55 +14,55 @@ ZH_DICT = {
     "欢 迎 下 次",
     "继 续 修 仙"
   ],
-  "bye_msg": "道友，保重。👋",
-  "status_model": "🔮 模型",
-  "status_limit": "🛡️ 上限",
-  "status_dir": "📂 洞府",
-  "status_sess": "⏳ 轮回",
+  "bye_msg": "道友，保重。",
+  "status_model": "模型",
+  "status_limit": "上限",
+  "status_dir": "洞府",
+  "status_sess": "轮回",
   "no_dir": "未开放洞府",
   "new_sess": "全新轮回",
   "cur_dir": "当前",
-  "conn_ok": "✅ 天道连通。",
-  "conn_fail": "❌ 天道拒绝:",
-  "err_posix": "❌ 走火入魔:",
-  "err_bound": "⚠️ 禁止穿越结界",
-  "err_no_file": "⚠️ 卷轴不存在",
+  "conn_ok": "[OK] 天道连通。",
+  "conn_fail": "[x] 天道拒绝:",
+  "err_posix": "[x] 走火入魔:",
+  "err_bound": "[!] 禁止穿越结界",
+  "err_no_file": "[!] 卷轴不存在",
   "grep_no_match": "未找到匹配 '{}' 的内容 (文件: {})",
-  "ok_dir_add": "✅ 洞府 [{}] 已开辟",
-  "err_dir_no": "❌ 目录不存在",
-  "ok_cd": "✅ 穿梭至: {}",
-  "ok_dir_remove": "✅ 洞府 [{}] 已关闭",
-  "err_dir_idx": "❌ 索引无效",
-  "err_dir_not_mounted": "❌ 未挂载的洞府: {}",
-  "ok_write": "✅ 卷轴已刻录: {}",
-  "err_write_perm": "❌ 权限不足，无法刻录",
-  "ok_delete": "✅ 卷轴已销毁: {}",
-  "diff_new_file": "🆕 新建卷轴: {}",
-  "diff_overwrite": "📝 覆盖卷轴: {}",
-  "diff_append": "➕ 追加卷轴: {}",
+  "ok_dir_add": "[OK] 洞府 [{}] 已开辟",
+  "err_dir_no": "[x] 目录不存在",
+  "ok_cd": "[OK] 穿梭至: {}",
+  "ok_dir_remove": "[OK] 洞府 [{}] 已关闭",
+  "err_dir_idx": "[x] 索引无效",
+  "err_dir_not_mounted": "[x] 未挂载的洞府: {}",
+  "ok_write": "[OK] 卷轴已刻录: {}",
+  "err_write_perm": "[x] 权限不足，无法刻录",
+  "ok_delete": "[OK] 卷轴已销毁: {}",
+  "diff_new_file": "[NEW] 新建卷轴: {}",
+  "diff_overwrite": "覆盖卷轴: {}",
+  "diff_append": "[+] 追加卷轴: {}",
   "diff_preview_truncated": "（内容过长，仅预览前 {} 行；完整内容请用 /cat 查看）",
   "diff_truncated": "（差异过长，已截断；完整 diff 请用系统 diff 工具查看）",
   "diff_no_binary": "（二进制卷轴，不显示差异）",
-  "ok_model": "✅ 法器更替: {}",
-  "err_model": "❌ 碎裂:",
-  "ok_key": "✅ 重铸。",
-  "ok_limit": "✅ 上限: {}",
-  "err_limit": "❌ 最小1000",
-  "ok_forged": "✅ 法宝铸造: /{}",
-  "ok_sess_save": "✅ 刻录: [{}]",
-  "ok_sess_load": "✅ 穿梭至: [{}]",
-  "ok_sess_del": "✅ 斩断",
-  "ok_undo": "✅ 时光倒流。",
-  "err_undo": "❌ 无法倒流。",
-  "ok_export": "✅ 导出: {}",
-  "ok_alias_set": "✅ 烙印: {} = {}",
+  "ok_model": "[OK] 法器更替: {}",
+  "err_model": "[x] 碎裂:",
+  "ok_key": "[OK] 重铸。",
+  "ok_limit": "[OK] 上限: {}",
+  "err_limit": "[x] 最小1000",
+  "ok_forged": "[OK] 法宝铸造: /{}",
+  "ok_sess_save": "[OK] 刻录: [{}]",
+  "ok_sess_load": "[OK] 穿梭至: [{}]",
+  "ok_sess_del": "[OK] 斩断",
+  "ok_undo": "[OK] 时光倒流。",
+  "err_undo": "[x] 无法倒流。",
+  "ok_export": "[OK] 导出: {}",
+  "ok_alias_set": "[OK] 烙印: {} = {}",
   "no_alias": "无烙印。",
-  "sec_title": "⚠️ 检测到高危神通，请选择因果:",
+  "sec_title": "[!] 检测到高危神通，请选择因果:",
   "sec_opt_y": "[Y]仅此",
   "sec_opt_a": "[A]本轮",
   "sec_opt_f": "[F]永世",
   "sec_opt_n": "[N]拒绝",
-  "sec_denied": "🛑 终止。",
+  "sec_denied": "[STOP] 终止。",
   "sec_read": "读取卷轴",
   "sec_write": "写入法宝",
   "sec_exec": "执行法宝",
@@ -73,20 +73,20 @@ ZH_DICT = {
   "sec_upload_disk": "上传至云端",
   "sec_download_disk": "下载自云端",
   "sec_shell": "执行系统命令",
-  "gen_ing": "🎨 祭炼…",
-  "gen_ok": "✅ 画卷成: {}",
-  "gen_fail": "❌ 破碎: ",
-  "see_warn": "⚠️ 需配置视觉模型",
-  "see_ing": "👁️ 天眼…",
-  "help_title": "📜 修仙指南:",
+  "gen_ing": "祭炼…",
+  "gen_ok": "[OK] 画卷成: {}",
+  "gen_fail": "[x] 破碎: ",
+  "see_warn": "[!] 需配置视觉模型",
+  "see_ing": "天眼…",
+  "help_title": "修仙指南:",
   "help_cfg": "【天道】",
   "help_fs": "【洞府】",
   "help_sess": "【轮回】",
   "help_plugin": "【法宝】",
   "help_extra": "【神通】",
   "help_shell": "【破界】",
-  "help_usage": "💡 用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
-  "help_not_found": "❌ 未知主题: {}  可用: config, fs, session, plugin, mail, m365, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, hermes, build, context, status, stock, all",
+  "help_usage": "用法: /help [主题]  可用主题: config, fs, session, plugin, mail, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, all",
+  "help_not_found": "[x] 未知主题: {}  可用: config, fs, session, plugin, mail, m365, cron, web, disk, vision, shell, tools, security, app, agent, builtin, dataframe, gatekeeper, mcp, hermes, build, context, status, stock, all",
   "empty": "空空如也…",
   "none": "无",
   "no_sess": "无记忆。",
@@ -100,37 +100,37 @@ ZH_DICT = {
   "mail_inbox": "/mail_inbox",
   "mail_read": "/mail_read <ID>",
   "mail_send": "/mail_send <To> <Sub> <Body>",
-  "mail_ok": "✅ 已发送",
-  "mail_err": "❌ 邮件:",
-  "mail_no_cfg": "❌ 未配邮",
+  "mail_ok": "[OK] 已发送",
+  "mail_err": "[x] 邮件:",
+  "mail_no_cfg": "[x] 未配邮",
   "mail_sub": "主题: {}",
   "mail_from": "来自: {}",
   "mail_date": "时间: {}",
   "cron_add": "/cron_add <秒> <命>",
   "cron_list": "/cron_list",
   "cron_del": "/cron_del <ID>",
-  "cron_ok": "✅ 布阵 (ID:{}, {}秒)",
-  "cron_killed": "✅ 破阵: {}",
-  "cron_running": "🏃 运行",
+  "cron_ok": "[OK] 布阵 (ID:{}, {}秒)",
+  "cron_killed": "[OK] 破阵: {}",
+  "cron_running": "运行",
   "web_search": "/web <词> 搜索",
   "web_fetch": "/fetch <URL> 抓取",
-  "web_err": "❌ 迷路:",
+  "web_err": "[x] 迷路:",
   "web_no_res": "无果。",
-  "web_title": "📜 搜魂:",
+  "web_title": "搜魂:",
   "disk_setup": "/disk_setup",
   "disk_ls": "/disk_ls <盘>",
   "disk_up": "/disk_up <盘> <路>",
   "disk_down": "/disk_down <盘> <云> [本]",
-  "disk_ok_up": "✅ 飞升: {}",
-  "disk_ok_down": "✅ 降落: {}",
-  "disk_err": "❌ 御剑: ",
-  "disk_no_cfg": "❌ 未配盘",
-  "disk_miss_dep": "❌ 缺库: {} (pip install {})",
+  "disk_ok_up": "[OK] 飞升: {}",
+  "disk_ok_down": "[OK] 降落: {}",
+  "disk_err": "[x] 御剑: ",
+  "disk_no_cfg": "[x] 未配盘",
+  "disk_miss_dep": "[x] 缺库: {} (pip install {})",
   "shell_tip": "!命令 调用天地法则(如 !ls)",
   "pipe_tip": "!命令 | 提示 周天推演喂给仙人(如 !ps aux | 找出占用灵力最高的修士)",
   "pipe_prefix": "[系统管道数据]:\n",
-  "artifact_detect": "⚡ 检测到法宝结构，赐名 (回车放弃): ",
-  "recommend_title": "💡 推荐功能:",
+  "artifact_detect": "检测到法宝结构，赐名 (回车放弃): ",
+  "recommend_title": "推荐功能:",
   "rec_ls": "列出当前目录文件",
   "rec_cat": "查看文件内容",
   "rec_cd": "切换目录",
@@ -153,45 +153,45 @@ ZH_DICT = {
   "rec_export": "导出会话为Markdown",
   "rec_exec": "执行系统命令",
   "rec_pipe": "命令输出管道到AI",
-  "help_detail_config": "📜 【配置与模型】\n\n/model                    交互式选择模型\n/model config             交互式模型配置向导（选择提供商 + 模型 + 设 Key）\n/model list               列出所有可用模型/提供商\n/model current            显示当前模型\n/model default            恢复当前提供商的默认模型\n/model <arg>              直接切换模型（如 /model deepseek:deepseek-chat）\n/providers                查看/管理所有提供商配置\n/providers use <提供商>    切换到指定提供商\n/providers setup          交互式提供商配置向导\n/key <key>                为当前提供商设置 API Key\n/key <提供商> <key>        为指定提供商设置 API Key\n/limit <n>                设置Token上限 (最小1000)\n/lang <zh/en>             切换界面语言\n/autonomous [manual|sandbox_auto|full_auto|off]  设置自治模式\n/mode <direct|cot|tot|react|plan>  切换AI思维模式\n/dir <path>               添加允许访问的目录到沙盒\n/dirs                     列出所有已挂载的工作目录\n/rmdir <索引>             删除指定的工作目录\n/export                   导出当前会话为Markdown文件\n/update check             检查更新\n/update run               执行更新并重启\n\n配置文件: ~/.fr_cli/config.json\n",
-  "help_detail_fs": "📜 【洞府 - 文件操作】\n\n/dir              列出当前目录文件\n/open <file>      查看文件内容 (支持UTF-8/GBK/Latin-1)\n/dirs             列出所有已挂载的工作目录\n/rmdir <idx>      删除指定的工作目录\n/write <f> <c>    写入/覆盖文件\n/append <f> <c>   追加内容到文件\n/delete <f>       删除文件\n\n使用示例:\n  /dir               列出文件\n  /open README.md    查看文件内容\n  /dirs              查看已挂载目录\n  /write a.md 内容   写入文件\n  /append a.md 追加  追加内容\n  /delete a.md       删除文件（需安全确认）\n\n安全机制:\n  • 限制在 allowed_dirs 目录内, 禁止 ../ 穿越\n  • /write 自动创建父目录\n  • 危险操作触发四阶安全确认\n",
-  "help_detail_session": "📜 【轮回 - 会话管理】\n\n/save <name>      保存当前对话历史\n/load             加载历史会话 (交互式选择)\n/del              删除历史会话 (交互式选择)\n/export           导出当前会话为Markdown\n\n自动按日期存档:\n  /session_list     列出所有按日期自动保存的会话\n  /session_load <N> 加载指定编号的会话并继续对话\n  /session_del <N>  删除指定编号的自动会话\n\n使用示例:\n  /save 项目讨论     保存当前会话\n  /load              交互式选择并加载\n  /del               交互式选择并删除\n  /export            导出为 Markdown\n  /session_list      查看自动存档列表\n  /session_load 1    加载今天的第一个会话继续聊\n\n上下文记忆与压缩:\n  • 自动保留最近5轮对话摘要\n  • 超过阈值时自动压缩早期对话（/context 管理）\n  • 按 session_name 持久化到 config.json 的 context 命名空间\n  • 加载会话时自动恢复上下文摘要\n  • 每次启动自动创建日期编号会话文件（~/.fr_cli/sessions/auto/）\n",
-  "help_detail_plugin": "📜 【法宝 - 插件系统】\n\n/skills           查看已安装插件列表\n/<plugin> [args]  运行指定插件\n\n自动进化:\n  • AI回复中包含 def run(args='') 和 ```python 代码块时\n  • 程序提示\"检测到法宝结构\", 输入名称即可保存\n\n插件目录: ~/.fr_cli/plugins/\n插件约定: def run(args='') 返回字符串结果\n安全: 独立子进程执行, 15秒超时\n",
-  "help_detail_mail": "📜 【邮差 - 邮件功能】\n\n配置方式:\n  1. 获取邮箱授权码（QQ邮箱: 设置→账户→开启IMAP/SMTP）\n  2. /mail setup 启动配置向导\n\n/mail setup       邮件配置向导\n/mail inbox       列出收件箱最近10封邮件\n/mail read <id>   读取指定邮件完整内容\n/mail send <to> <sub> <body>  发送邮件\n\n使用示例:\n  /mail setup\n  /mail inbox\n  /mail read 1\n  /mail send friend@qq.com 主题 正文\n\n支持邮箱: QQ/163/Gmail/Outlook/阿里云\n注意: QQ/163 需使用「授权码」而非登录密码\n",
-  "help_detail_cron": "📜 【结界 - 定时任务】\n\n/cron_add <秒> <命令>   添加循环定时任务 (Shell命令)\n/cron_list              列出运行中的定时任务\n/cron_del <id>          删除指定任务\n\n使用示例:\n  /cron_add 300 ls -la /project   每5分钟列出项目目录\n  /cron_add 60 df -h              每分钟检查磁盘\n  /cron_list\n  /cron_del 1\n\n注意:\n  • 基于 threading.Timer, 程序退出后任务消失\n  • 如需持久化, 使用 /gatekeeper start 启动守护进程\n  • Shell命令执行30秒超时, 输出截断100字符\n  • 危险操作触发安全确认\n",
-  "help_detail_web": "📜 【游侠 - 网络搜索】\n\n/web <query>      百度搜索 (返回最多5条结果)\n/fetch <url>      抓取网页并提取纯文本 (截断3000字符)\n\n使用示例:\n  /web Python asyncio 教程\n  /fetch https://docs.python.org/3/library/asyncio.html\n\nAI自动调用:\n  【调用：search_web({\"query\": \"搜索词\"})】\n  【调用：fetch_web({\"url\": \"https://...\"})】\n",
-  "help_detail_disk": "📜 【腾云 - 云盘功能】\n\n当前支持阿里云盘（个人网盘）。\n首次使用需运行 /disk_setup 完成扫码登录。\n\n/disk_setup       启动云盘配置向导（扫码登录）\n/disk_ls          列出当前云盘目录的文件和文件夹\n/disk_cd <目录名>  切换云盘目录（支持 .. 返回上级）\n/disk_up <本地路径> <云端名称>   上传文件到当前目录\n/disk_down <云端名称> [本地路径] 从当前目录下载文件\n\n使用示例:\n  /disk_setup                     首次扫码登录\n  /disk_ls                        列出云盘文件\n  /disk_cd 文档                   进入文档目录\n  /disk_up /local/report.pdf report.pdf\n  /disk_down report.pdf /local/\n\n依赖: pip install aligo\n",
-  "help_detail_vision": "📜 【天眼 - 图像功能】\n\n/see <图片路径> [问题]    用GLM-4V分析图片内容\n\n使用步骤:\n  1. /model <视觉模型>             切换至视觉模型\n  2. /see photo.jpg 描述这张图片  分析图片\n\nAI自动调用:\n  【调用：generate_image({\"prompt\": \"描述\"})】\n  图片生成使用当前厂商配置的图像模型, 保存到当前目录\n",
-  "help_detail_shell": "📜 【破壁 - 系统命令】\n\n!<cmd>            执行本地Shell命令 (如 !ls -la)\n!<cmd> | <prompt> 将命令输出管道给AI分析\n\n使用示例:\n  !ls -la /Users/me/project\n  !ps aux | 找出占用CPU最高的进程\n  !cat log.txt | 分析这段日志有什么问题\n\n注意:\n  • 命令由你显式键入,不再二次确认(AI 发起的调用仍走 sec_shell)\n  • 单条命令超时 5 分钟\n  • 普通模式输出仅展示;管道模式输出截断 3000 字符后进入 AI 上下文\n  • 流式回答中按 Esc / Ctrl+C 可中断\n",
-  "help_detail_tools": "📜 【AI工具调用 - 结构化调用】\n\nAI自动输出调用标记, 程序解析并执行:\n  【调用：tool_name({\"参数\": \"值\"})】\n\n常用工具:\n  write_file     {\"path\", \"content\"}\n  read_file      {\"path\"}\n  list_files     {}\n  search_web     {\"query\"}\n  fetch_web      {\"url\"}\n  generate_image {\"prompt\"}\n  mail_inbox     {}\n  mail_send      {\"to\", \"subject\", \"body\"}\n  cron_add       {\"command\", \"interval\"}\n  save_session   {\"name\"}\n  set_model      {\"name\"}\n  agent_call     {\"name\", \"user_input\"}\n  swarm_run      {\"mode\", \"names\", \"user_input\"}\n  mcp_call       {\"server\", \"tool\", \"arguments\"}\n\n动态构建:\n  /build <需求>         AI 按需生成工具、安装依赖、自测并注册\n  /build list           列出已构建工具\n  /build check <name>   重新测试并修复指定工具\n  /build del <name>     删除已构建工具\n\n插件调用 (命令方式):\n  【命令：/插件名 参数】\n\n旧格式兼容:\n  file_operations\n/write file.md \"内容\"\n",
-  "help_detail_app": "📜 【驭器 - 本机应用启动】\n\n/open <路径/URL>           用系统默认程序打开文件或网址\n/launch <应用> [目标]      启动指定应用，可带文件或URL参数\n/apps                      列出本机可用的应用别名\n\n使用示例:\n  /open https://example.com\n  /open /Users/me/doc.pdf\n  /launch chrome https://github.com\n  /launch 微信\n  /launch word /Users/me/report.docx\n\n常用应用别名:\n  浏览器: chrome, safari, firefox, edge, 浏览器\n  办公:   word, excel, powerpoint, ppt, wps\n  通讯:   wechat, 微信, qq, 钉钉, 飞书\n  工具:   vscode, terminal, 终端, 计算器, 记事本\n  媒体:   music, 播放器, spotify, vlc\n",
-  "help_detail_agent": "📜 【分身 - Agent 系统】\n\n/master on|off|status          主控 Agent — 自我进化型全能助手（接管所有对话）\n\n/agent_create <名称> <描述>   AI 自动生成完整 Agent（人设/技能/代码）\n/agent_forge <名称>            从最近一次 AI 回复中提取代码，铸造为 Agent\n/agent_list                    列出所有 Agent 分身\n/agent_show <名称>             查看 Agent 详情（人设/记忆/技能/代码/工作流）\n/agent_edit <名称> <类型>      编辑 Agent 设定（persona/memory/skills/agent/workflow）\n/agent_run <名称> [参数]       运行指定 Agent\n/agent_delete <名称>           删除 Agent\n/agent_model <名称> [provider:model|clear|--key <key>]\n                               查看/设置 Agent 专属模型（独立 config.json 持久化）\n\nAgent 目录: ~/.fr_cli/agents/<名称>/\n  • persona.md  — 角色设定\n  • memory.md   — 长期记忆\n  • skills.md   — 技能说明\n  • agent.py    — 可选自定义执行逻辑（必须包含 run(context, **kwargs)）\n  • workflow.md — 可选工作流定义\n  • config.json — 专属模型配置（provider / model / key，可选）\n\n模型绑定示例：\n  /agent_model my_agent deepseek:deepseek-chat   — 绑定专属模型\n  /agent_model my_agent --key sk-own-key         — 设置独立 API Key\n  /agent_model my_agent clear                    — 清除专属配置，恢复全局默认\n\n将已有代码转为 Agent 的方法：\n  1. 在对话中让 AI 生成包含 def run(context, **kwargs) 的代码\n  2. 程序会自动检测到 Agent 结构并提示保存\n  3. 或手动执行 /agent_forge <名称> 从最近回复中提取代码\n",
-  "help_detail_builtin": "📜 【神通 - 内置 Agent 前缀】\n\n在对话中直接使用 @ 前缀触发内置 Agent：\n\n@local <需求>              本地系统操作助手，AI 生成系统命令并执行\n@remote [别名] <需求>      远程 SSH 操作助手，通过 SSH 在远程主机执行命令\n@spider <URL> [深度]       智能网页爬虫，模拟真人行为获取网页内容\n@db [别名] <需求>          数据库智能助手，自动分析 Schema 并生成 SQL\n@RAG <问题>                本地知识库问答，向量检索 + 大模型生成\n@stock <需求>              股票/量化助手，支持行情查询与模拟交易\n\nRAG 知识库管理:\n  /rag_dir <路径>   — 设置知识库目录并首次同步\n  /rag_sync [路径]  — 手动同步知识库（向量化新文件）\n  /rag_watch start [目录] [--interval N] — 启动独立守护进程（持久化后台监控）\n  /rag_watch stop   — 停止独立守护进程\n  /rag_watch status — 查看守护进程状态\n  /rag_watch log [--lines N] — 查看守护进程日志\n\n说明:\n  • ChromaDB 以嵌入式 PersistentClient 自动启动，无需单独服务\n  • 内置模式（/rag_dir 后自动启动）为 daemon 线程，退出 fr-cli 后终止\n  • 独立模式（/rag_watch start）为系统级进程，退出终端后仍继续运行\n  • 守护进程通过 PID 文件管理，日志写入 ~/.fr_cli/rag/watcher.log\n\n配置向导:\n  /remote_setup  — 远程主机配置向导（配置文件: ~/.fr_cli/remote/hosts.json）\n  /db_setup      — 数据库配置向导（配置文件: ~/.fr_cli/database.json）\n  /stock_config setup — 股票数据源配置向导（配置文件: ~/.fr_cli/stock.json）\n",
-  "help_detail_dataframe": "📜 【数据卷轴 - Excel / CSV】\n\n/read_excel <文件>   读取 Excel 文件并输出数据摘要\n/read_csv <文件>     读取 CSV 文件并输出数据摘要\n\n说明:\n  • 支持 .xlsx, .xls, .csv 格式\n  • 自动输出列名、数据类型、非空统计、数值统计、前10行预览\n  • 数据摘要可提交给 AI 进行深度分析\n",
-  "help_detail_gatekeeper": "📜 【结界守护 - Gatekeeper 守护进程】\n\n/gatekeeper start    启动守护进程（持久化 Agent HTTP 服务、全局定时任务、Agent 定时任务）\n/gatekeeper stop     停止守护进程\n/gatekeeper status   查看守护进程状态\n\nAgent 分身定时任务:\n  /agent_cron_add <agent名称> <间隔秒> [输入]  为 Agent 添加定时执行计划\n  /agent_cron_list                              列出所有 Agent 定时任务\n  /agent_cron_del <ID>                          删除 Agent 定时任务\n\n说明:\n  • 守护进程独立于 fr-cli 主程序运行，退出终端后仍继续工作\n  • 启动时自动保存当前的 Agent HTTP 服务端口和定时任务配置\n  • 程序退出后守护进程仍可维持 Agent API、全局定时任务、Agent 定时任务\n  • 守护进程每30秒热重载配置，主进程新增/删除任务后自动同步\n  • 全局定时任务（/cron_add）修改后自动同步到守护进程配置\n  • 守护进程配置存储在 ~/.fr_cli/daemon/config.json 中\n",
-  "help_detail_hermes": "📜 【Hermes 后台自治引擎】\n\n/hermes status              查看引擎状态\n/hermes goal <目标>         创建目标并自动分解为子任务\n/hermes task <描述>         创建延迟任务（默认 5 分钟后执行）\n/hermes task \"发送日报\" --due 60 --depends <task_id>\n/hermes list [status]       列出任务\n/hermes run                 立即执行一次轮询\n/hermes stop                停止守护线程\n/hermes http [port]         启动 HTTP 任务接口\n/hermes log <id>            查看任务结果/日志\n/hermes cancel <id>         暂停任务\n/hermes review <id>         审核待确认任务\n/hermes confirm <id>        确认并执行任务\n\n说明:\n  • 任务与目标持久化在 ~/.fr_cli/hermes.json\n  • 支持子任务依赖链、失败重试、跨任务记忆与失败驱动学习\n  • 使用 /status errors 可查看 Hermes 错误与失败模式\n",
-  "help_detail_build": "📜 【动态构建系统】\n\n/build <需求>           根据需求自动生成工具并注册到命令注册表\n/build list             列出已构建工具\n/build check <name>     重新测试并自动修复指定工具\n/build del <name>       删除已构建工具\n\n示例:\n  /build 生成一个二维码识别工具\n  /build 把图片转换成 ASCII 艺术\n  /build list\n  /build check qr_tool\n\n说明:\n  • 生成代码保存到 ~/.fr_cli/dynamic_tools/<name>.py\n  • 元数据写入 ~/.fr_cli/dynamic_tools/registry.json\n  • 生成后会自动安装依赖、运行自测，失败则回滚\n  • 使用 /status errors 可查看构建失败记录\n",
-  "help_detail_context": "📜 【上下文压缩】\n\n/context status                 查看当前估算 token 与压缩配置\n/context compress               立即压缩当前会话早期对话\n/context threshold [N]          查看/设置自动压缩阈值（0 关闭）\n/context keep [N]               查看/设置保留最近轮数\n\n配置项（~/.fr_cli/config.json 的 memory 命名空间）:\n  memory.compress_threshold     默认 4000\n  memory.compress_keep_recent   默认 5\n\n说明:\n  • 当会话 token 超过阈值时，自动将早期对话摘要压缩\n  • 保留最近 N 轮完整对话，避免丢失当前上下文\n  • 可降低长会话的 prompt 成本与模型上下文窗口压力\n",
-  "help_detail_status": "📜 【系统状态与错误报告】\n\n/status           人类可读的系统状态面板\n/status json      输出 JSON 格式状态\n/status errors    输出集中式错误报告\n\n错误报告聚合:\n  • Hermes 任务失败与失败模式\n  • 动态构建自测失败记录\n  • 安全审核被拒绝的操作\n  • MasterAgent 失败模式\n",
-  "help_detail_stock": "📜 【股票助手】\n\n配置:\n  /stock_config setup               交互式配置数据源\n  /stock_config source akshare|mairui|tushare|trade\n  /stock_config key mairui <key>\n  /stock_config token tushare <token>\n\n使用:\n  @stock 查询茅台股价\n  @stock 买入 600519 1500.00 100    # 模拟交易\n\n说明:\n  • 数据源支持 akshare（免 key）、麦蕊 API（需 token）、tushare（需 token）\n  • 交易能力当前为模拟记录，真实交易 API 需自行扩展\n",
-  "help_detail_mcp": "📜 【MCP 外部神通】\n\nMCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。\n\n管理命令:\n  /mcp_list                列出所有服务器及其可用法宝\n  /mcp_add <名> <命令> [参数...]  添加 stdio 服务器\n  /mcp_del <名>             删除服务器\n  /mcp_enable <名>          启用服务器\n  /mcp_disable <名>         禁用服务器\n  /mcp_refresh              刷新法宝列表\n\nAI 调用格式:\n  【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n\n示例:\n  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp\n  /mcp_refresh\n",
-  "help_detail_security": "📜 【安全机制】\n\n四阶安全确认 (Y/A/F/N):\n  [Y]仅此    仅允许本次操作\n  [A]本轮    本次会话内允许同类操作\n  [F]永世    永久允许同类操作 (写入配置)\n  [N]拒绝    拒绝本次操作\n\n受保护操作:\n  sec_read(读文件) sec_write(写文件) sec_exec(执行)\n  sec_mount(加目录) sec_gen_img(画图) sec_send_mail(发邮件)\n  sec_fetch_web(抓取) sec_upload_disk(上传) sec_download_disk(下载)\n  sec_shell(Shell命令)\n\n目录穿越防护:\n  VFS通过Path.resolve()检查路径, 禁止 ../ 逃逸出 allowed_dirs\n\n非交互环境:\n  • 设置 FR_CLI_NON_INTERACTIVE=1 时，安全确认默认拒绝（用于脚本/CI环境）\n\n自治模式 (v2.5.1):\n  /autonomous manual       — 默认：每次 sec_* 都询问\n  /autonomous sandbox_auto — 沙盒内读/写/网络自动放行，系统级仍询问\n  /autonomous full_auto    — 所有操作自动放行（危险，请谨慎）\n  /autonomous off          — 等同于 manual\n\n分级永久放行 (v2.4.4):\n  按 [F] 仅对当前 sec_* 类别永久放行，不会波及其他类别。\n  撤销全部永久放行: /unconfirm\n",
+  "help_detail_config": "【配置与模型】\n\n/model                    交互式选择模型\n/model config             交互式模型配置向导（选择提供商 + 模型 + 设 Key）\n/model list               列出所有可用模型/提供商\n/model current            显示当前模型\n/model default            恢复当前提供商的默认模型\n/model <arg>              直接切换模型（如 /model deepseek:deepseek-chat）\n/providers                查看/管理所有提供商配置\n/providers use <提供商>    切换到指定提供商\n/providers setup          交互式提供商配置向导\n/key <key>                为当前提供商设置 API Key\n/key <提供商> <key>        为指定提供商设置 API Key\n/limit <n>                设置Token上限 (最小1000)\n/lang <zh/en>             切换界面语言\n/autonomous [manual|sandbox_auto|full_auto|off]  设置自治模式\n/mode <direct|cot|tot|react|plan>  切换AI思维模式\n/dir <path>               添加允许访问的目录到沙盒\n/dirs                     列出所有已挂载的工作目录\n/rmdir <索引>             删除指定的工作目录\n/export                   导出当前会话为Markdown文件\n/update check             检查更新\n/update run               执行更新并重启\n\n配置文件: ~/.fr_cli/config.json\n",
+  "help_detail_fs": "【洞府 - 文件操作】\n\n/dir              列出当前目录文件\n/open <file>      查看文件内容 (支持UTF-8/GBK/Latin-1)\n/dirs             列出所有已挂载的工作目录\n/rmdir <idx>      删除指定的工作目录\n/write <f> <c>    写入/覆盖文件\n/append <f> <c>   追加内容到文件\n/delete <f>       删除文件\n\n使用示例:\n  /dir               列出文件\n  /open README.md    查看文件内容\n  /dirs              查看已挂载目录\n  /write a.md 内容   写入文件\n  /append a.md 追加  追加内容\n  /delete a.md       删除文件（需安全确认）\n\n安全机制:\n  • 限制在 allowed_dirs 目录内, 禁止 ../ 穿越\n  • /write 自动创建父目录\n  • 危险操作触发四阶安全确认\n",
+  "help_detail_session": "【轮回 - 会话管理】\n\n/save <name>      保存当前对话历史\n/load             加载历史会话 (交互式选择)\n/del              删除历史会话 (交互式选择)\n/export           导出当前会话为Markdown\n\n自动按日期存档:\n  /session_list     列出所有按日期自动保存的会话\n  /session_load <N> 加载指定编号的会话并继续对话\n  /session_del <N>  删除指定编号的自动会话\n\n使用示例:\n  /save 项目讨论     保存当前会话\n  /load              交互式选择并加载\n  /del               交互式选择并删除\n  /export            导出为 Markdown\n  /session_list      查看自动存档列表\n  /session_load 1    加载今天的第一个会话继续聊\n\n上下文记忆与压缩:\n  • 自动保留最近5轮对话摘要\n  • 超过阈值时自动压缩早期对话（/context 管理）\n  • 按 session_name 持久化到 config.json 的 context 命名空间\n  • 加载会话时自动恢复上下文摘要\n  • 每次启动自动创建日期编号会话文件（~/.fr_cli/sessions/auto/）\n",
+  "help_detail_plugin": "【法宝 - 插件系统】\n\n/skills           查看已安装插件列表\n/<plugin> [args]  运行指定插件\n\n自动进化:\n  • AI回复中包含 def run(args='') 和 ```python 代码块时\n  • 程序提示\"检测到法宝结构\", 输入名称即可保存\n\n插件目录: ~/.fr_cli/plugins/\n插件约定: def run(args='') 返回字符串结果\n安全: 独立子进程执行, 15秒超时\n",
+  "help_detail_mail": "【邮差 - 邮件功能】\n\n配置方式:\n  1. 获取邮箱授权码（QQ邮箱: 设置→账户→开启IMAP/SMTP）\n  2. /mail setup 启动配置向导\n\n/mail setup       邮件配置向导\n/mail inbox       列出收件箱最近10封邮件\n/mail read <id>   读取指定邮件完整内容\n/mail send <to> <sub> <body>  发送邮件\n\n使用示例:\n  /mail setup\n  /mail inbox\n  /mail read 1\n  /mail send friend@qq.com 主题 正文\n\n支持邮箱: QQ/163/Gmail/Outlook/阿里云\n注意: QQ/163 需使用「授权码」而非登录密码\n",
+  "help_detail_cron": "【结界 - 定时任务】\n\n/cron_add <秒> <命令>   添加循环定时任务 (Shell命令)\n/cron_list              列出运行中的定时任务\n/cron_del <id>          删除指定任务\n\n使用示例:\n  /cron_add 300 ls -la /project   每5分钟列出项目目录\n  /cron_add 60 df -h              每分钟检查磁盘\n  /cron_list\n  /cron_del 1\n\n注意:\n  • 基于 threading.Timer, 程序退出后任务消失\n  • 如需持久化, 使用 /gatekeeper start 启动守护进程\n  • Shell命令执行30秒超时, 输出截断100字符\n  • 危险操作触发安全确认\n",
+  "help_detail_web": "【游侠 - 网络搜索】\n\n/web <query>      百度搜索 (返回最多5条结果)\n/fetch <url>      抓取网页并提取纯文本 (截断3000字符)\n\n使用示例:\n  /web Python asyncio 教程\n  /fetch https://docs.python.org/3/library/asyncio.html\n\nAI自动调用:\n  【调用：search_web({\"query\": \"搜索词\"})】\n  【调用：fetch_web({\"url\": \"https://...\"})】\n",
+  "help_detail_disk": "【腾云 - 云盘功能】\n\n当前支持阿里云盘（个人网盘）。\n首次使用需运行 /disk_setup 完成扫码登录。\n\n/disk_setup       启动云盘配置向导（扫码登录）\n/disk_ls          列出当前云盘目录的文件和文件夹\n/disk_cd <目录名>  切换云盘目录（支持 .. 返回上级）\n/disk_up <本地路径> <云端名称>   上传文件到当前目录\n/disk_down <云端名称> [本地路径] 从当前目录下载文件\n\n使用示例:\n  /disk_setup                     首次扫码登录\n  /disk_ls                        列出云盘文件\n  /disk_cd 文档                   进入文档目录\n  /disk_up /local/report.pdf report.pdf\n  /disk_down report.pdf /local/\n\n依赖: pip install aligo\n",
+  "help_detail_vision": "【天眼 - 图像功能】\n\n/see <图片路径> [问题]    用GLM-4V分析图片内容\n\n使用步骤:\n  1. /model <视觉模型>             切换至视觉模型\n  2. /see photo.jpg 描述这张图片  分析图片\n\nAI自动调用:\n  【调用：generate_image({\"prompt\": \"描述\"})】\n  图片生成使用当前厂商配置的图像模型, 保存到当前目录\n",
+  "help_detail_shell": "【破壁 - 系统命令】\n\n!<cmd>            执行本地Shell命令 (如 !ls -la)\n!<cmd> | <prompt> 将命令输出管道给AI分析\n\n使用示例:\n  !ls -la /Users/me/project\n  !ps aux | 找出占用CPU最高的进程\n  !cat log.txt | 分析这段日志有什么问题\n\n注意:\n  • 命令由你显式键入,不再二次确认(AI 发起的调用仍走 sec_shell)\n  • 单条命令超时 5 分钟\n  • 普通模式输出仅展示;管道模式输出截断 3000 字符后进入 AI 上下文\n  • 流式回答中按 Esc / Ctrl+C 可中断\n",
+  "help_detail_tools": "【AI工具调用 - 结构化调用】\n\nAI自动输出调用标记, 程序解析并执行:\n  【调用：tool_name({\"参数\": \"值\"})】\n\n常用工具:\n  write_file     {\"path\", \"content\"}\n  read_file      {\"path\"}\n  list_files     {}\n  search_web     {\"query\"}\n  fetch_web      {\"url\"}\n  generate_image {\"prompt\"}\n  mail_inbox     {}\n  mail_send      {\"to\", \"subject\", \"body\"}\n  cron_add       {\"command\", \"interval\"}\n  save_session   {\"name\"}\n  set_model      {\"name\"}\n  agent_call     {\"name\", \"user_input\"}\n  swarm_run      {\"mode\", \"names\", \"user_input\"}\n  mcp_call       {\"server\", \"tool\", \"arguments\"}\n\n动态构建:\n  /build <需求>         AI 按需生成工具、安装依赖、自测并注册\n  /build list           列出已构建工具\n  /build check <name>   重新测试并修复指定工具\n  /build del <name>     删除已构建工具\n\n插件调用 (命令方式):\n  【命令：/插件名 参数】\n\n旧格式兼容:\n  file_operations\n/write file.md \"内容\"\n",
+  "help_detail_app": "【驭器 - 本机应用启动】\n\n/open <路径/URL>           用系统默认程序打开文件或网址\n/launch <应用> [目标]      启动指定应用，可带文件或URL参数\n/apps                      列出本机可用的应用别名\n\n使用示例:\n  /open https://example.com\n  /open /Users/me/doc.pdf\n  /launch chrome https://github.com\n  /launch 微信\n  /launch word /Users/me/report.docx\n\n常用应用别名:\n  浏览器: chrome, safari, firefox, edge, 浏览器\n  办公:   word, excel, powerpoint, ppt, wps\n  通讯:   wechat, 微信, qq, 钉钉, 飞书\n  工具:   vscode, terminal, 终端, 计算器, 记事本\n  媒体:   music, 播放器, spotify, vlc\n",
+  "help_detail_agent": "【分身 - Agent 系统】\n\n/master on|off|status          主控 Agent — 自我进化型全能助手（接管所有对话）\n\n/agent_create <名称> <描述>   AI 自动生成完整 Agent（人设/技能/代码）\n/agent_forge <名称>            从最近一次 AI 回复中提取代码，铸造为 Agent\n/agent_list                    列出所有 Agent 分身\n/agent_show <名称>             查看 Agent 详情（人设/记忆/技能/代码/工作流）\n/agent_edit <名称> <类型>      编辑 Agent 设定（persona/memory/skills/agent/workflow）\n/agent_run <名称> [参数]       运行指定 Agent\n/agent_delete <名称>           删除 Agent\n/agent_model <名称> [provider:model|clear|--key <key>]\n                               查看/设置 Agent 专属模型（独立 config.json 持久化）\n\nAgent 目录: ~/.fr_cli/agents/<名称>/\n  • persona.md  — 角色设定\n  • memory.md   — 长期记忆\n  • skills.md   — 技能说明\n  • agent.py    — 可选自定义执行逻辑（必须包含 run(context, **kwargs)）\n  • workflow.md — 可选工作流定义\n  • config.json — 专属模型配置（provider / model / key，可选）\n\n模型绑定示例：\n  /agent_model my_agent deepseek:deepseek-chat   — 绑定专属模型\n  /agent_model my_agent --key sk-own-key         — 设置独立 API Key\n  /agent_model my_agent clear                    — 清除专属配置，恢复全局默认\n\n将已有代码转为 Agent 的方法：\n  1. 在对话中让 AI 生成包含 def run(context, **kwargs) 的代码\n  2. 程序会自动检测到 Agent 结构并提示保存\n  3. 或手动执行 /agent_forge <名称> 从最近回复中提取代码\n",
+  "help_detail_builtin": "【神通 - 内置 Agent 前缀】\n\n在对话中直接使用 @ 前缀触发内置 Agent：\n\n@local <需求>              本地系统操作助手，AI 生成系统命令并执行\n@remote [别名] <需求>      远程 SSH 操作助手，通过 SSH 在远程主机执行命令\n@spider <URL> [深度]       智能网页爬虫，模拟真人行为获取网页内容\n@db [别名] <需求>          数据库智能助手，自动分析 Schema 并生成 SQL\n@RAG <问题>                本地知识库问答，向量检索 + 大模型生成\n@stock <需求>              股票/量化助手，支持行情查询与模拟交易\n\nRAG 知识库管理:\n  /rag_dir <路径>   — 设置知识库目录并首次同步\n  /rag_sync [路径]  — 手动同步知识库（向量化新文件）\n  /rag_watch start [目录] [--interval N] — 启动独立守护进程（持久化后台监控）\n  /rag_watch stop   — 停止独立守护进程\n  /rag_watch status — 查看守护进程状态\n  /rag_watch log [--lines N] — 查看守护进程日志\n\n说明:\n  • ChromaDB 以嵌入式 PersistentClient 自动启动，无需单独服务\n  • 内置模式（/rag_dir 后自动启动）为 daemon 线程，退出 fr-cli 后终止\n  • 独立模式（/rag_watch start）为系统级进程，退出终端后仍继续运行\n  • 守护进程通过 PID 文件管理，日志写入 ~/.fr_cli/rag/watcher.log\n\n配置向导:\n  /remote_setup  — 远程主机配置向导（配置文件: ~/.fr_cli/remote/hosts.json）\n  /db_setup      — 数据库配置向导（配置文件: ~/.fr_cli/database.json）\n  /stock_config setup — 股票数据源配置向导（配置文件: ~/.fr_cli/stock.json）\n",
+  "help_detail_dataframe": "【数据卷轴 - Excel / CSV】\n\n/read_excel <文件>   读取 Excel 文件并输出数据摘要\n/read_csv <文件>     读取 CSV 文件并输出数据摘要\n\n说明:\n  • 支持 .xlsx, .xls, .csv 格式\n  • 自动输出列名、数据类型、非空统计、数值统计、前10行预览\n  • 数据摘要可提交给 AI 进行深度分析\n",
+  "help_detail_gatekeeper": "【结界守护 - Gatekeeper 守护进程】\n\n/gatekeeper start    启动守护进程（持久化 Agent HTTP 服务、全局定时任务、Agent 定时任务）\n/gatekeeper stop     停止守护进程\n/gatekeeper status   查看守护进程状态\n\nAgent 分身定时任务:\n  /agent_cron_add <agent名称> <间隔秒> [输入]  为 Agent 添加定时执行计划\n  /agent_cron_list                              列出所有 Agent 定时任务\n  /agent_cron_del <ID>                          删除 Agent 定时任务\n\n说明:\n  • 守护进程独立于 fr-cli 主程序运行，退出终端后仍继续工作\n  • 启动时自动保存当前的 Agent HTTP 服务端口和定时任务配置\n  • 程序退出后守护进程仍可维持 Agent API、全局定时任务、Agent 定时任务\n  • 守护进程每30秒热重载配置，主进程新增/删除任务后自动同步\n  • 全局定时任务（/cron_add）修改后自动同步到守护进程配置\n  • 守护进程配置存储在 ~/.fr_cli/daemon/config.json 中\n",
+  "help_detail_hermes": "【Hermes 后台自治引擎】\n\n/hermes status              查看引擎状态\n/hermes goal <目标>         创建目标并自动分解为子任务\n/hermes task <描述>         创建延迟任务（默认 5 分钟后执行）\n/hermes task \"发送日报\" --due 60 --depends <task_id>\n/hermes list [status]       列出任务\n/hermes run                 立即执行一次轮询\n/hermes stop                停止守护线程\n/hermes http [port]         启动 HTTP 任务接口\n/hermes log <id>            查看任务结果/日志\n/hermes cancel <id>         暂停任务\n/hermes review <id>         审核待确认任务\n/hermes confirm <id>        确认并执行任务\n\n说明:\n  • 任务与目标持久化在 ~/.fr_cli/hermes.json\n  • 支持子任务依赖链、失败重试、跨任务记忆与失败驱动学习\n  • 使用 /status errors 可查看 Hermes 错误与失败模式\n",
+  "help_detail_build": "【动态构建系统】\n\n/build <需求>           根据需求自动生成工具并注册到命令注册表\n/build list             列出已构建工具\n/build check <name>     重新测试并自动修复指定工具\n/build del <name>       删除已构建工具\n\n示例:\n  /build 生成一个二维码识别工具\n  /build 把图片转换成 ASCII 艺术\n  /build list\n  /build check qr_tool\n\n说明:\n  • 生成代码保存到 ~/.fr_cli/dynamic_tools/<name>.py\n  • 元数据写入 ~/.fr_cli/dynamic_tools/registry.json\n  • 生成后会自动安装依赖、运行自测，失败则回滚\n  • 使用 /status errors 可查看构建失败记录\n",
+  "help_detail_context": "【上下文压缩】\n\n/context status                 查看当前估算 token 与压缩配置\n/context compress               立即压缩当前会话早期对话\n/context threshold [N]          查看/设置自动压缩阈值（0 关闭）\n/context keep [N]               查看/设置保留最近轮数\n\n配置项（~/.fr_cli/config.json 的 memory 命名空间）:\n  memory.compress_threshold     默认 4000\n  memory.compress_keep_recent   默认 5\n\n说明:\n  • 当会话 token 超过阈值时，自动将早期对话摘要压缩\n  • 保留最近 N 轮完整对话，避免丢失当前上下文\n  • 可降低长会话的 prompt 成本与模型上下文窗口压力\n",
+  "help_detail_status": "【系统状态与错误报告】\n\n/status           人类可读的系统状态面板\n/status json      输出 JSON 格式状态\n/status errors    输出集中式错误报告\n\n错误报告聚合:\n  • Hermes 任务失败与失败模式\n  • 动态构建自测失败记录\n  • 安全审核被拒绝的操作\n  • MasterAgent 失败模式\n",
+  "help_detail_stock": "【股票助手】\n\n配置:\n  /stock_config setup               交互式配置数据源\n  /stock_config source akshare|mairui|tushare|trade\n  /stock_config key mairui <key>\n  /stock_config token tushare <token>\n\n使用:\n  @stock 查询茅台股价\n  @stock 买入 600519 1500.00 100    # 模拟交易\n\n说明:\n  • 数据源支持 akshare（免 key）、麦蕊 API（需 token）、tushare（需 token）\n  • 交易能力当前为模拟记录，真实交易 API 需自行扩展\n",
+  "help_detail_mcp": "【MCP 外部神通】\n\nMCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI 调用范围。\n\n管理命令:\n  /mcp_list                列出所有服务器及其可用法宝\n  /mcp_add <名> <命令> [参数...]  添加 stdio 服务器\n  /mcp_del <名>             删除服务器\n  /mcp_enable <名>          启用服务器\n  /mcp_disable <名>         禁用服务器\n  /mcp_refresh              刷新法宝列表\n\nAI 调用格式:\n  【调用：mcp_call({\"server\": \"服务器名\", \"tool\": \"工具名\", \"arguments\": {...}})】\n\n示例:\n  /mcp_add fs npx -y @modelcontextprotocol/server-filesystem /tmp\n  /mcp_refresh\n",
+  "help_detail_security": "【安全机制】\n\n四阶安全确认 (Y/A/F/N):\n  [Y]仅此    仅允许本次操作\n  [A]本轮    本次会话内允许同类操作\n  [F]永世    永久允许同类操作 (写入配置)\n  [N]拒绝    拒绝本次操作\n\n受保护操作:\n  sec_read(读文件) sec_write(写文件) sec_exec(执行)\n  sec_mount(加目录) sec_gen_img(画图) sec_send_mail(发邮件)\n  sec_fetch_web(抓取) sec_upload_disk(上传) sec_download_disk(下载)\n  sec_shell(Shell命令)\n\n目录穿越防护:\n  VFS通过Path.resolve()检查路径, 禁止 ../ 逃逸出 allowed_dirs\n\n非交互环境:\n  • 设置 FR_CLI_NON_INTERACTIVE=1 时，安全确认默认拒绝（用于脚本/CI环境）\n\n自治模式 (v2.5.1):\n  /autonomous manual       — 默认：每次 sec_* 都询问\n  /autonomous sandbox_auto — 沙盒内读/写/网络自动放行，系统级仍询问\n  /autonomous full_auto    — 所有操作自动放行（危险，请谨慎）\n  /autonomous off          — 等同于 manual\n\n分级永久放行 (v2.4.4):\n  按 [F] 仅对当前 sec_* 类别永久放行，不会波及其他类别。\n  撤销全部永久放行: /unconfirm\n",
 
   # ---------- Tutorial 交互式新手教程 ----------
-  "tutorial_title": "🎓 fr-cli 交互式新手教程",
+  "tutorial_title": "fr-cli 交互式新手教程",
   "tutorial_prompt_next": "按 Enter 继续下一步...",
   "tutorial_skipped": "教程已跳过。",
-  "tutorial_complete": "🎉 教程完成!输入 /help 查看更多命令。",
+  "tutorial_complete": "教程完成!输入 /help 查看更多命令。",
   "tutorial_hint": "提示:首次使用建议运行 /dir <你的工作目录> 设置工作空间。",
 
-  "tutorial_step1_title": "🎯 第一步:与 AI 对话",
+  "tutorial_step1_title": "第一步:与 AI 对话",
   "tutorial_step1_content":
     "直接输入文字即可与 AI 对话。\n"
     "示例:\"请解释什么是递归\"\n"
     "按 Enter 发送,Shift+Enter 或 Ctrl+J 换行。\n"
     "AI 会自动识别意图并调用工具(搜索、读写文件等)。",
 
-  "tutorial_step2_title": "⚙️ 第二步:配置模型与 API Key",
+  "tutorial_step2_title": "第二步:配置模型与 API Key",
   "tutorial_step2_content":
     "fr-cli 支持智谱、DeepSeek、Kimi、Qwen、StepFun、MiniMax 等 25+ 提供商:\n"
     "  /model                    查看当前模型和可用提供商\n"
@@ -202,7 +202,7 @@ ZH_DICT = {
     "  /key <your-key>            为当前提供商设置 API Key\n"
     "未配置模型时,对话会被拦截并提示你先配置。",
 
-  "tutorial_step3_title": "📁 第三步:工作目录与文件操作",
+  "tutorial_step3_title": "第三步:工作目录与文件操作",
   "tutorial_step3_content":
     "使用 / 命令操作文件(受 VFS 沙盒保护):\n"
     "  /dir <path>     添加并列出工作目录\n"
@@ -212,7 +212,7 @@ ZH_DICT = {
     "  /delete <f>     删除文件\n"
     "AI 也可以自动读写文件,危险操作会经过安全确认。",
 
-  "tutorial_step4_title": "💾 第四步:会话管理",
+  "tutorial_step4_title": "第四步:会话管理",
   "tutorial_step4_content":
     "每个会话有唯一 UUID,自动存档到 ~/.fr_cli/sessions/auto/:\n"
     "  /new              开启新会话,重置上下文并显示启动画面\n"
@@ -222,7 +222,7 @@ ZH_DICT = {
     "  /session_list     查看自动存档\n"
     "  /session_load <n> 加载指定自动存档",
 
-  "tutorial_step5_title": "🌐 第五步:联网与多模态",
+  "tutorial_step5_title": "第五步:联网与多模态",
   "tutorial_step5_content":
     "  /web <query>         联网搜索\n"
     "  /see <img>           图片分析\n"
@@ -232,7 +232,7 @@ ZH_DICT = {
     "  !<cmd>               执行系统命令(如 !ls -la)\n"
     "  !<cmd> | <prompt>    将命令输出管道给 AI 分析",
 
-  "tutorial_step6_title": "🤖 第六步:Agent 分身",
+  "tutorial_step6_title": "第六步:Agent 分身",
   "tutorial_step6_content":
     "创建独立 Agent,每个 Agent 有独立的设定、记忆和技能:\n"
     "  /agent_create <name> <desc>   自动生成 Agent\n"
@@ -242,7 +242,7 @@ ZH_DICT = {
     "  /agent_model <name> <cfg>     为 Agent 绑定专属模型\n"
     "内置 Agent:@local @remote @db @RAG @spider @stock",
 
-  "tutorial_step7_title": "📚 第七步:RAG 本地知识库",
+  "tutorial_step7_title": "第七步:RAG 本地知识库",
   "tutorial_step7_content":
     "把本地文档向量化,让 AI 基于知识库回答:\n"
     "  /rag_dir <dir>       设置知识库目录并首次同步\n"
@@ -250,7 +250,7 @@ ZH_DICT = {
     "  /rag_watch start     启动后台文件监控\n"
     "  @RAG <问题>          基于知识库问答",
 
-  "tutorial_step8_title": "🔌 第八步:MCP 外部工具",
+  "tutorial_step8_title": "第八步:MCP 外部工具",
   "tutorial_step8_content":
     "通过 MCP 协议连接外部工具服务器:\n"
     "  /mcp_list            列出 MCP 服务器\n"
@@ -258,7 +258,7 @@ ZH_DICT = {
     "  /mcp_enable <name>   启用服务器\n"
     "  /mcp_refresh         刷新工具列表",
 
-  "tutorial_step9_title": "🧠 第九步:思维模式、主控与 Hermes",
+  "tutorial_step9_title": "第九步:思维模式、主控与 Hermes",
   "tutorial_step9_content":
     "  /mode <direct|cot|tot|react|plan>   切换思维模式\n"
     "  /master on|off                      启用/禁用 MasterAgent 主控\n"
@@ -266,7 +266,7 @@ ZH_DICT = {
     "  /hermes task <描述>                 创建后台自治任务\n"
     "  /mode react 会展示 AI 的推理过程。",
 
-  "tutorial_step10_title": "🚀 第十步:更多探索",
+  "tutorial_step10_title": "第十步:更多探索",
   "tutorial_step10_content":
     "  /build <需求>        动态构建新工具\n"
     "  /context             管理上下文压缩\n"

@@ -4,9 +4,9 @@
 
 **集成 MasterAgent 主控 + Hermes 后台自治任务引擎:自我进化、目标分解、定时执行。**
 
-## ✨ 功能特性
+## 功能特性
 
-### 🤖 多模型支持(25 个厂商)
+### 多模型支持(25 个厂商)
 支持以下 AI 模型提供商,默认 `zhipu / glm-4-flash`,启动时按 `default_provider → backup_provider` 自动降级:
 
 | 厂商 | 默认模型 | 协议 |
@@ -35,12 +35,12 @@
 | **stepfun-step-plan** | step-3-auto | OpenAI 兼容(Token Plan) |
 | **ernie** 文心一言 | ernie-bot-4 | Wenxin SDK |
 
-### 🧠 核心功能
+### 核心功能
 - **MasterAgent 主控**(默认启用):自我进化的 ReAct 主控 Agent,自动规划、调用工具、反思进化、失败驱动学习
 - **Hermes 后台自治任务**:持久化任务队列、目标自动分解、子任务依赖链、跨任务记忆、定时执行、审核队列
 - **启动流程 v2.6+**:首次启动自动引导配置 → 6 步模型向导 → default/backup 自动降级 → 后台服务自动拉起
 - **项目记忆自动加载 (v2.7+)**:自动发现 `.frcli.md` / `AGENTS.md` / `CLAUDE.md` / `.github/AGENTS.md`,注入到 system prompt(类似 Claude Code 的 CLAUDE.md 机制)
-- **完整 Plan mode (v2.7+)**:AI 主动 `enter_plan_mode` → 生成执行计划 → 用户审批 → `exit_plan_mode` 自动执行(类似 Claude Code 的 EnterPlanMode/ExitPlanMode)
+- **完整 Plan mode (v2.7+)**:AI 主动 `enter_plan_mode`→ 生成执行计划 → 用户审批 →`exit_plan_mode` 自动执行(类似 Claude Code 的 EnterPlanMode/ExitPlanMode)
 - **多文件原子编辑 (v2.7+)**:`multi_edit` 工具一次性编辑多个文件,任一失败整体回滚
 - **Git 集成 (v2.7+)**:7 个 AI 工具(`git_status` / `git_diff` / `git_log` / `git_add` / `git_commit` / `git_branch` / `git_show`),让 AI 像 Claude Code 一样感知版本控制
 - **Sub-agent 委派 (v2.7+)**:MasterAgent 通过 `spawn_agent` 工具启动子 Agent 处理子任务,`task_output` 查询后台任务状态(类似 Claude Code 的 Task/TaskOutput)
@@ -50,7 +50,7 @@
 - **Voice / TTS (v2.7+)**:复用 matrix MCP 的 TTS 工具,支持 AI 回复自动朗读
 - **STT 语音输入 (v2.8+)**:通过 matrix MCP `transcribe_audio` 工具转写音频文件(mp3/wav/m4a/flac 等),可选本地 `faster-whisper` fallback;macOS 支持 `/voice_record` 录音 + 转写
 - **Git Worktree 环境隔离 (v2.8+)**:4 个 AI 工具(`worktree_create` / `worktree_list` / `worktree_remove` / `worktree_switch`),主仓库里并行开多个独立 worktree,互不干扰地开发多个 feature
-- **Plan mode UI 增强 (v2.8+)**:彩色 ANSI 渲染 + 进度条 `████░░░░ 60%` + 步骤状态图标 `✅❌🏃⏳⏭️` + 步骤耗时估算 + 依赖箭头可视化
+- **Plan mode UI 增强 (v2.8+)**:彩色 ANSI 渲染 + 进度条 `████░░░░ 60%` + 步骤状态图标 `[OK][x][>>]` + 步骤耗时估算 + 依赖箭头可视化
 - **RAG 检索结果缓存 (v2.8+)**:基于 query+top_k+lang 的 SHA256 hash,10 分钟 TTL,128 条 LRU 自动清理,避免重复 embedding + LLM 调用
 - **会话自动恢复 (v2.8+)**:启动时检测 24h 内的最近会话,询问是否继续(加载最后 5 轮到 messages),支持 y/n/s 三个选项
 - **消息分块持久化 (v2.8+)**:增量写 + 周期 full snapshot(默认 20 条触发一次),减少大 messages 列表的 IO 开销
@@ -84,7 +84,7 @@
 - **Token 上下文压缩**:长会话自动摘要早期对话,降低 prompt token 消耗
 - **4 阶安全确认**:`Y / A / F / N` 四级授权,支持 `sandbox_auto` / `full_auto` 自治模式
 
-### 🎯 特色功能
+### 特色功能
 - **视觉能力**:图片生成(CogView)与多模态识别(GLM-4V / Claude Vision)
 - **OCR 文字识别**:`/ocr <文件>` 识别图片或 PDF 中的文字,支持 Vision API + PaddleOCR 本地引擎
 - **邮件收发**:IMAP/SMTP 标准邮箱 + Microsoft 365 现代认证(OAuth2 + MFA)
@@ -110,7 +110,7 @@
 - **流式 Markdown 渲染**:AI 回答边生成边按 Markdown 排版(标题/列表/代码块/表格),不再等全文
 - **NO_COLOR 支持**:`NO_COLOR=1` 禁用所有 ANSI 颜色,适合 CI/管道环境
 
-## 🚀 快速开始
+## 快速开始
 
 ```bash
 # 安装
@@ -141,27 +141,27 @@ fr-cli
 - `fr-cli -noart` 跳过字符画(适合 CI/窄终端);配置项 `startup_art: false` 永久关闭
 - 终端高度不足时自动跳过,不撑破布局
 
-## 📝 使用方法
+## 使用方法
 
-### 📋 常用命令
+### 常用命令
 
-#### 💬 对话 / 模型
+#### 对话 / 模型
 ```
 /model <模型名>                切换 AI 模型(仅当前会话)
 /model <道统>:<模型名>         同时切换道统和模型
 /model current                 显示当前模型
 /model default                 恢复 factory 默认模型
 /model list                    列出所有可用模型
-/model config                  🆕 6 步模型配置向导(等价 /providers setup)
+/model config [NEW] 6 步模型配置向导(等价 /providers setup)
 /key <key>                     修改当前道统 API Key
 /key <道统> <key>              为指定道统设置 Key
 /providers                     查看所有道统配置(含 default/backup)
-/providers setup               🆕 6 步模型配置向导
+/providers setup [NEW] 6 步模型配置向导
 /providers add <p> <k> [m]     添加/更新道统配置
 /providers use <p>             切换到指定道统
 ```
 
-#### 🧠 主控 / 思维
+#### 主控 / 思维
 ```
 /master on|off|status          MasterAgent 主控(默认开)
 /mode direct|cot|tot|react|plan  切换思维模式
@@ -173,7 +173,7 @@ enter_plan_mode      AI 主动进入计划模式,生成详细执行计划
 exit_plan_mode       用户审批/拒绝后,自动按步骤执行或放弃
 ```
 
-#### 📂 文件 / 上下文
+#### 文件 / 上下文
 ```
 /dir [路径]                    列出目录文件 / 添加允许访问的目录
 /dirs                          列出已挂载的工作目录
@@ -185,7 +185,7 @@ exit_plan_mode       用户审批/拒绝后,自动按步骤执行或放弃
 /limit <n>                     设置 Token 上限(最小 1000)
 ```
 
-#### 🧬 项目记忆 + 多文件编辑 + Git
+#### 项目记忆 + 多文件编辑 + Git
 ```
 # v2.7+:自动加载 .frcli.md / AGENTS.md / CLAUDE.md 作为项目记忆
 # 放在项目根目录(或 .github/AGENTS.md)即可被 AI 自动感知
@@ -201,7 +201,7 @@ git_branch          列出/创建/切换/删除分支
 git_show            查看某次提交详情
 ```
 
-#### 💾 会话 / 用量
+#### 会话 / 用量
 ```
 /save <name>                   保存当前会话
 /load [name]                   加载历史会话
@@ -213,7 +213,7 @@ git_show            查看某次提交详情
 /status [json|errors]          查看全局状态 / 集中错误报告
 ```
 
-#### 🔌 MCP / 插件 / 动态构建
+#### MCP / 插件 / 动态构建
 ```
 /mcp_list                      列出 MCP 服务器及工具
 /mcp_add <名> <命令> [参数]    添加 MCP 服务器
@@ -226,7 +226,7 @@ git_show            查看某次提交详情
 /build del <name>              删除已构建工具
 ```
 
-#### 🤖 Agent 管理
+#### Agent 管理
 ```
 /agent_create <名> <描述>      AI 自动生成 Agent
 /agent_forge <名>              从历史代码铸造 Agent
@@ -239,7 +239,7 @@ git_show            查看某次提交详情
 /agent_server start|stop|status [port]   启动 Agent HTTP API
 ```
 
-#### 🛰️ 远程 Agent / 内置 Agent
+#### 远程 Agent / 内置 Agent
 ```
 @local <任务>                  本地系统操作(安全确认后执行)
 /remote <host> <任务>          远程 SSH 操作(支持 sftp/scp)
@@ -255,7 +255,7 @@ git_show            查看某次提交详情
 /remote_agent_publish <名>    将本地 Agent 发布为 HTTP API
 ```
 
-#### 🔧 后台服务 / 系统
+#### 后台服务 / 系统
 ```
 /autostart [--agent-server port] [--hermes port]  一键启动所有后台服务
 /hermes status|start|stop|list|task|goal|confirm|review   Hermes 后台自治(统一入口,start 即启动独立 HTTP 守护进程)
@@ -268,7 +268,7 @@ list_background_tasks  列出所有后台任务
 spawn_agent            启动子 Agent 处理子任务,返回 task_id(可并发)
 ```
 
-#### 🎯 Skill 系统 (v2.7+)
+#### Skill 系统 (v2.7+)
 ```
 # 用户可定义 .md skill,放在 ~/.fr_cli/skills/ 或项目 .fr_cli/skills/
 
@@ -288,7 +288,7 @@ steps: |
 # AI 会自动加载 skill 并按步骤执行
 ```
 
-#### 🎣 Hooks 系统 (v2.7+)
+#### Hooks 系统 (v2.7+)
 ```
 # ~/.fr_cli/hooks.json 或项目级 .fr_cli/hooks.json
 {
@@ -311,7 +311,7 @@ steps: |
 #   - 纯文本 stdout → 替换 tool_result(用于 PostToolUse)
 ```
 
-#### 🔐 Per-tool 权限 (v2.7+)
+#### Per-tool 权限 (v2.7+)
 ```json
 // ~/.fr_cli/config.json
 {
@@ -330,7 +330,7 @@ steps: |
 ```
 优先级:`deny` > `path_allow` > `always_allow` > `ask` > `fallthrough(sec_*)`
 
-#### 🔊 Voice / TTS (v2.7+)
+#### Voice / TTS (v2.7+)
 ```
 # 需要配置 matrix MCP server(内置 TTS 工具)
 # 配置后:
@@ -341,7 +341,7 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 【调用：voice_speak({"text": "你好世界"})】
 ```
 
-#### 🎙️ STT 语音输入 (v2.8+)
+#### STT 语音输入 (v2.8+)
 ```
 # 需要配置 matrix MCP server(内置 transcribe_audio 工具)
 # 用法:
@@ -355,7 +355,7 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 支持的音频格式:mp3 / wav / m4a / flac / ogg / opus / webm / aac
 引擎优先级:MCP matrix → 本地 faster-whisper(fallback)
 
-#### 🌳 Git Worktree 环境隔离 (v2.8+)
+#### Git Worktree 环境隔离 (v2.8+)
 ```
 # 在当前 git 仓库下创建隔离 working copy,适合并行开发多个 feature
 /worktree_create feat-x                # 创建 feat-x 分支 + worktree
@@ -369,19 +369,19 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 ```
 默认路径: `<repo>/.worktrees/<branch>/`,可自定义。删除分支用普通 git 命令。
 
-#### 📋 Plan mode UI 增强 (v2.8+)
+#### Plan mode UI 增强 (v2.8+)
 ```
 # Plan mode 的可视化增强:
 - ANSI 彩色(标题/成功/失败/警告)
 - 进度条 ████░░░░ 60%
-- 步骤状态 ✅ ❌ 🏃 ⏳ ⏭️
+- 步骤状态 [OK] [x] [>>]
 - 步骤耗时估算(基于工具类型)
 - 依赖箭头 │ ▼ 连接步骤
 - 审批选项:y/n/e/s/d(原版只有 y/n/e/s)
   + d = 步骤详情(查看每个步骤的参数)
 ```
 
-#### 💾 RAG 缓存 + 会话自动恢复 (v2.8+)
+#### RAG 缓存 + 会话自动恢复 (v2.8+)
 ```
 # RAG 检索缓存:
 - 10 分钟 TTL,基于 query + top_k + lang 的 SHA256 hash
@@ -396,14 +396,14 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
   - s         = 选择其他会话
 ```
 
-#### ⏰ 定时任务
+#### 定时任务
 ```
 /agent_cron_add <名> <秒> [输入]  Agent 定时任务
 /agent_cron_list               列出 Agent 定时任务
 /agent_cron_del <id>           删除 Agent 定时任务
 ```
 
-#### 📧 邮件
+#### 邮件
 ```
 /mail setup                    配置 IMAP/SMTP 邮箱
 /mail inbox                    查看收件箱
@@ -413,7 +413,7 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 /m365_inbox / m365_read / m365_send
 ```
 
-#### 🌐 RAG / 股票 / OCR
+#### RAG / 股票 / OCR
 ```
 /rag_dir <目录>                设置并同步本地知识库
 /rag_sync [路径]               手动同步文件到向量库
@@ -423,7 +423,7 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 /ocr_config setup|engine|provider|model|key|base_url|prompt  配置 OCR
 ```
 
-#### 🛠️ 其它
+#### 其它
 ```
 /search <query>                联网搜索
 /read_excel <xlsx>             读取 Excel
@@ -436,7 +436,7 @@ voice_toggle         切换自动朗读(AI 回复自动朗读)
 /exit                          退出
 ```
 
-### 🖥️ 非交互 / 批处理模式
+### 非交互 / 批处理模式
 
 适合脚本、cron、管道场景:
 
@@ -458,7 +458,7 @@ fr-cli -q -c "/model current"
 fr-cli -q -p "1+1等于几"
 ```
 
-### 🤖 模型配置详解(v2.6+)
+### 模型配置详解(v2.6+)
 
 **首次启动自动引导**,或手动 `/model config` / `/providers setup` 启动 6 步向导:
 
@@ -493,7 +493,7 @@ fr-cli -q -p "1+1等于几"
 ```
 配置存储于 `~/.fr_cli/agents/<name>/config.json`。
 
-### 🐝 蜂群协作 (Swarm)
+### 蜂群协作 (Swarm)
 
 通过 AI 工具调用实现多 Agent / 工具协作:
 
@@ -506,7 +506,7 @@ fr-cli -q -p "1+1等于几"
 支持任务单元:Agent / 内置 Agent / 注册表工具 / `/` 命令 / MCP 工具 / 自定义插件。
 也可用 `/swarm parallel coder,reviewer ...` 直接执行。
 
-### 🤖 AI 调用格式
+### AI 调用格式
 
 ```
 【调用：search_web({"query": "搜索词"})】
@@ -514,7 +514,7 @@ fr-cli -q -p "1+1等于几"
 【命令：/build 生成二维码工具】
 ```
 
-## 🧠 Hermes 后台自治任务
+## Hermes 后台自治任务
 
 Hermes 是 fr-cli 的后台自治引擎,负责目标分解、任务队列、定时执行、跨任务记忆、审核队列。
 
@@ -556,7 +556,7 @@ Hermes 是 fr-cli 的后台自治引擎,负责目标分解、任务队列、定�
 | `autonomous` | 完全信任,所有操作自动放行 | `/hermes task -a` 创建后需 `/hermes confirm` |
 | `interactive` | 占位,走当前 REPL 模式 | 实时对话 |
 
-### 🐚 Shell 模式(Ctrl-X 切换)
+### Shell 模式(Ctrl-X 切换)
 ```
 Agent 模式: 输入消息与 AI 对话
 Shell 模式: 直接执行 shell 命令
@@ -570,7 +570,7 @@ Shell 模式: 直接执行 shell 命令
 ```
 `!` 命令由你显式键入,不再二次确认(与 `/shell` 一致);AI 发起的 shell 调用仍走四阶安全确认。
 
-## 🔧 开发
+## 开发
 
 ```bash
 # 克隆项目
@@ -667,7 +667,7 @@ v2.8+ 新增测试:
 | `FR_CLI_AUTONOMOUS_MODE` | 自治模式:`manual` / `sandbox_auto` / `full_auto` |
 | `FR_CLI_HERMES_TASK_TIMEOUT` | 单个 Hermes 任务超时秒数(默认 300) |
 
-## 📂 项目结构
+## 项目结构
 
 ```
 fr_cli/
@@ -716,12 +716,12 @@ fr_cli/
 └── security/                  # 4 阶安全确认引擎
 ```
 
-## 📚 文档
+## 文档
 
 - [AGENTS.md](AGENTS.md) - 面向 AI 编码助手的项目架构与开发指南
 - [fr_cli/README.md](fr_cli/README.md) - 项目内部说明
 
-## 📂 配置目录
+## 配置目录
 
 > 配置统一在 `~/.fr_cli/` 目录下,旧路径(如 `~/.zhipu_cli_config.json`)会在首次启动时自动迁移。
 
@@ -748,7 +748,7 @@ fr_cli/
 | `~/.fr_cli/m365.json` | Microsoft 365 OAuth Token 缓存(0o600) |
 | `~/.fr_cli/stock.json` | 股票数据源与模拟交易记录 |
 
-## ❓ 常见问题
+## [?] 常见问题
 
 **Q: 如何切换思维模式?**
 ```bash
@@ -852,6 +852,6 @@ pip install bypy    # 百度网盘
 /master off                   # 关闭 MasterAgent 主控
 ```
 
-## 📄 License
+## License
 
 MIT

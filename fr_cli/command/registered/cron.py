@@ -22,10 +22,10 @@ def _cron_add(deps, **kwargs):
 
     新接口（推荐）：/cron_add <schedule> <command...>
       schedule 可以是：
-        - 数字（秒）        → interval 模式
-        - "every 60s"       → interval 60 秒
-        - "0 9 * * *"       → cron 表达式
-        - "2026-12-31 23:59" → at 一次性任务
+        - 数字（秒） → interval 模式
+        - "every 60s"→ interval 60 秒
+        - "0 9 * * *"→ cron 表达式
+        - "2026-12-31 23:59"→ at 一次性任务
     旧接口（向后兼容）：/cron_add <command> <interval>
       当 command 是纯文本且 schedule 是数字时，自动按旧式解析
     """

@@ -97,7 +97,7 @@ class TestFormatPoolChart(unittest.TestCase):
     def test_fail(self):
         r = {"ok": False, "error": "x"}
         out = format_pool_chart(r, lang="zh")
-        self.assertIn("❌", out)
+        self.assertIn("[x]", out)
 
 
 if __name__ == "__main__":

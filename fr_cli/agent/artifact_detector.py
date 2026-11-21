@@ -70,7 +70,7 @@ def detect_plugin_artifact(
             task_id=task_id,
             metadata={"lang": lang},
         )
-        print(f"{YELLOW}⚡ 后台检测到插件代码，已加入 Hermes 审核队列{RESET}")
+        print(f"{YELLOW}后台检测到插件代码，已加入 Hermes 审核队列{RESET}")
         return True
 
     try:
@@ -121,11 +121,11 @@ def detect_agent_artifact(
             task_id=task_id,
             metadata={"lang": lang},
         )
-        print(f"{YELLOW}⚡ 后台检测到 Agent 分身代码，已加入 Hermes 审核队列{RESET}")
+        print(f"{YELLOW}后台检测到 Agent 分身代码，已加入 Hermes 审核队列{RESET}")
         return True
 
     try:
-        aname = input(f"{YELLOW}⚡ 检测到 Agent 分身结构，赐名 (回车放弃): {RESET}").strip()
+        aname = input(f"{YELLOW}检测到 Agent 分身结构，赐名 (回车放弃): {RESET}").strip()
         if not aname:
             return False
 
@@ -146,7 +146,7 @@ def detect_agent_artifact(
         if not ok:
             print(f"{RED}{msg}{RESET}")
             return False
-        print(f"{GREEN}✅ Agent [{msg}] 已保存。{RESET}")
+        print(f"{GREEN}[OK] Agent [{msg}] 已保存。{RESET}")
         print(f"{DIM}  运行: /agent_run {msg} [参数]{RESET}")
         return True
     except EOFError:

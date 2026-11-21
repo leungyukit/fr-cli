@@ -58,8 +58,8 @@ def main():
                 elif ms: print("\\n".join([f"  {CYAN}[{i}]{RESET} {m[\\'sub\\'][:30]}..." for i, m in enumerate(ms)]))
 
         print_banner(state.cm, state.cl, state.ad, len(state.plugins), state.asn, state.lang)
-        if state.asn: print(f"\\033[35m🔁 {state.asn}{RESET}\\n")
-        safe_clear(); print(f"{CYAN}⏳{RESET}", end="\\r")
+        if state.asn: print(f"\\033[35m{state.asn}{RESET}\\n")
+        safe_clear(); print(f"{CYAN}{RESET}", end="\\r")
         try: 
             state.client.chat.completions.create(model=state.cm, messages=[{"role":"user","content":"hi"}], max_tokens=1)
             safe_clear(); print(f"{GREEN}{T(\\'conn_ok\\', state.lang)}{RESET}\\n")
@@ -82,7 +82,7 @@ def main():
                         if not out.strip(): continue
                         pipe_content = f"{T(\\'pipe_prefix\\', state.lang)}{out}\\n\\n{ai_prompt}"
                         state.msgs.append({"role": "user", "content": pipe_content})
-                        reply, _ = stream_cnt(state.client, state.cm, state.msgs, state.lang, prefix=f"{GREEN}🧙 管道飞书{RESET} ")
+                        reply, _ = stream_cnt(state.client, state.cm, state.msgs, state.lang, prefix=f"{GREEN}管道飞书{RESET} ")
                         if reply: state.msgs.append({"role": "assistant", "content": reply})
                     else:
                         if not ask("sec_shell", cmd_raw, state): continue
@@ -93,7 +93,7 @@ def main():
                 cd = ui.split(); cb = cd[0].lower(); ca = " ".join(cd[1:]) if len(cd) > 1 else ""
                 if cb in ["/quit", "/exit", "q"]: print_bye(state.lang); break
                 elif cb == "/help": print(f"\\n{YELLOW}详见 README.md{RESET}\\n"); continue
-                elif cb == "/clear": state.msgs = [{"role": "system", "content": state.sp}]; state.asn = None; state.sconfirm = False; print(f"{GREEN}✅{RESET}"); continue
+                elif cb == "/clear": state.msgs = [{"role": "system", "content": state.sp}]; state.asn = None; state.sconfirm = False; print(f"{GREEN}[OK]{RESET}"); continue
                 # (省略其他几十个分支路由，逻辑与之前完全一致，由于篇幅限制这里做简化示意)
                 # 实际生成的ZIP中包含完整无删减的路由逻辑
                 else:
@@ -105,7 +105,7 @@ def main():
                     if reply:
                         state.msgs.append({"role": "assistant", "content": reply})
                         if usage and usage.get("total_tokens", 0) > state.cl:
-                            print(f"{YELLOW}⚠️ Trim{RESET}"); state.msgs = [state.msgs[0]] + state.msgs[-16:]
+                            print(f"{YELLOW}[!] Trim{RESET}"); state.msgs = [state.msgs[0]] + state.msgs[-16:]
             except KeyboardInterrupt: print(f"\\n\\n{YELLOW}Interrupted...{RESET}"); print_bye(state.lang); break
     finally:
         try: sys.stdout.write(f"{RESET}\\033[?25h"); sys.stdout.flush()
@@ -174,7 +174,7 @@ def save_config(c):
 def init_config():
     c = load_config()
     if not c.get("api_key"):
-        k = input(f"\\n{YELLOW}⚠️ API Key:\\n👉 {RESET}").strip()
+        k = input(f"\\n{YELLOW}[!] API Key:\\n{RESET}").strip()
         if k: c["api_key"] = k; save_config(c)
         else: exit(1)
     return c
@@ -184,8 +184,8 @@ def init_config():
 国际化文本引擎
 """
 I18N = {
-    "zh": {"sys_prompt": "你是高阶AI。", "prompt_user": "🧑 凡人", "prompt_ai": "🧙 飞书", "conn_ok": "✅ 连通。"},
-    "en": {"sys_prompt": "You are an AI.", "prompt_user": "🧑 You", "prompt_ai": "🤖 AI", "conn_ok": "✅ Connected."}
+    "zh": {"sys_prompt": "你是高阶AI。", "prompt_user": "凡人", "prompt_ai": "飞书", "conn_ok": "[OK] 连通。"},
+    "en": {"sys_prompt": "You are an AI.", "prompt_user": "You", "prompt_ai": "AI", "conn_ok": "[OK] Connected."}
     # 实际文件中包含完整的几百条翻译
 }
 def T(k, l="zh", *a):
@@ -225,20 +225,20 @@ def print_bye(l): pass
     # ================= 文档 =================
     f"{PROJECT_NAME}/README.md": """# FANREN CLI TOOL (凡人打字机)
 
-**🇨🇳 中文简介**
+**中文简介**
 这是一个基于智谱 AI (GLM) 的终极全知全能终端工具。单文件起步，现已拆分为标准工程化结构。
 支持：跨平台动画、中英文热切、文件穿梭、自我进化插件、会话轮回、时空神通(undo/export)、符文高亮、本命元神、四阶安全拦截、天眼视觉(GLM-4V)、祭炼画卷、邮差精灵(IMAP/SMTP)、时空结界(后台定时)、互联网游侠(零配置搜索)、腾云驾雾(百度/阿里/OneDrive网盘)、Shell穿透与万物管道(`!cmd | AI提示`)。
 
-**🇺🇸 English Intro**
+**English Intro**
 The ultimate all-knowing terminal tool based on Zhipu AI. Supports cross-platform animations, i18n (ZH/EN), virtual filesystem, self-evolving plugins, session history, vision (GLM-4V), image generation (CogView), Mail client, Cron jobs, Web scraping, Cloud Drive integration (Baidu/Ali/OneDrive), and powerful Shell piping directly to AI (`!cmd | prompt`).
 
-## 🚀 快速开始 / Quick Start
+## 快速开始 / Quick Start
 
 1. 确保安装了 Python 3.8+ 和 智谱 SDK: `pip install zhipuai`
 2. 运行主程序: `python main.py`
 3. 首次运行会引导你输入 API Key。
 
-## 📂 项目结构 / Project Structure
+## 项目结构 / Project Structure
 - `main.py`: 核心路由与事件循环
 - `core.py`: 全局状态容器
 - `config.py`: 持久化配置管理
@@ -275,8 +275,8 @@ def create_zip():
     with zipfile.ZipFile(zip_filename, 'w', zipfile.ZIP_DEFLATED) as zf:
         for path, content in files.items():
             zf.writestr(path, content)
-    print(f"✅ 项目打包成功: {zip_filename}")
-    print(f"📦 包含文件数: {len(files)}")
+    print(f"[OK] 项目打包成功: {zip_filename}")
+    print(f"包含文件数: {len(files)}")
     print(f"解压后请运行: cd {PROJECT_NAME} && python main.py")
 
 if __name__ == "__main__":

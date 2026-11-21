@@ -137,12 +137,12 @@ class M365MailClient:
         """发送邮件，返回 Result。"""
         # 安全校验：防止邮件头注入
         if '\n' in to or '\r' in to or '\n' in subject or '\r' in subject:
-            return Result.fail("❌ 邮件地址或主题包含非法字符")
+            return Result.fail("[x] 邮件地址或主题包含非法字符")
 
         import email.utils
         parsed = email.utils.parseaddr(to)
         if not parsed[1] or '@' not in parsed[1]:
-            return Result.fail("❌ 收件人地址格式无效")
+            return Result.fail("[x] 收件人地址格式无效")
 
         payload = {
             "message": {
@@ -197,15 +197,15 @@ def m365_config_wizard(lang: str = "zh") -> Tuple[bool, Dict[str, Any]]:
 
     def _prompt(text, default=""):
         if default:
-            val = input(f"{CYAN}👉 {text} [{default}]: {RESET}").strip()
+            val = input(f"{CYAN}{text} [{default}]: {RESET}").strip()
             return val if val else default
-        return input(f"{CYAN}👉 {text}: {RESET}").strip()
+        return input(f"{CYAN}{text}: {RESET}").strip()
 
     def _confirm(text):
         r = input(f"{YELLOW}{text} (Y/n): {RESET}").strip().lower()
         return r in ("", "y", "yes", "是")
 
-    print(f"\n{CYAN}🔧 Microsoft 365 邮箱配置向导{RESET}")
+    print(f"\n{CYAN}Microsoft 365 邮箱配置向导{RESET}")
     print(f"{DIM}{'你需要先注册一个 Azure AD 应用。以下是简要步骤：' if uf else 'You need to register an Azure AD app first. Quick steps:'}{RESET}")
     print("  1. 访问 https://portal.azure.com/ → Azure Active Directory → App registrations")
     print("  2. New registration → 名称任意 → Supported account types: 'Accounts in any organizational directory and personal Microsoft accounts'")
@@ -221,7 +221,7 @@ def m365_config_wizard(lang: str = "zh") -> Tuple[bool, Dict[str, Any]]:
     tenant_id = _prompt("Tenant ID (输入 common 表示通用/个人账户)", "common")
     client_id = _prompt("Application (client) ID").strip()
     if not client_id:
-        print(f"{RED}{'❌ client_id 不能为空' if uf else '❌ client_id is required'}{RESET}")
+        print(f"{RED}{'[x] client_id 不能为空' if uf else '[x] client_id is required'}{RESET}")
         return False, {}
 
     print(f"\n{CYAN}{'选择 OAuth2 登录方式:' if uf else 'Select OAuth2 login flow:'}{RESET}")
@@ -242,18 +242,18 @@ def m365_config_wizard(lang: str = "zh") -> Tuple[bool, Dict[str, Any]]:
         cfg["redirect_uri"] = redirect_uri
 
     _save_m365_cfg(cfg)
-    print(f"{GREEN}{'✅ 配置已保存，现在尝试登录...' if uf else '✅ Config saved, trying to login...'}{RESET}")
+    print(f"{GREEN}{'[OK] 配置已保存，现在尝试登录...' if uf else '[OK] Config saved, trying to login...'}{RESET}")
 
     # 触发一次登录以验证配置并缓存 token
     try:
         token_result = _get_access_token(cfg, lang)
         if token_result.is_fail():
-            print(f"{RED}{'❌ 登录失败:' if uf else '❌ Login failed:'} {token_result.error}{RESET}")
+            print(f"{RED}{'[x] 登录失败:' if uf else '[x] Login failed:'} {token_result.error}{RESET}")
             return False, cfg
-        print(f"{GREEN}{'✅ Microsoft 365 登录成功并已缓存 token' if uf else '✅ Microsoft 365 login succeeded and token cached'}{RESET}")
+        print(f"{GREEN}{'[OK] Microsoft 365 登录成功并已缓存 token' if uf else '[OK] Microsoft 365 login succeeded and token cached'}{RESET}")
         return True, cfg
     except ImportError as e:
-        print(f"{RED}{'❌' if uf else '❌'} {e}{RESET}")
+        print(f"{RED}{'[x]' if uf else '[x]'} {e}{RESET}")
         return False, cfg
 
 

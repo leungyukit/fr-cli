@@ -80,7 +80,7 @@ def _register_defi_pool(deps, **kwargs):
         return Result.fail(result.get("error"))
     pool = result["pool"]
     return Result.ok(
-        f"💰 池详情:\n"
+        f"池详情:\n"
         f"  协议: {pool.get('project')}\n"
         f"  代币: {pool.get('symbol')}\n"
         f"  链: {pool.get('chain')}\n"

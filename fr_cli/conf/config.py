@@ -126,20 +126,20 @@ def load_config():
             with open(config_file, "r", encoding="utf-8") as f:
                 c = json.load(f)
         except Exception as e:
-            print(f"{YELLOW}⚠️ 配置文件损坏: {e}{RESET}")
+            print(f"{YELLOW}[!] 配置文件损坏: {e}{RESET}")
 
     # 2. 尝试从备份恢复
     if c is None and config_backup.exists():
         try:
             with open(config_backup, "r", encoding="utf-8") as f:
                 c = json.load(f)
-            print(f"{GREEN}✅ 已从备份恢复配置{RESET}")
+            print(f"{GREEN}[OK] 已从备份恢复配置{RESET}")
             shutil.copy2(config_backup, config_file)
         except Exception as e:
-            print(f"{YELLOW}⚠️ 备份文件也损坏: {e}{RESET}")
+            print(f"{YELLOW}[!] 备份文件也损坏: {e}{RESET}")
 
     if c is None:
-        print(f"{YELLOW}⚠️ 使用默认配置，请重新设置{RESET}")
+        print(f"{YELLOW}[!] 使用默认配置，请重新设置{RESET}")
         return d
 
     # schema 升级与向后兼容迁移（必须在补齐默认字段之前执行，
@@ -184,7 +184,7 @@ def save_config(c):
             raise
         return True
     except Exception as e:
-        print(f"{RED}❌ 保存配置失败: {e}{RESET}")
+        print(f"{RED}[x] 保存配置失败: {e}{RESET}")
         return False
 
 
@@ -276,7 +276,7 @@ def init_config(*, force_wizard: bool = False, interactive: bool = None):
     # 1. 自动迁移旧路径 → 新路径（一次性，幂等）
     moved = paths_migrate()
     if moved:
-        print(f"{GREEN}✅ 已迁移 {moved} 个旧配置/数据到 {ROOT}{RESET}")
+        print(f"{GREEN}[OK] 已迁移 {moved} 个旧配置/数据到 {ROOT}{RESET}")
 
     c = load_config()
 
@@ -285,7 +285,7 @@ def init_config(*, force_wizard: bool = False, interactive: bool = None):
         DEFAULT_WORKSPACE.mkdir(parents=True, exist_ok=True)
         c["allowed_dirs"] = [str(DEFAULT_WORKSPACE)]
         save_config(c)
-        print(f"{GREEN}✅ 默认目录已添加: {DEFAULT_WORKSPACE}{RESET}")
+        print(f"{GREEN}[OK] 默认目录已添加: {DEFAULT_WORKSPACE}{RESET}")
 
     # 检测是否需要进入模型配置向导
     has_default = bool(c.get("default_provider"))
@@ -319,7 +319,7 @@ def init_config(*, force_wizard: bool = False, interactive: bool = None):
         print()
         print(f"{YELLOW}╔{'═' * _BW}╗{RESET}")
         # 标题按显示宽度居中(str.center 按代码点,emoji/中文会顶破右框线)
-        print(f"{YELLOW}║{center_display('🧙  尚未配置默认模型', _BW)}║{RESET}")
+        print(f"{YELLOW}║{center_display('尚未配置默认模型', _BW)}║{RESET}")
         print(f"{YELLOW}╠{'═' * _BW}╣{RESET}")
         print(_box_line("  fr-cli 需要至少一个 LLM 模型才能正常工作。"))
         print(_box_line("  接下来会引导你完成 6 步配置。"))
@@ -329,7 +329,7 @@ def init_config(*, force_wizard: bool = False, interactive: bool = None):
         print()
 
         try:
-            enter = input(f"{CYAN}👉 现在进入配置向导? [Y/n]: {RESET}").strip().lower()
+            enter = input(f"{CYAN}现在进入配置向导? [Y/n]: {RESET}").strip().lower()
         except (EOFError, KeyboardInterrupt):
             enter = "n"
         if enter in ("", "y", "yes", "是"):

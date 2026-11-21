@@ -2,17 +2,17 @@
 
 支持多模型（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）的终极全能终端工具。
 
-**🇨🇳 中文简介**
+**中文简介**
 
 支持：多模型 AI 对话（智谱/DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞星火）、MasterAgent 自我进化主控、思维模式切换（direct/CoT/ToT/ReAct）、文件沙盒操作、联网搜索（SSRF 防护）、图片生成与识别、邮件收发（IMAP/SMTP + Microsoft 365 OAuth2/MFA）、定时任务（shlex 安全解析）、云盘集成、会话记忆、按日期自动存档、插件进化（子进程隔离）、四阶安全拦截、Shell 管道直通 AI。
 
-**🇺🇸 English Intro**
+**English Intro**
 
 The ultimate all-knowing terminal tool supporting multiple LLM providers (Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark). Supports AI chat, MasterAgent self-evolving controller, thinking modes (direct/CoT/ToT/ReAct), virtual filesystem, web search (SSRF-protected), image generation & vision, email (IMAP/SMTP + Microsoft 365 OAuth2/MFA), cron jobs (shlex-safe), cloud drive, session memory, auto date-based archiving, self-evolving plugins (subprocess-isolated), and powerful Shell piping.
 
 ---
 
-## 🚀 快速开始
+## 快速开始
 
 ```bash
 pip install fr-cli
@@ -21,7 +21,7 @@ fr-cli
 
 首次运行会引导输入当前道统的 API Key。
 
-## 🎮 使用方式
+## 使用方式
 
 ### 用户直接命令
 
@@ -83,7 +83,7 @@ fr-cli
 
 ---
 
-## 📂 项目结构
+## 项目结构
 
 ```
 fr_cli/
@@ -137,7 +137,7 @@ fr_cli/
 
 ---
 
-## 📦 可选依赖
+## 可选依赖
 
 ```bash
 pip install fr-cli[all]          # 全功能（含网盘 / Microsoft 365）
@@ -149,7 +149,7 @@ pip install fr-cli[cloud]        # 网盘 + Microsoft 365（含 msal）
 
 ---
 
-## 🔧 开发
+## 开发
 
 ```bash
 git clone https://github.com/yourname/fr-cli.git
@@ -160,6 +160,6 @@ python -m pytest tests/ -v
 
 ---
 
-## 📄 License
+## License
 
 MIT

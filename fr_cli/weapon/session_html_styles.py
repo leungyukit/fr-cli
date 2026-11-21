@@ -172,5 +172,5 @@ footer {
 """
 
 
-ROLE_ICONS = {"user": "👤", "assistant": "🤖", "system": "⚙️"}
+ROLE_ICONS = {"user": "", "assistant": "", "system": ""}
 ROLE_LABELS = {"user": "用户", "assistant": "AI", "system": "系统"}

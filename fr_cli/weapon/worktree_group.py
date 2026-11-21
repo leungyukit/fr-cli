@@ -267,11 +267,11 @@ def format_group(group_id: str, lang: str = "zh") -> str:
         return f"群组 {group_id} 不存在"
 
     if lang == "zh":
-        title = "🐝 蜂群 Worktree"
+        title = "蜂群 Worktree"
         status_label = "状态"
         wt_label = "Worktree"
     else:
-        title = "🐝 Swarm Worktree Group"
+        title = "Swarm Worktree Group"
         status_label = "Status"
         wt_label = "Worktree"
 

@@ -39,7 +39,7 @@ def _register_voice_input(deps, **kwargs):
         return Result.fail(v["error"])
 
     size_kb = v["size"] // 1024
-    print(f"🎙️ 正在转写 ({size_kb}KB, 格式 {v['format']}, 语言 {language})...")
+    print(f"正在转写 ({size_kb}KB, 格式 {v['format']}, 语言 {language})...")
     result = transcribe_audio(path, language=language, prefer_local=prefer_local)
 
     if not result["ok"]:
@@ -61,8 +61,8 @@ def _register_voice_input(deps, **kwargs):
     if duration:
         extra = f" ({duration:.1f}s)"
     return Result.ok(
-        f"✅ 转写成功{extra} [引擎: {engine}]\n\n"
-        f"📝 转写内容:\n{text}"
+        f"[OK] 转写成功{extra} [引擎: {engine}]\n\n"
+        f"转写内容:\n{text}"
     )
 
 
@@ -90,9 +90,9 @@ def _register_voice_record(deps, **kwargs):
     os.close(fd)
 
     if duration > 0:
-        print(f"🎙️ 录音 {duration} 秒...")
+        print(f"录音 {duration} 秒...")
     else:
-        print("🎙️ 开始录音,按 Ctrl+C 停止...")
+        print("开始录音,按 Ctrl+C 停止...")
 
     try:
         result = record_audio_macos(tmp_path, duration_sec=duration)
@@ -105,8 +105,8 @@ def _register_voice_record(deps, **kwargs):
             return Result.fail(f"录音成功但转写失败: {trans_result.get('error')}")
 
         return Result.ok(
-            f"✅ 录音 + 转写完成\n\n"
-            f"📝 转写内容:\n{trans_result.get('text', '')}\n\n"
+            f"[OK] 录音 + 转写完成\n\n"
+            f"转写内容:\n{trans_result.get('text', '')}\n\n"
             f"音频已保存到: {result['path']}"
         )
     finally:
