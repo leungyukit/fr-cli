@@ -45,7 +45,7 @@ class TestHanLiArt(unittest.TestCase):
         art = _load_art("bust", color=True)
         self.assertIn("▀", art)
         self.assertIn("\033[38;2;", art)   # 真彩色前景
-        self.assertIn("\033[48;2;", art)   # 真彩色背景
+        self.assertIn("48;2;", art)   # 真彩色背景（fg/bg 合并在同一 SGR 序列中）
 
     def test_plain_art_has_no_ansi(self):
         """纯文本版无 ANSI 转义"""

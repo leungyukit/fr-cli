@@ -9,6 +9,7 @@
 #### 韩立启动字符画
 - 新增 `fr_cli/ui/hanli.py`：半块真彩色字符画渲染（`print_hanli(variant, min_free_rows)`）
   - 素材：`fr_cli/assets/hanli_bust.ansi`（56×80 半身像，默认）/ `hanli_full.ansi`（72×103 完整立绘）
+  - 修复 `hanli_full.ansi`（43 个）/ `hanli_bust.ansi`（29 个）中所有只设背景色的 `▄` 单元格：统一改写为等价上半块 `[38;2;X;49m▀`，避免深色主题下下半块透出默认前景的浅灰杂点或行内继承色；修复后素材不再含独立 bg SGR 序列（fg/bg 均合并或显式声明）
   - 终端高度不足时自动跳过，不撑破布局
 - 启动时默认打印（`repl/bootstrap.py`）；`fr-cli -noart` 跳过；配置 `startup_art: false` 永久关闭
 - REPL 内 `/hanli [full]` 随时重看
