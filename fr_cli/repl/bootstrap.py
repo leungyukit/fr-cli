@@ -159,34 +159,22 @@ def print_simple_banner(state, version: str):
     print()
 
 
-def print_startup_banner(state, cfg, show_logo: bool = False):
+def print_startup_banner(state, cfg, show_logo: bool = False, show_art: bool = True):
     """打印启动画面
 
     Args:
-        show_logo: True 时显示佛像 ASCII art（-logo 参数），
-                   False 时显示简洁线条框（默认）
+        show_logo: True 时显示韩立全身细节字符画(-logo),False 显示半身像
+        show_art: False 时跳过字符画, 只显示信息框(-noart / 小终端 / 用户关闭)
     """
-
-    if show_logo:
-        # -logo 参数：显示佛像 ASCII art
+    # 韩立字符画(凡人修仙传主角, 半块字符 + 真彩色)
+    if show_art:
         try:
-            from fr_cli.ui.buddha import print_buddha
-            _ = print_buddha(version=__version__)
-            print()
-            return
-        except Exception as e:
-            # 出错则降级到简洁 banner
-            try:
-                from fr_cli.conf.paths import FR_CLI_DIR
-                log_path = FR_CLI_DIR / "splash.log"
-                with open(log_path, "a", encoding="utf-8") as f:
-                    f.write(f"[buddha skipped] {type(e).__name__}: {e}\n")
-            except Exception:
-                pass
-            print_simple_banner(state, __version__)
-            return
+            from fr_cli.ui.hanli import print_hanli
+            print_hanli("full" if show_logo else "bust")
+        except Exception:
+            pass  # 素材缺失/环境异常时静默降级到信息框
 
-    # 默认：简洁线条框
+    # 信息框(模型 / 目录 / 会话)
     print_simple_banner(state, __version__)
 
 
@@ -239,12 +227,13 @@ def _autostart_background_services(state, cfg):
         print(f"  {DIM}⚠️ Gatekeeper 启动异常: {e}{RESET}")
 
 
-def bootstrap(show_logo: bool = False, show_banner: bool = True):
+def bootstrap(show_logo: bool = False, show_banner: bool = True, show_art: bool = True):
     """启动引导主入口：返回 (cfg, state)
 
     Args:
-        show_logo: True 时显示佛像 ASCII art，False 时显示简洁 banner
+        show_logo: True 时显示韩立全身细节字符画，False 显示半身像
         show_banner: False 时跳过启动画面（用于批处理 / 非交互模式）
+        show_art: False 时跳过字符画只显示信息框（-noart；配置 startup_art=false 同效）
     """
     # v3.0+:app.starting 事件
     try:
@@ -260,6 +249,8 @@ def bootstrap(show_logo: bool = False, show_banner: bool = True):
         print(f"{RED}配置初始化失败，退出。{RESET}")
         return None, None
     state = AppState(cfg)
+    # 确保 MANUAL.md 存在(不存在则创建默认版), 再同步到工作空间
+    _ensure_manual_exists()
     sync_manual_to_workspace(state.vfs)
     sp = load_system_prompt(state, cfg.get("lang", "zh"))
     start_history_loader(state, sp)
@@ -270,7 +261,9 @@ def bootstrap(show_logo: bool = False, show_banner: bool = True):
         _autostart_background_services(state, cfg)
 
     if show_banner:
-        print_startup_banner(state, cfg, show_logo=show_logo)
+        # 用户偏好: 配置 startup_art=false 可永久关闭启动字符画
+        show_art = show_art and bool(cfg.get("startup_art", True))
+        print_startup_banner(state, cfg, show_logo=show_logo, show_art=show_art)
         # 启动横幅显示完后,若使用了 backup 模型,在下方追加一行提示
         if getattr(state, '_fallback_notice', None):
             from fr_cli.ui.ui import YELLOW, RESET

@@ -239,30 +239,6 @@ def migrate(verbose: bool = False):
     return moved
 
 
-def reset_migration_flag():
-    """仅供测试：重置迁移标志"""
-    global _migrated
-    _migrated = False
-
-
 # =================================================================
 # 兼容层：read-with-fallback（仅用于关键配置文件）
 # =================================================================
-def read_with_fallback(primary: Path, fallbacks: list, binary: bool = False) -> bytes | str | None:
-    """按优先级读取：先 primary，再 fallbacks。
-
-    用于主配置等需要向后兼容的关键文件。读取不会触发迁移，
-    迁移在启动时统一做。
-    """
-    if primary.exists():
-        return primary.read_bytes() if binary else primary.read_text(encoding="utf-8")
-    for fb in fallbacks:
-        if fb.exists():
-            return fb.read_bytes() if binary else fb.read_text(encoding="utf-8")
-    return None
-
-
-def ensure_dir(p: Path) -> Path:
-    """确保目录存在，返回 Path"""
-    p.mkdir(parents=True, exist_ok=True)
-    return p

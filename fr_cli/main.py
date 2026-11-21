@@ -26,9 +26,18 @@ if project_root not in sys.path:
 
 def _should_disable_colors_early() -> bool:
     """
-    早期颜色控制：prompt_toolkit.patch_stdout 接管 stdout 后，
-    原始 ANSI 转义序列会被当作纯文本显示为 ?[92m 等乱码。
-    在 REPL + prompt_toolkit 环境下提前禁用颜色，避免用户看到转义字符。
+    早期颜色控制。
+
+    历史背景: 旧版 prompt_toolkit 的 patch_stdout 会把原始 ANSI 转义序列
+    当作纯文本显示为 ?[92m 等乱码, 因此曾在 REPL 模式全局禁色。
+    实测 prompt_toolkit 3.0.52 的 patch_stdout 已正确解析 ANSI(直通不损坏),
+    全局禁色反而让整个 REPL 变成无彩色, 体验降级。
+
+    现在的策略:
+    - NO_COLOR 环境变量 → 禁色(标准约定)
+    - 非 TTY(管道/重定向) → 禁色
+    - 交互式 TTY → 保留颜色; 流式输出路径内部仍有
+      _ColorDisable / _is_prompt_toolkit_stdout 局部保护兜底
     用户可通过 FORCE_COLOR=1 / CLICOLOR_FORCE=1 强制启用颜色。
     """
     if os.environ.get("FORCE_COLOR") or os.environ.get("CLICOLOR_FORCE"):
@@ -37,13 +46,7 @@ def _should_disable_colors_early() -> bool:
         return True
     if not sys.stdin.isatty() or not sys.stdout.isatty():
         return True
-    # 批处理模式不会使用 patch_stdout，不提前禁用
-    batch_flags = {"-c", "--command", "-p", "--prompt", "-f", "--file",
-                   "-s", "--stdin", "-h", "--help"}
-    if any(arg in sys.argv[1:] for arg in batch_flags):
-        return False
-    import importlib.util
-    return importlib.util.find_spec("prompt_toolkit") is not None
+    return False
 
 
 if _should_disable_colors_early():
@@ -75,7 +78,12 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "-logo",
         action="store_true",
-        help="启动时显示 logo（REPL 模式有效）",
+        help="启动时显示韩立全身细节字符画（REPL 模式有效）",
+    )
+    parser.add_argument(
+        "-noart",
+        action="store_true",
+        help="启动时不显示韩立字符画，只显示信息框",
     )
     parser.add_argument(
         "-q", "--quiet",
@@ -122,7 +130,8 @@ def _print_help():
 
 选项:
   -h, --help          显示本帮助信息并退出
-  -logo               启动时显示佛像 logo（REPL 模式）
+  -logo               启动时显示韩立全身细节字符画（REPL 模式）
+  -noart              启动时不显示韩立字符画，只显示信息框
   -q, --quiet         静默模式，只输出核心结果
   -p, --prompt TEXT   指定要发送给 AI 的提示词
   -c, --command CMD   执行一条 slash 命令（如 /model current）
@@ -135,6 +144,7 @@ def _print_help():
   fr-cli -c "/model current"
   cat article.txt | fr-cli -s
   fr-cli -f prompt.txt -q
+  fr-cli -logo           # 大幅韩立字符画启动
 """)
 
 
@@ -185,7 +195,8 @@ def main():
     batch_mode = batch_text is not None
     show_logo = args.logo and not batch_mode and not args.quiet
 
-    cfg, state = bootstrap(show_logo=show_logo, show_banner=not batch_mode and not args.quiet)
+    cfg, state = bootstrap(show_logo=show_logo, show_banner=not batch_mode and not args.quiet,
+                           show_art=not args.noart)
     if state is None:
         return 1
 
@@ -265,6 +276,13 @@ def main():
             from fr_cli.agent.dispatch import dispatch_agent_call
             if dispatch_agent_call(state, u):
                 continue
+
+        # !<cmd> 直接执行 shell 命令；!<cmd> | <问题> 管道模式把输出喂给 AI
+        # （输入框提示里的 "! shell" 承诺，落地在 repl/bang.py）
+        if u.startswith("!"):
+            from fr_cli.repl.bang import handle_bang
+            handle_bang(state, u[1:])
+            continue
 
         # 命令分发（/ 开头走 router，普通文本走 AI 对话队列）
         if u.startswith("/"):

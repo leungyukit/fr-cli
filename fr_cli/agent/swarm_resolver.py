@@ -304,7 +304,3 @@ class SwarmTaskResolver:
         )
 
 
-def resolve_swarm_task(state, name: str, user_input: str = ""):
-    """便捷函数：解析并执行单个蜂群任务"""
-    resolver = SwarmTaskResolver(state)
-    return resolver.call(name, user_input)

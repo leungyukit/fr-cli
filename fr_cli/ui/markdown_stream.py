@@ -149,12 +149,11 @@ class StreamingMarkdownRenderer:
             text = stripped[1:].strip()
             return _color("│ ", DIM, self.use_color) + _color(text, DIM, self.use_color)
 
-        # 表格行(简单:检测 |---|)
-        if stripped.startswith("|") and stripped.endswith("|") and "-" in stripped and "|" in stripped[1:]:
+        # 表格行( | ... | ):表头/数据行都按表格渲染,分隔行(---|---)淡化
+        if stripped.startswith("|") and stripped.endswith("|") and len(stripped) > 1:
             self.in_table = True
-            return _color(stripped, DIM, self.use_color)
-
-        if self.in_table and stripped.startswith("|"):
+            if re.match(r'^\|?[\s:|-]+\|?$', stripped):
+                return _color(stripped, DIM, self.use_color)
             return self._render_table_row(stripped)
 
         if self.in_table and not stripped.startswith("|"):
@@ -218,14 +217,16 @@ class StreamingMarkdownRenderer:
         return _color("│ ", DIM, self.use_color) + _color(" │ ", DIM, self.use_color).join(rendered_cells)
 
     def flush(self) -> str:
-        """flush 剩余 buffer"""
+        """flush 剩余 buffer（幂等：重复调用返回空，不会重复输出）"""
         if not self.buffer.strip():
             return ""
         if self.state == "IN_CODE":
             # 代码块未结束
             self.state = "NORMAL"
             self.code_buffer.append(self.buffer)
-            return "\n" + _color(self.buffer, DIM, self.use_color)
+            out = "\n" + _color(self.buffer, DIM, self.use_color)
+            self.buffer = ""  # 必须清空：否则二次 flush 会经 _process_line 再输出一遍
+            return out
         rendered = self._process_line(self.buffer)
         self.buffer = ""
         return rendered or ""
@@ -239,7 +240,3 @@ class StreamingMarkdownRenderer:
         }
 
 
-def is_streaming_md_enabled() -> bool:
-    """是否启用 streaming MD(可通过环境变量关闭)"""
-    import os
-    return os.environ.get("FR_CLI_STREAMING_MD", "1") != "0"

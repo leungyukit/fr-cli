@@ -1,15 +1,31 @@
-from fr_cli.conf.paths import RAG_DB_DIR
 """
 @RAG 内置 Agent —— 本地知识库检索增强生成
 使用 ChromaDB 持久化向量存储 + sentence-transformers 嵌入模型。
 自动监控知识库目录，新文件自动向量化入库。
+
+模块拆分(原单文件 509 行,按职责拆为 4 个 mixin):
+- rag_chunking.py: 文件读取 / 分块 / 变更哈希(RAGFileMixin)
+- rag_index.py:    向量入库 / 目录同步(RAGIndexMixin)
+- rag_query.py:    检索 + 大模型生成(RAGQueryMixin)
+- rag_cache.py:    查询缓存,内存 TTL + 跨会话持久化(RAGCacheMixin)
+- rag.py:          本文件——RAGManager 组装 + 初始化 + 后台监控 + 单例 + @RAG 入口
+
+公开 API 不变:
+    from fr_cli.agent.builtins.rag import RAGManager, get_rag_manager, handle_rag
 """
-import hashlib
-import os
+from __future__ import annotations
+
 import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Tuple
+
+from fr_cli.conf.paths import RAG_DB_DIR
+
+from fr_cli.agent.builtins.rag_cache import RAGCacheMixin
+from fr_cli.agent.builtins.rag_chunking import RAGFileMixin
+from fr_cli.agent.builtins.rag_index import RAGIndexMixin
+from fr_cli.agent.builtins.rag_query import RAGQueryMixin
 
 # 可选依赖延迟导入
 _chroma = None
@@ -38,8 +54,16 @@ def _get_st():
     return _sentence_transformers
 
 
-class RAGManager:
-    """RAG 知识库管理器 —— 向量存储 + 文件监控 + 检索生成"""
+class RAGManager(RAGCacheMixin, RAGFileMixin, RAGIndexMixin, RAGQueryMixin):
+    """RAG 知识库管理器 —— 向量存储 + 文件监控 + 检索生成
+
+    职责分布(见各 mixin 文件):
+    - RAGCacheMixin:   查询缓存(TTL / 上限 / 持久化)
+    - RAGFileMixin:    文件读取 / 分块 / 哈希
+    - RAGIndexMixin:   add_document / sync_directory
+    - RAGQueryMixin:   query(检索 + 生成)
+    - 本类:           初始化 / 依赖装配 / 后台监控
+    """
 
     DEFAULT_MODEL = "all-MiniLM-L6-v2"
     CHUNK_SIZE = 500
@@ -86,336 +110,6 @@ class RAGManager:
         self._initialized = True
         return True
 
-    # ---------- 文件处理 ----------
-
-    def _read_file(self, path):
-        """读取文件内容"""
-        path = Path(path)
-        if not path.exists():
-            return None
-        try:
-            if path.stat().st_size > 10 * 1024 * 1024:
-                return None
-        except Exception:
-            return None
-        try:
-            if path.suffix.lower() in (".txt", ".md", ".py", ".js", ".json", ".html", ".css", ".xml", ".yaml", ".yml"):
-                return path.read_text(encoding="utf-8", errors="ignore")
-            elif path.suffix.lower() in (".csv",):
-                import pandas as pd
-                df = pd.read_csv(path, nrows=1000)
-                return df.to_string(index=False)
-            elif path.suffix.lower() in (".xlsx", ".xls"):
-                import pandas as pd
-                df = pd.read_excel(path, nrows=1000)
-                return df.to_string(index=False)
-        except Exception:
-            pass
-        return None
-
-    def _chunk_text(self, text, source):
-        """将文本分块"""
-        chunks = []
-        start = 0
-        text_len = len(text)
-        idx = 0
-        while start < text_len:
-            end = min(start + self.CHUNK_SIZE, text_len)
-            chunk = text[start:end]
-            chunk_id = hashlib.md5(f"{source}:{idx}:{chunk[:50]}".encode()).hexdigest()
-            chunks.append({"id": chunk_id, "text": chunk, "source": str(source)})
-            start += self.CHUNK_SIZE - self.CHUNK_OVERLAP
-            idx += 1
-        return chunks
-
-    def _file_hash(self, path):
-        """计算文件哈希用于去重检测"""
-        try:
-            stat = os.stat(path)
-            return f"{stat.st_mtime}_{stat.st_size}"
-        except Exception:
-            return ""
-
-    # ---------- 向量入库 ----------
-
-    def add_document(self, path):
-        """将单个文件向量化并入库。如果文件已存在，先删除旧片段再重新入库。"""
-        if not self._ensure_initialized():
-            return False, "缺少依赖: pip install chromadb sentence-transformers"
-
-        text = self._read_file(path)
-        if text is None:
-            return False, f"无法读取文件: {path}"
-
-        chunks = self._chunk_text(text, path)
-        if not chunks:
-            return False, "文件内容为空"
-
-        with self._db_lock:
-            # 如果文件之前已入库，先删除该文件的所有旧片段
-            source_key = str(path)
-            if source_key in self._file_state:
-                try:
-                    old_ids = self.collection.get(
-                        where={"source": source_key}, include=[]
-                    )
-                    if old_ids and "ids" in old_ids and old_ids["ids"]:
-                        self.collection.delete(ids=old_ids["ids"])
-                except Exception:
-                    pass
-
-            ids = [c["id"] for c in chunks]
-            texts = [c["text"] for c in chunks]
-            embeddings = self.embedder.encode(texts).tolist()
-            self.collection.add(
-                ids=ids,
-                embeddings=embeddings,
-                documents=texts,
-                metadatas=[{"source": c["source"]} for c in chunks],
-            )
-
-        self._file_state[str(path)] = self._file_hash(path)
-        return True, f"已入库 {len(chunks)} 个片段"
-
-    def sync_directory(self, kb_dir=None):
-        """扫描目录，自动向量化新文件/更新文件，并清理已删除文件的旧片段"""
-        if not self._ensure_initialized():
-            return False, "缺少依赖: pip install chromadb sentence-transformers"
-
-        target = Path(kb_dir) if kb_dir else self.kb_dir
-        if not target or not target.exists():
-            return False, "知识库目录未设置或不存在"
-
-        # 收集当前目录中的所有文件路径
-        current_files = set()
-        for root, _, files in os.walk(target):
-            for fname in files:
-                current_files.add(str(Path(root) / fname))
-
-        with self._db_lock:
-            # 清理已不在目录中的文件的旧片段
-            removed_sources = [p for p in self._file_state if p not in current_files]
-            for source in removed_sources:
-                try:
-                    old_ids = self.collection.get(
-                        where={"source": source}, include=[]
-                    )
-                    if old_ids and "ids" in old_ids and old_ids["ids"]:
-                        self.collection.delete(ids=old_ids["ids"])
-                except Exception:
-                    pass
-                del self._file_state[source]
-
-        results = []
-        for root, _, files in os.walk(target):
-            for fname in files:
-                path = Path(root) / fname
-                fhash = self._file_hash(path)
-                prev = self._file_state.get(str(path))
-                if prev != fhash:
-                    ok, msg = self.add_document(path)
-                    results.append(f"{fname}: {msg}")
-
-        if not results:
-            return True, "所有文件已是最新状态"
-        return True, "\n".join(results)
-
-    # ---------- 检索生成 ----------
-
-    def query(self, question, client, model, lang="zh", top_k=8):
-        """向量检索 -> 取 Top-K 片段 -> 大模型综合生成回答
-
-        缓存策略:基于 question + top_k + lang 的 SHA256 hash,TTL 10 分钟。
-        跳过缓存:lang != "zh"/"en" 或 question > 2000 字符
-        """
-        if not self._ensure_initialized():
-            return None, "缺少依赖: pip install chromadb sentence-transformers"
-
-        # 缓存命中
-        cache_key = self._query_cache_key(question, top_k, lang)
-        if cache_key in self._query_cache:
-            ts, cached = self._query_cache[cache_key]
-            if time.time() - ts < self._cache_ttl:
-                return cached, None
-            else:
-                # 过期清理
-                self._query_cache.pop(cache_key, None)
-
-        with self._db_lock:
-            if self.collection.count() == 0:
-                return None, "知识库为空，请先设置知识库目录并同步。"
-
-            q_emb = self.embedder.encode([question]).tolist()
-            results = self.collection.query(
-                query_embeddings=q_emb,
-                n_results=max(top_k, 1),
-                include=["documents", "metadatas"],
-            )
-
-        candidates = []
-        candidate_metas = []
-        for i, doc_list in enumerate(results.get("documents", [])):
-            for j, doc in enumerate(doc_list):
-                meta = results.get("metadatas", [])[i][j] if results.get("metadatas") else {}
-                candidates.append(doc)
-                candidate_metas.append(meta)
-
-        if not candidates:
-            return None, "未检索到相关知识。"
-
-        # 构造带来源标注的上下文
-        doc_blocks = []
-        for idx, (doc, meta) in enumerate(zip(candidates, candidate_metas), 1):
-            source = meta.get("source", "未知")
-            doc_blocks.append(f"片段{idx} [来源: {source}]\n{doc}")
-
-        context = "\n\n---\n\n".join(doc_blocks)
-
-        if lang == "zh":
-            prompt = f"""你是一个知识库问答助手。以下是从知识库中向量检索出的相关片段，请基于这些片段综合回答用户问题。
-
-知识片段:
-{context}
-
-用户问题: {question}
-
-回答要求：
-1. 优先基于上述片段内容回答，可综合多个片段
-2. 如果片段信息不足以完整回答，请明确说明
-3. 引用来源时请标注 [来源: 文件名]
-4. 请用中文给出准确、简洁的回答
-"""
-        else:
-            prompt = f"""You are a knowledge base Q&A assistant. Below are relevant snippets retrieved from the knowledge base. Please synthesize an answer based on these snippets.
-
-Knowledge Snippets:
-{context}
-
-User Question: {question}
-
-Instructions:
-1. Base your answer on the snippets above; you may synthesize multiple snippets
-2. If the snippets are insufficient, state so clearly
-3. Cite sources as [Source: filename]
-4. Give an accurate and concise answer
-"""
-
-        from fr_cli.core.stream import stream_cnt
-        messages = [{"role": "user", "content": prompt}]
-        result, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
-
-        # 写缓存
-        self._write_cache(cache_key, (result, None))
-        return result, None
-
-    def _query_cache_key(self, question: str, top_k: int, lang: str) -> str:
-        """生成查询缓存 key"""
-        # 超长问题或非标准 lang 不缓存
-        if len(question) > 2000 or lang not in ("zh", "en"):
-            return f"_nocache_{id(self)}_{time.time()}"
-        h = hashlib.sha256(f"{question}|{top_k}|{lang}".encode("utf-8")).hexdigest()
-        return h[:32]
-
-    def _write_cache(self, key: str, value: Any) -> None:
-        """写缓存(满了清掉最旧的)"""
-        if key.startswith("_nocache_"):
-            return
-        if len(self._query_cache) >= self._cache_max:
-            # 清掉最旧的 1/4
-            to_remove = max(1, self._cache_max // 4)
-            by_ts = sorted(self._query_cache.items(), key=lambda x: x[1][0])
-            for k, _ in by_ts[:to_remove]:
-                self._query_cache.pop(k, None)
-        self._query_cache[key] = (time.time(), value)
-
-    def clear_cache(self) -> int:
-        """清空缓存,返回清理条数"""
-        n = len(self._query_cache)
-        self._query_cache.clear()
-        # v2.8+:清理持久化文件
-        if self._persist_cache and self._persist_path:
-            try:
-                if os.path.exists(self._persist_path):
-                    os.remove(self._persist_path)
-            except Exception:
-                pass
-        return n
-
-    def cache_stats(self) -> Dict[str, Any]:
-        """缓存统计"""
-        now = time.time()
-        valid = sum(1 for ts, _ in self._query_cache.values() if now - ts < self._cache_ttl)
-        expired = len(self._query_cache) - valid
-        return {
-            "total": len(self._query_cache),
-            "valid": valid,
-            "expired": expired,
-            "ttl_seconds": self._cache_ttl,
-            "max_entries": self._cache_max,
-            "persist_enabled": self._persist_cache,
-            "persist_path": self._persist_path,
-        }
-
-    def _load_persistent_cache(self) -> None:
-        """从磁盘加载持久化缓存"""
-        if not self._persist_path or not os.path.exists(self._persist_path):
-            return
-        try:
-            import json
-            with open(self._persist_path, "r", encoding="utf-8") as f:
-                data = json.load(f)
-            # data 是 {key: [ts, value]}
-            now = time.time()
-            loaded = 0
-            for key, (ts, value) in data.items():
-                if now - ts < self._cache_ttl:  # 只加载未过期
-                    self._query_cache[key] = (ts, value)
-                    loaded += 1
-                    if loaded >= self._cache_max:
-                        break
-        except Exception:
-            pass
-
-    def _flush_persistent_cache(self) -> None:
-        """把缓存刷到磁盘"""
-        if not self._persist_cache or not self._persist_path:
-            return
-        try:
-            import json
-            import tempfile
-            now = time.time()
-            valid_items = {
-                k: (ts, v)
-                for k, (ts, v) in self._query_cache.items()
-                if now - ts < self._cache_ttl
-            }
-            # 限制大小
-            if len(valid_items) > self._cache_max:
-                by_ts = sorted(valid_items.items(), key=lambda x: x[1][0])
-                valid_items = dict(by_ts[-self._cache_max:])
-
-            fd, tmp = tempfile.mkstemp(
-                dir=os.path.dirname(self._persist_path),
-                prefix=".rag_cache_", suffix=".tmp"
-            )
-            with os.fdopen(fd, "w", encoding="utf-8") as f:
-                json.dump(valid_items, f, ensure_ascii=False)
-            os.replace(tmp, self._persist_path)
-        except Exception:
-            pass
-
-    def enable_persistent_cache(self, enable: bool = True) -> bool:
-        """开关持久化缓存"""
-        self._persist_cache = enable
-        if enable and not self._persist_path:
-            try:
-                from fr_cli.conf.paths import ROOT as FR_CLI_DIR
-                self._persist_path = str(FR_CLI_DIR / "rag_cache.json")
-                self._load_persistent_cache()
-            except Exception:
-                return False
-        return True
-
     # ---------- 后台监控 ----------
 
     def start_watcher(self, kb_dir=None):
@@ -435,10 +129,6 @@ Instructions:
         self._watcher_thread = threading.Thread(target=_watch, daemon=True)
         self._watcher_thread.start()
         return True, f"后台监控已启动: {target}（每30秒扫描）"
-
-    def stop_watcher(self):
-        self._stop_watcher.set()
-        self._watcher_thread = None
 
 
 # ---------- 全局单例 ----------
@@ -510,5 +200,3 @@ try:
     from fr_cli.agent.builtins.rag_watcher import RAGWatcherManager  # noqa: F401
 except Exception:
     pass
-
-

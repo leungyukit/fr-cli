@@ -304,11 +304,3 @@ def reset_global_plugin_manager():
             _global_pm.clear()
         _global_pm = None
 
-
-# ---------------- 内置插件(已迁移到 v3/core/builtin_plugins.py) ----------------
-# 旧的 LoggingPlugin / MetricsPlugin 类已拆到 v3/core/builtin_plugins.py
-# 这里只保留向后兼容的 re-export(import 时自动可用)
-try:
-    from fr_cli.v3.core.builtin_plugins import LoggingPlugin, MetricsPlugin  # noqa: F401
-except Exception:
-    pass

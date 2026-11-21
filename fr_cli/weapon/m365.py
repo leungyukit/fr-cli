@@ -12,9 +12,13 @@ Microsoft 365 邮件客户端 —— 腾云驾雾之现代认证
   token_cache:   MSAL 序列化后的 token 缓存（由程序自动维护）
 
 旧文件 ~/.fr_cli/m365.json 会在首次加载时一次性迁移。
+
+模块拆分(原单文件 456 行):
+- m365.py:       本文件——配置读写 + Graph 邮件客户端 + 向导/状态/登出
+- m365_auth.py:  MSAL OAuth2 认证层(设备代码流 / 授权码流,拿 access token)
 """
-import time
-import webbrowser
+import time  # noqa: F401 (保留:历史导入,部分调用方 from fr_cli.weapon.m365 import * 场景)
+import webbrowser  # noqa: F401 (保留:同上)
 from typing import Any, Dict, List, Optional, Tuple
 
 import requests
@@ -24,12 +28,21 @@ from fr_cli.conf.config import load_namespace, save_namespace
 from fr_cli.ui.ui import CYAN, GREEN, RED, RESET, YELLOW, DIM
 from fr_cli.core.result import Result
 
+from fr_cli.weapon.m365_auth import (  # noqa: F401 (re-export,旧导入路径兼容)
+    AUTHORITY_BASE,
+    DEFAULT_SCOPES,
+    _ensure_msal,
+    _get_access_token,
+    _get_app,
+    _login_authorization_code,
+    _login_device_code,
+    _save_token_cache,
+)
+
 
 # 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 M365_CONFIG_FILE = M365_FILE
 GRAPH_BASE_URL = "https://graph.microsoft.com/v1.0"
-AUTHORITY_BASE = "https://login.microsoftonline.com"
-DEFAULT_SCOPES = ["Mail.Read", "Mail.Send", "User.Read"]
 
 
 def _load_m365_cfg() -> Dict[str, Any]:
@@ -40,187 +53,6 @@ def _load_m365_cfg() -> Dict[str, Any]:
 def _save_m365_cfg(cfg: Dict[str, Any]):
     """保存 M365 配置到主配置 m365 命名空间"""
     save_namespace("m365", cfg)
-
-
-def _ensure_msal():
-    """确保 msal 已安装"""
-    try:
-        import msal
-        return msal
-    except ImportError as e:
-        raise ImportError(
-            "Microsoft 365 功能需要 msal 库，请执行: pip install msal"
-        ) from e
-
-
-def _get_app(cfg: Dict[str, Any]):
-    """根据配置创建 MSAL 应用实例"""
-    msal = _ensure_msal()
-    tenant_id = cfg.get("tenant_id", "common")
-    client_id = cfg.get("client_id", "")
-    authority = f"{AUTHORITY_BASE}/{tenant_id}"
-
-    token_cache = msal.SerializableTokenCache()
-    cache_data = cfg.get("token_cache", "")
-    if cache_data:
-        try:
-            token_cache.deserialize(cache_data)
-        except Exception:
-            pass
-
-    return msal.PublicClientApplication(
-        client_id=client_id,
-        authority=authority,
-        token_cache=token_cache,
-    ), token_cache
-
-
-def _save_token_cache(token_cache, cfg: Dict[str, Any]):
-    """持久化 token cache"""
-    if token_cache.has_state_changed:
-        cfg["token_cache"] = token_cache.serialize()
-        _save_m365_cfg(cfg)
-
-
-def _get_access_token(cfg: Dict[str, Any], lang: str = "zh") -> Result:
-    """
-    获取有效的 access token。优先使用缓存，无缓存或过期时触发登录流程。
-    返回 Result[str]。
-    """
-    if not cfg.get("client_id"):
-        return Result.fail("M365 未配置 client_id，请先执行 /m365_config setup")
-
-    app, token_cache = _get_app(cfg)
-
-    # 1. 尝试从缓存获取 token
-    accounts = app.get_accounts()
-    if accounts:
-        result = app.acquire_token_silent(DEFAULT_SCOPES, account=accounts[0])
-        if result and "access_token" in result:
-            _save_token_cache(token_cache, cfg)
-            return Result.ok(result["access_token"])
-
-    # 2. 根据 flow 触发交互式登录
-    flow = cfg.get("flow", "device_code")
-
-    if flow == "device_code":
-        return _login_device_code(app, token_cache, cfg, lang)
-    elif flow == "authorization_code":
-        return _login_authorization_code(app, token_cache, cfg, lang)
-    else:
-        return Result.fail(f"不支持的认证流程: {flow}")
-
-
-def _login_device_code(app, token_cache, cfg: Dict[str, Any], lang: str = "zh") -> Result:
-    """设备代码流：终端显示 code，用户到浏览器登录（支持 MFA），返回 Result[str]。"""
-    flow = app.initiate_device_flow(scopes=DEFAULT_SCOPES)
-    if "user_code" not in flow:
-        return Result.fail("无法启动设备代码流，请检查 client_id 和 tenant_id")
-
-    print(f"{CYAN}🔐 Microsoft 365 登录{RESET}")
-    print(f"{DIM}请在浏览器中打开以下链接并输入代码完成登录（支持 MFA）:{RESET}")
-    print(f"  链接: {YELLOW}{flow['verification_uri']}{RESET}")
-    print(f"  代码: {YELLOW}{flow['user_code']}{RESET}")
-    print(f"{DIM}等待登录中...{RESET}")
-
-    timeout = 300  # 5 分钟
-    interval = flow.get("interval", 5)
-    elapsed = 0
-    result = None
-    while elapsed < timeout:
-        result = app.acquire_token_by_device_flow(flow)
-        if "access_token" in result or "error" in result:
-            break
-        time.sleep(interval)
-        elapsed += interval
-
-    if result and "access_token" in result:
-        _save_token_cache(token_cache, cfg)
-        print(f"{GREEN}✅ Microsoft 365 登录成功{RESET}")
-        return Result.ok(result["access_token"])
-
-    error = result.get("error_description", "登录超时或失败") if result else "登录超时"
-    return Result.fail(f"Microsoft 365 登录失败: {error}")
-
-
-def _login_authorization_code(app, token_cache, cfg: Dict[str, Any], lang: str = "zh") -> Result:
-    """授权码流：启动本地 HTTP 服务接收回调（支持 MFA），返回 Result[str]。"""
-    redirect_uri = cfg.get("redirect_uri", "http://localhost:17891")
-    from urllib.parse import urlparse
-    parsed = urlparse(redirect_uri)
-    port = parsed.port or 17891
-
-    # 生成授权 URL
-    auth_url = app.get_authorization_request_url(
-        scopes=DEFAULT_SCOPES,
-        redirect_uri=redirect_uri,
-    )
-
-    print(f"{CYAN}🔐 Microsoft 365 登录{RESET}")
-    print(f"{DIM}正在打开浏览器...{RESET}")
-    try:
-        webbrowser.open(auth_url)
-    except Exception:
-        print(f"{YELLOW}无法自动打开浏览器，请手动访问:{RESET}")
-        print(f"  {auth_url}")
-
-    # 启动临时 HTTP 服务接收 code
-    import http.server
-    import socketserver
-    from urllib.parse import parse_qs
-
-    code_holder = {"code": None, "error": None}
-
-    class _Handler(http.server.BaseHTTPRequestHandler):
-        def do_GET(self):
-            from urllib.parse import urlparse
-            query = parse_qs(urlparse(self.path).query)
-            if "code" in query:
-                code_holder["code"] = query["code"][0]
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write("登录成功，请返回 fr-cli。".encode("utf-8"))
-            elif "error" in query:
-                code_holder["error"] = query["error"][0]
-                self.send_response(400)
-                self.end_headers()
-                self.wfile.write(f"登录失败: {query['error'][0]}".encode("utf-8"))
-            else:
-                self.send_response(200)
-                self.end_headers()
-                self.wfile.write("等待授权...".encode("utf-8"))
-
-        def log_message(self, format, *args):
-            pass
-
-    try:
-        with socketserver.TCPServer(("127.0.0.1", port), _Handler) as httpd:
-            httpd.timeout = 1.0
-            elapsed = 0
-            while elapsed < 300:
-                httpd.handle_request()
-                if code_holder["code"] or code_holder["error"]:
-                    break
-                elapsed += 1
-    except OSError as e:
-        return Result.fail(f"无法启动本地回调服务（端口 {port}）: {e}")
-
-    if code_holder["error"]:
-        return Result.fail(f"Microsoft 365 登录失败: {code_holder['error']}")
-    if not code_holder["code"]:
-        return Result.fail("Microsoft 365 登录超时")
-
-    result = app.acquire_token_by_authorization_code(
-        code=code_holder["code"],
-        scopes=DEFAULT_SCOPES,
-        redirect_uri=redirect_uri,
-    )
-    if "access_token" in result:
-        _save_token_cache(token_cache, cfg)
-        print(f"{GREEN}✅ Microsoft 365 登录成功{RESET}")
-        return Result.ok(result["access_token"])
-
-    return Result.fail(f"Microsoft 365 登录失败: {result.get('error_description', '未知错误')}")
 
 
 class M365MailClient:
@@ -414,9 +246,9 @@ def m365_config_wizard(lang: str = "zh") -> Tuple[bool, Dict[str, Any]]:
 
     # 触发一次登录以验证配置并缓存 token
     try:
-        access_token, error = _get_access_token(cfg, lang)
-        if error:
-            print(f"{RED}{'❌ 登录失败:' if uf else '❌ Login failed:'} {error}{RESET}")
+        token_result = _get_access_token(cfg, lang)
+        if token_result.is_fail():
+            print(f"{RED}{'❌ 登录失败:' if uf else '❌ Login failed:'} {token_result.error}{RESET}")
             return False, cfg
         print(f"{GREEN}{'✅ Microsoft 365 登录成功并已缓存 token' if uf else '✅ Microsoft 365 login succeeded and token cached'}{RESET}")
         return True, cfg

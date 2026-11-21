@@ -91,14 +91,6 @@ class ResponseCache:
 _cache = ResponseCache()
 
 
-def cache_get(model: str, system: str, user: str):
-    return _cache.get(model, system, user)
-
-
-def cache_put(model: str, system: str, user: str, text: str, usage: dict):
-    _cache.put(model, system, user, text, usage)
-
-
 def cache_clear():
     _cache.clear()
 

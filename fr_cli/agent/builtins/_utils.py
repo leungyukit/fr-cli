@@ -29,20 +29,3 @@ def confirm_execute(prompt="是否执行", default_yes=True):
     return confirm in ("y", "yes")
 
 
-def load_json_config(path, default=None):
-    """安全加载 JSON 配置文件"""
-    if default is None:
-        default = {}
-    path = Path(path)
-    if not path.exists():
-        return default
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except Exception:
-        return default
-
-
-def save_json_config(path, data):
-    """安全保存 JSON 配置文件"""
-    path = Path(path)
-    path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")

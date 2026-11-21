@@ -6,7 +6,7 @@ REPL 命令路由处理器（模块化重构版）
 from fr_cli.repl.commands._common import _provider_has_key, _print_help
 from fr_cli.repl.commands.base import (
     _cmd_exit, _cmd_shell, _cmd_help, _cmd_see,
-    _cmd_update, _cmd_mode, _cmd_banner, _cmd_tutorial,
+    _cmd_update, _cmd_mode, _cmd_banner, _cmd_tutorial, _cmd_hanli,
 )
 from fr_cli.repl.commands.config import (
     _cmd_model, _cmd_key, _cmd_providers, _cmd_limit, _cmd_lang, _cmd_usage,

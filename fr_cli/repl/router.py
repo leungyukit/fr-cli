@@ -16,6 +16,7 @@ from fr_cli.ui.ui import CYAN, RED, RESET, DIM, YELLOW
 from fr_cli.repl.commands import (
     _cmd_exit,
     _cmd_shell,
+    _cmd_hanli,
     _cmd_hermes_daemon,
     _cmd_help,
     _cmd_model,
@@ -95,6 +96,7 @@ from fr_cli.repl.queue import handle_queue_command
 COMMAND_ROUTES = {
     "/exit": _cmd_exit,
     "/shell": _cmd_shell,
+    "/hanli": _cmd_hanli,
     "/hermes": _cmd_hermes_daemon,
     "/quit": _cmd_exit,
     "/help": _cmd_help,

@@ -164,46 +164,6 @@ def save_progress(name: str, data: dict):
     _agent_progress_store(name).write(data)
 
 
-def append_progress(name: str, result: str, user_input: str = "", status: str = "success", max_history: int = 50):
-    """追加一条执行记录到 Agent 进度文件
-
-    Args:
-        result: 执行结果摘要
-        user_input: 触发此次执行的输入（定时任务的 input 或用户输入）
-        status: success / error
-        max_history: 保留的最大历史记录数
-    """
-    progress = load_progress(name)
-    entry = {
-        "timestamp": datetime.now().isoformat(),
-        "input": user_input,
-        "result": result,
-        "status": status,
-    }
-    history = progress.get("history", [])
-    history.append(entry)
-    # 保留最近 max_history 条
-    if len(history) > max_history:
-        history = history[-max_history:]
-    progress["history"] = history
-    progress["latest"] = entry
-    progress["counter"] = progress.get("counter", 0) + 1
-    save_progress(name, progress)
-
-
-def get_latest_progress(name: str) -> dict:
-    """获取 Agent 最近一次执行进度"""
-    progress = load_progress(name)
-    return progress.get("latest", {})
-
-
-def get_progress_history(name: str, limit: int = 10) -> list:
-    """获取 Agent 执行历史记录"""
-    progress = load_progress(name)
-    history = progress.get("history", [])
-    return history[-limit:] if history else []
-
-
 def load_agent_description(name: str) -> str:
     """从 persona.md 第一行提取 Agent 描述/标题"""
     persona = load_persona(name).strip()

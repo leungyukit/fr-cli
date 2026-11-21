@@ -162,16 +162,6 @@ def delete_model(model_name: str, base_url: str = DEFAULT_OLLAMA_URL) -> Dict[st
     return {"ok": r["ok"], "error": r.get("error")}
 
 
-def show_model(model_name: str, base_url: str = DEFAULT_OLLAMA_URL) -> Dict[str, Any]:
-    """显示模型详情"""
-    r = _http_request(
-        f"{base_url}/api/show",
-        method="POST",
-        data={"name": model_name},
-    )
-    return r
-
-
 def format_status(base_url: str = DEFAULT_OLLAMA_URL) -> str:
     """格式化 Ollama 状态"""
     det = detect_ollama(base_url)

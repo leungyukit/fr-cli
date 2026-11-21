@@ -105,11 +105,6 @@ _dispatch_enabled = True
 _dispatch_lock = threading.Lock()
 
 
-def is_dispatch_enabled() -> bool:
-    """事件分发是否启用"""
-    return _dispatch_enabled
-
-
 def set_dispatch_enabled(enabled: bool):
     """启用/禁用事件分发(用于极简模式或测试)"""
     global _dispatch_enabled

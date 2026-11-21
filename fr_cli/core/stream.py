@@ -3,7 +3,8 @@
 
 性能优化：
 - 缓冲 50ms flush 一次（避免逐 token 终端 IO 卡顿）
-- 代码块高亮状态机（支持语言标识显示）
+- 流式 Markdown 实时渲染（标题/列表/代码块/表格边输出边排版）
+- 代码块高亮状态机（markdown=False 时的降级路径）
 - 中断检测（用户按 Esc）
 """
 import sys
@@ -71,21 +72,31 @@ def request_interrupt():
     _current_interrupt.set()
 
 
-def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None, silent=False):
+def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None, silent=False, markdown=True):
     """
     流式调用 LLM 并实时打印，带有简易代码块高亮状态机
 
     性能：
     - 缓冲 50ms flush 一次（实测流畅度提升 3-5x）
     - 中断支持（通过 request_interrupt() 触发）
+    - markdown=True（默认）时用 StreamingMarkdownRenderer 实时渲染
+      Markdown（标题/列表/代码块/表格），不再等结束后整篇重渲染
 
     :param client: LLM 客户端实例 (BaseLLMClient 子类)
     :param silent: 如果为 True，则不输出到终端，仅返回文本
+    :param markdown: 是否对流式输出做实时 Markdown 渲染（silent 时无效）
     :return: tuple (完整回复文本 str, 使用情况 dict, 响应时间 float, 是否被中断 bool)
     """
     with _ColorDisable():
         _current_interrupt.reset()
         interrupted = False
+
+        # 流式 Markdown 渲染器（实时读取全局无色开关，避免导入快照过期）
+        renderer = None
+        if markdown and not silent:
+            from fr_cli.ui import ui as _ui
+            from fr_cli.ui.markdown_stream import StreamingMarkdownRenderer
+            renderer = StreamingMarkdownRenderer(use_color=not _ui._NO_COLOR)
 
         if not silent:
             p = custom_prefix or f"{GREEN}{T('prompt_ai', lang)} "
@@ -95,8 +106,10 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
         start_time = time.time()
         full_text = ""
         in_code = False
+        awaiting_lang = False   # 进入代码块后是否在等语言标识行
         current_lang = ""       # 当前代码块的语言标识
         lang_detect_buf = ""    # 跨 chunk 语言标识检测缓冲
+        pending_ticks = ""      # 结尾挂起的 1~2 个反引号(可能是被截断的 ``` 围栏)
         usage = {}
         buf = ""  # 输出缓冲
         last_flush = time.time()
@@ -109,95 +122,97 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 sys.stdout.flush()
                 buf = ""
 
-        def _colorize(txt: str) -> str:
-            """代码块高亮处理（带缓冲），支持语言标识检测"""
-            nonlocal in_code, buf, current_lang, lang_detect_buf
-            if "```" in txt:
-                parts = txt.split("```")
-                for i, part in enumerate(parts):
-                    if i > 0:
-                        in_code = not in_code
-                        if in_code:
-                            # 进入代码块：尝试检测语言标识
-                            # 语言标识通常在 ``` 后直接跟随，如 ```python\n
-                            lang_detect_buf += part
-                            # 等待完整的第一行来确定语言
-                            if '\n' in lang_detect_buf:
-                                first_line = lang_detect_buf.split('\n', 1)[0]
-                                lang_match = re.match(r'^(\w+)$', first_line.strip())
-                                if lang_match:
-                                    current_lang = lang_match.group(1)
-                                    if not _NO_COLOR:
-                                        # 在代码块开头显示语言标签
-                                        buf += f"{CODE_BG}{CODE_FG}{MAGENTA}[{current_lang}]{RESET}{CODE_BG}{CODE_FG}"
-                                    else:
-                                        buf += f"[{current_lang}]"
-                                    # 去掉语言标识行，保留剩余内容
-                                    remaining = lang_detect_buf[len(first_line):]
-                                    if remaining:
-                                        buf += f"{CODE_BG}{CODE_FG}{remaining}"
-                                else:
-                                    current_lang = ""
-                                    buf += f"{CODE_BG}{CODE_FG}{lang_detect_buf}"
-                                lang_detect_buf = ""
-                            else:
-                                # 语言标识跨 chunk，暂不输出
-                                continue
-                        else:
-                            # 退出代码块：先 RESET 关闭代码块颜色，再切回普通文本绿色
-                            current_lang = ""
-                            lang_detect_buf = ""
-                            buf += f"{RESET}{GREEN}"
-                    elif in_code and lang_detect_buf:
-                        # 正在等待语言标识的换行符
-                        lang_detect_buf += part
-                        if '\n' in lang_detect_buf:
-                            first_line = lang_detect_buf.split('\n', 1)[0]
-                            lang_match = re.match(r'^(\w+)$', first_line.strip())
-                            if lang_match:
-                                current_lang = lang_match.group(1)
-                                if not _NO_COLOR:
-                                    buf += f"{CODE_BG}{CODE_FG}{MAGENTA}[{current_lang}]{RESET}{CODE_BG}{CODE_FG}"
-                                else:
-                                    buf += f"[{current_lang}]"
-                                remaining = lang_detect_buf[len(first_line):]
-                                if remaining:
-                                    buf += f"{CODE_BG}{CODE_FG}{remaining}"
-                            else:
-                                current_lang = ""
-                                buf += f"{CODE_BG}{CODE_FG}{lang_detect_buf}"
-                            lang_detect_buf = ""
-                        else:
-                            continue
-                    elif part:
-                        if in_code:
-                            buf += f"{CODE_BG}{CODE_FG}{part}"
-                        else:
-                            buf += f"{GREEN}{part}"
+        def _flush_renderer():
+            """收尾:把渲染器里未换行的残行 + 挂起的反引角吐出到 buf"""
+            nonlocal buf, pending_ticks
+            if renderer is not None:
+                buf += renderer.flush()
+            if pending_ticks:
+                # 流结束了,挂起的反引角不再是围栏的一部分,按当前上下文补输出
+                buf += (f"{CODE_BG}{CODE_FG}{pending_ticks}" if in_code else f"{GREEN}{pending_ticks}")
+                pending_ticks = ""
+
+        def _emit(txt: str):
+            """输出一段新内容：优先走 Markdown 渲染器，降级走代码块高亮"""
+            nonlocal buf
+            if renderer is not None:
+                buf += renderer.feed(txt)
             else:
-                if in_code and lang_detect_buf:
-                    # 仍在等待语言标识
-                    lang_detect_buf += txt
-                    if '\n' in lang_detect_buf:
-                        first_line = lang_detect_buf.split('\n', 1)[0]
-                        lang_match = re.match(r'^(\w+)$', first_line.strip())
-                        if lang_match:
-                            current_lang = lang_match.group(1)
-                            if not _NO_COLOR:
-                                buf += f"{CODE_BG}{CODE_FG}{MAGENTA}[{current_lang}]{RESET}{CODE_BG}{CODE_FG}"
-                            else:
-                                buf += f"[{current_lang}]"
-                            remaining = lang_detect_buf[len(first_line):]
-                            if remaining:
-                                buf += f"{CODE_BG}{CODE_FG}{remaining}"
-                        else:
-                            current_lang = ""
-                            buf += f"{CODE_BG}{CODE_FG}{lang_detect_buf}"
-                        lang_detect_buf = ""
-                elif in_code:
-                    buf += f"{CODE_BG}{CODE_FG}{txt}"
+                _colorize(txt)
+
+        def _colorize(txt: str):
+            """代码块高亮处理（带缓冲），支持跨 chunk 的语言标识检测
+
+            状态: in_code(代码块内) + awaiting_lang(等待语言标识行的换行符)
+            修复: 旧版靠 lang_detect_buf 真值判断"是否在等语言标识",
+            ``` 与语言标签被分到不同 chunk 且标签恰为空串时会丢状态;
+            另修复 ``` 围栏本身被 chunk 边界截断时完全失效的问题
+            (结尾 1~2 个反引号挂起到下一 chunk 再判定)。
+            """
+            nonlocal in_code, buf, current_lang, lang_detect_buf, awaiting_lang, pending_ticks
+
+            def _emit_lang_or_content(s: str):
+                """等待语言标识期间的内容:攒到第一行完整再决定 标签/原样输出"""
+                nonlocal buf, current_lang, lang_detect_buf, awaiting_lang
+                lang_detect_buf += s
+                if '\n' not in lang_detect_buf:
+                    return  # 语言标识跨 chunk，继续等
+                first_line = lang_detect_buf.split('\n', 1)[0]
+                lang_match = re.match(r'^(\w+)$', first_line.strip())
+                if lang_match:
+                    current_lang = lang_match.group(1)
+                    if not _NO_COLOR:
+                        # 在代码块开头显示语言标签
+                        buf += f"{CODE_BG}{CODE_FG}{MAGENTA}[{current_lang}]{RESET}{CODE_BG}{CODE_FG}"
+                    else:
+                        buf += f"[{current_lang}]"
+                    # 去掉语言标识行，保留剩余内容
+                    remaining = lang_detect_buf[len(first_line):]
+                    if remaining:
+                        buf += f"{CODE_BG}{CODE_FG}{remaining}"
                 else:
-                    buf += f"{GREEN}{txt}"
+                    current_lang = ""
+                    buf += f"{CODE_BG}{CODE_FG}{lang_detect_buf}"
+                lang_detect_buf = ""
+                awaiting_lang = False
+
+            # 拼接上一 chunk 挂起的反引号
+            if pending_ticks:
+                txt = pending_ticks + txt
+                pending_ticks = ""
+            # 结尾 1~2 个反引号先挂起:下一 chunk 若以 ``` 补齐就是围栏,
+            # 否则按普通文本(行内代码收尾)补跑。
+            # 护栏:txt 以完整 ``` 结尾时不能挂起,否则会把围栏切碎。
+            tick_m = re.search(r'`{1,2}\Z', txt)
+            if tick_m and not re.search(r'```\Z', txt):
+                pending_ticks = tick_m.group(0)
+                txt = txt[:tick_m.start()]
+
+            # 按 ``` 切分，奇数段落在代码块内
+            parts = txt.split("```")
+            for i, part in enumerate(parts):
+                if i > 0:
+                    in_code = not in_code
+                    if in_code:
+                        # 进入代码块：后面紧跟的可能是语言标识行（如 ```python\n）
+                        awaiting_lang = True
+                        lang_detect_buf = ""
+                        _emit_lang_or_content(part)
+                    else:
+                        # 退出代码块：先 RESET 关闭代码块颜色，再切回普通文本绿色
+                        current_lang = ""
+                        lang_detect_buf = ""
+                        awaiting_lang = False
+                        buf += f"{RESET}{GREEN}"
+                    continue
+                if not part:
+                    continue
+                if awaiting_lang:
+                    _emit_lang_or_content(part)
+                elif in_code:
+                    buf += f"{CODE_BG}{CODE_FG}{part}"
+                else:
+                    buf += f"{GREEN}{part}"
 
         try:
             # 验证 API 密钥（Mock 客户端允许空 key）
@@ -227,7 +242,7 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 if txt:
                     full_text += txt
                     if not silent:
-                        _colorize(txt)
+                        _emit(txt)
                         now = time.time()
                         # 缓冲超过时间或超过大小都 flush
                         if (now - last_flush) * 1000 >= _FLUSH_INTERVAL_MS or len(buf) >= _MAX_BUFFER_CHARS:
@@ -237,13 +252,15 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 if chunk.get("usage"):
                     usage = chunk["usage"]
 
-            # 循环结束 flush 剩余
+            # 循环结束 flush 剩余（含渲染器里未换行的残行）
             if not silent:
+                _flush_renderer()
                 _do_flush()
 
         except Exception as e:
             # 错误信息立即显示，不缓冲，走统一友好错误处理
             if not silent:
+                _flush_renderer()
                 _do_flush()
                 from fr_cli.core.errors import friendly_print
                 err_msg = friendly_print(e)
@@ -251,8 +268,13 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 sys.stdout.flush()
 
         if not silent:
+            # 渲染器残行已在循环结束/异常两处 flush 过(幂等),这里只需冲终端缓冲
             _do_flush()
-            sys.stdout.write(f"{RESET}\n")
+            if interrupted:
+                # 中断时给用户一个明确的停止标记（Claude Code 风格）
+                sys.stdout.write(f"{DIM}[已中断]{RESET}\n")
+            else:
+                sys.stdout.write(f"{RESET}\n")
             sys.stdout.flush()
 
     end_time = time.time()

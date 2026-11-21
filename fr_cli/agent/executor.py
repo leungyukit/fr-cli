@@ -127,15 +127,3 @@ def delegate_to_agent(name, state, pipeline_input=None, **kwargs):
     return Result.ok(result)
 
 
-def run_multi_agent(names, state, initial_input=None, **kwargs):
-    """多 Agent 流水线协作 —— 将多个 Agent 串联执行，前一个的输出作为后一个的输入。"""
-    pipeline_result = initial_input
-    logs = []
-    for idx, name in enumerate(names, start=1):
-        print(f"[流水线] {idx}/{len(names)}: 运行 Agent {name}")
-        result = delegate_to_agent(name, state, pipeline_input=pipeline_result, **kwargs)
-        if result.is_fail():
-            return Result.fail(f"Pipeline step {idx} ('{name}'): {result.error}")
-        logs.append({"agent": name, "result": result.unwrap()})
-        pipeline_result = result.unwrap()
-    return Result.ok(logs)

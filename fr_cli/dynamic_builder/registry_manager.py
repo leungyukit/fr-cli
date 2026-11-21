@@ -184,6 +184,8 @@ def register_dynamic_tool(name: str, code: str, meta: Optional[Dict[str, Any]] =
         return Result.fail(f"加载动态工具失败: {e}")
 
     # 包装函数，适配 ToolRegistry 的 handler 签名
+    # 注意: 此函数经 @register 装饰器注册进全局 ToolRegistry,
+    # 由注册表分发器调用, 不是死代码(勿按引用计数删除)
     @register(
         name=name,
         description=description,

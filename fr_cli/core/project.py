@@ -57,17 +57,6 @@ def list_project_agents(project_root: Path) -> List[str]:
     return [d.name for d in agents_dir.iterdir() if d.is_dir()]
 
 
-def load_project_manual(project_root: Path) -> Optional[str]:
-    """加载项目 .fr-cli/MANUAL.md（如存在）"""
-    p = project_root / ".fr-cli" / "MANUAL.md"
-    if not p.is_file():
-        return None
-    try:
-        return p.read_text(encoding="utf-8").strip()
-    except Exception:
-        return None
-
-
 def load_project_config(project_root: Path) -> Dict:
     """加载项目 config.json（轻量级覆盖）"""
     import json

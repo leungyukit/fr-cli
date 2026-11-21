@@ -58,6 +58,15 @@ def _cmd_help(state, parts):
     return False
 
 
+def _cmd_hanli(state, parts):
+    """韩立字符画 —— 随时再观赏(默认半身像, full 全身细节)"""
+    variant = "full" if (len(parts) > 1 and parts[1].lower() == "full") else "bust"
+    from fr_cli.ui.hanli import print_hanli
+    if not print_hanli(variant):
+        print(f"{DIM}终端窗口太小或素材缺失,字符画未显示(可放大窗口或开新终端){RESET}")
+    return False
+
+
 
 def _cmd_see(state, parts):
     from fr_cli.weapon.vision import prep_see_msg

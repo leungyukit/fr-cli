@@ -4,7 +4,11 @@
 通过 v3 EventBus 自动收集应用指标,无需在每个调用点埋点。
 
 模块拆分:
-- fr_cli.core.metrics.plugin:MetricsPlugin 类本身(counter/histogram/timer/gauge + 事件钩子 + 导出)
+- fr_cli.core.metrics.plugin:MetricsPlugin 类本身(组装 4 个 mixin)
+  - fr_cli.core.metrics.primitives: counter/histogram/timer/gauge 原语
+  - fr_cli.core.metrics.hooks:      16 个事件钩子
+  - fr_cli.core.metrics.render:     Prometheus/JSON/摘要导出
+  - fr_cli.core.metrics.labels:     标签提取与序列化
 - fr_cli.core.metrics:本文件(全局单例 + 安装 / 卸载 / 查询)
 
 四类指标:

@@ -178,43 +178,6 @@ def show_pending_plan_json(state) -> Result:
     return Result.ok(json.dumps(current, ensure_ascii=False, indent=2))
 
 
-def undo_plan(state, steps: int = 1) -> Result:
-    """撤销 plan 到上一步历史版本
-
-    Args:
-        steps: 撤销步数(默认 1)
-    """
-    from fr_cli.core.plan_undo import undo as _undo, format_history_summary
-
-    session_id = getattr(state, "session_id", None) or "default"
-    plan = _undo(session_id, steps=steps)
-    if plan is None:
-        return Result.fail("没有可撤销的 plan 历史")
-
-    # 保存到 pending
-    save_pending_plan(session_id, plan)
-
-    # 渲染
-    text = render_plan_for_user(plan, lang=state.lang if hasattr(state, "lang") else "zh")
-    history_text = format_history_summary(session_id, lang=state.lang if hasattr(state, "lang") else "zh")
-    return Result.ok(f"↩️ 已撤销 {steps} 步\n{history_text}\n\n{text}")
-
-
-def redo_plan(state) -> Result:
-    """重做 plan"""
-    from fr_cli.core.plan_undo import redo as _redo, format_history_summary
-
-    session_id = getattr(state, "session_id", None) or "default"
-    plan = _redo(session_id)
-    if plan is None:
-        return Result.fail("没有可重做的 plan")
-
-    save_pending_plan(session_id, plan)
-    text = render_plan_for_user(plan, lang=state.lang if hasattr(state, "lang") else "zh")
-    history_text = format_history_summary(session_id, lang=state.lang if hasattr(state, "lang") else "zh")
-    return Result.ok(f"↪️ 已重做\n{history_text}\n\n{text}")
-
-
 def exit_plan_mode(state, approved: bool, edited_plan: Optional[Dict[str, Any]] = None) -> Result:
     """ExitPlanMode 工具实现。
 

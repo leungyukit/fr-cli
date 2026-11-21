@@ -8,7 +8,7 @@ v3.0+ 重构说明:
   - APIKeyError:被外部 import 唯一保留的子类
   - friendly_print / safe_run:用户面错误格式化
   - set_debug / is_debug:全局调试开关
-- 完整的 Provider/Tool/MCP 错误族在 fr_cli.v3.core.errors,这里不再重复定义
+- 本文件集中管理核心错误族(APIKeyError/NetworkError 等),各模块统一 from fr_cli.core.errors 导入
 - v3.1+ UX:扩展 common exception → 友好提示映射,所有 except 走 friendly_print
 """
 import os

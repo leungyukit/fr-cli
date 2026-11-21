@@ -138,18 +138,6 @@ def _split_calls(text: str) -> List[Tuple[str, str]]:
     return items
 
 
-def extract_independent_calls(text: str, executor) -> List[Tuple[str, str, str]]:
-    """提取可以并发的多个【调用：...】(启发式:AI 在 prompt 里说明"独立调用可并发")
-
-    简化版:目前不启发式检测,只信任 AI 显式标注的【并行调用：...】
-
-    Returns:
-        [(tool_name, arg_str, marker), ...]
-    """
-    # 暂未启用启发式,保留接口
-    return []
-
-
 class ParallelExecutor:
     """并发执行多个工具调用"""
 
@@ -231,21 +219,3 @@ def remove_parallel_markers(text: str) -> Tuple[str, List[Tuple[str, str, str]]]
     return cleaned, [(t, a, f"【并行调用：...{a[:30]}...】") for t, a in calls]
 
 
-def format_parallel_results(results: List[Result], calls: List[Tuple[str, str, str]],
-                            total_time: float = 0.0) -> str:
-    """格式化并发结果"""
-    if not results:
-        return ""
-
-    lines = [f"⚡ 并发执行 {len(results)} 个工具 (耗时 {total_time:.2f}s):"]
-    for i, ((tool_name, _, _), result) in enumerate(zip(calls, results), 1):
-        if result.is_fail():
-            lines.append(f"  ❌ [{i}/{len(results)}] {tool_name}: {result.error}")
-        else:
-            data = result.unwrap()
-            preview = str(data) if data is not None else ""
-            if len(preview) > 200:
-                preview = preview[:197] + "..."
-            preview = preview.replace("\n", " ")
-            lines.append(f"  ✅ [{i}/{len(results)}] {tool_name}: {preview}")
-    return "\n".join(lines)

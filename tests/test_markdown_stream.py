@@ -103,6 +103,19 @@ class TestRendererFlush(unittest.TestCase):
         rem = r.flush()
         self.assertIn("剩余内容没换行", rem)
 
+    def test_flush_idempotent_in_code(self):
+        """流在未闭合代码块内结束时,flush 必须幂等(重复调用返回空)
+
+        回归:IN_CODE 分支曾不清空 buffer,二次 flush 会经 _process_line
+        把同一行再输出一遍(stream_cnt 有两个退出点都会 flush)。
+        """
+        r = StreamingMarkdownRenderer(use_color=False)
+        r.feed("看代码:\n\n```python\nprint(1)")
+        first = r.flush()
+        self.assertIn("print(1)", first)
+        second = r.flush()
+        self.assertEqual(second, "", "二次 flush 应为空,否则终端会重复输出该行")
+
 
 class TestRendererStats(unittest.TestCase):
     def test_stats(self):

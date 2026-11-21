@@ -162,11 +162,19 @@ class FanRenPrompt:
 
         @kb.add("c-c")
         def _(event):
-            """Ctrl+C = 清空当前输入（不退出）"""
+            """Ctrl+C = 清空当前输入；AI 回答中则同时中断流式输出（与 Esc 同效）"""
             # 使用 reset() 替代 text="" 以彻底清除 buffer 的 IME/preedit 状态
             event.current_buffer.reset()
             # 强制清除终端渲染状态，防止残留字符
             event.app.renderer.erase()
+            # AI 正在流式回答时,Ctrl+C 请求中断(stream_cnt 会显示 [已中断])
+            queue_mgr = getattr(self.state, "_queue_mgr", None)
+            if queue_mgr is not None and queue_mgr.is_processing:
+                try:
+                    from fr_cli.core.stream import request_interrupt
+                    request_interrupt()
+                except Exception:
+                    pass
 
         @kb.add("c-d")
         def _(event):
@@ -271,18 +279,6 @@ class FanRenPrompt:
             self._start_spinner()
         else:
             self._stop_spinner()
-        self._invalidate()
-
-    def set_tool(self, tool_name: str):
-        """设置当前正在调用的工具（状态条显示）"""
-        import time
-        self.status.tool_name = tool_name
-        self.status.tool_started = time.time() if tool_name else 0.0
-        self._invalidate()
-
-    def set_mock(self, is_mock: bool):
-        """切换 mock 模式显示"""
-        self.status.is_mock = is_mock
         self._invalidate()
 
     def _start_spinner(self):

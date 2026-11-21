@@ -93,6 +93,7 @@ class FanRenCompleter(Completer if HAS_PT else object):
         "mode": "/mode plan",
         "debug": "/debug",
         "local_llm": "/local_llm",
+        "hanli": "/hanli 或 /hanli full",
         # 文件
         "cat": "/cat README.md",
         "write": '/write a.md "内容"',

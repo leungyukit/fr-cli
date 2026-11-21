@@ -42,16 +42,6 @@ SYSTEM_SECURITY_KEYS = frozenset({
 VALID_AUTONOMOUS_MODES = frozenset({"manual", "sandbox_auto", "full_auto"})
 
 
-def is_sandbox_key(key: str) -> bool:
-    """判断某个 sec_* 类别是否属于沙盒安全级别"""
-    return key in SANDBOX_SECURITY_KEYS
-
-
-def is_system_key(key: str) -> bool:
-    """判断某个 sec_* 类别是否属于系统安全级别"""
-    return key in SYSTEM_SECURITY_KEYS
-
-
 def normalize_autonomous_mode(mode: str) -> str:
     """规范化自治模式字符串，非法值回退到 manual"""
     mode = (mode or "manual").strip().lower()

@@ -194,11 +194,6 @@ def worktree_prune(cwd: Optional[str] = None) -> Dict[str, Any]:
     return {"ok": True}
 
 
-def worktree_path_for_branch(repo_cwd: str, branch: str) -> str:
-    """根据分支名推算默认 worktree 路径"""
-    return os.path.join(repo_cwd, _WORKTREE_DEFAULT_DIR, branch)
-
-
 def format_worktree_list(worktrees: List[Dict[str, Any]], current_cwd: Optional[str] = None) -> str:
     """格式化 worktree 列表为可读字符串"""
     if not worktrees:

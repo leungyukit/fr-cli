@@ -52,15 +52,6 @@ def save_host(alias, ip, port, user, auth_type, auth_value):
     _save_hosts(hosts)
 
 
-def delete_host(alias):
-    hosts = _load_hosts()
-    if alias in hosts:
-        del hosts[alias]
-        _save_hosts(hosts)
-        return True
-    return False
-
-
 def _exec_ssh(host_cfg, command):
     """通过 ssh 命令执行远程操作（使用 paramiko 避免命令注入），返回 Result[str]。"""
     ip = host_cfg["ip"]

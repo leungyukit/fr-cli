@@ -1,7 +1,7 @@
 """
 颜色输出控制回归测试
-验证 prompt_toolkit REPL 环境下会提前禁用 ANSI 颜色，
-避免用户看到 ?[92m 这类转义字符。
+验证 NO_COLOR / 非 TTY 环境下禁用 ANSI 颜色,
+交互式 TTY 保留颜色(prompt_toolkit 3.0.52 的 patch_stdout 已正确解析 ANSI)。
 """
 
 
@@ -42,14 +42,18 @@ class TestNoColorControl:
         finally:
             ui.reset_color()
 
-    def test_main_color_early_disable_in_repl(self, monkeypatch):
-        """REPL + prompt_toolkit 环境下应提前设置 NO_COLOR"""
+    def test_main_color_kept_in_tty_repl(self, monkeypatch):
+        """交互式 TTY REPL 应保留颜色
+
+        prompt_toolkit 3.0.52 的 patch_stdout 已验证可正确解析 ANSI
+        (非交互实测直通不损坏), 不再需要全局禁色;
+        流式路径内部仍有 _ColorDisable 局部兜底。
+        """
         from fr_cli.ui import ui
         original_no_color = ui._NO_COLOR
         try:
             import fr_cli.main as main
 
-            # 模拟 REPL 环境：有 TTY 且 prompt_toolkit 可导入
             monkeypatch.setattr("sys.stdin.isatty", lambda: True)
             monkeypatch.setattr("sys.stdout.isatty", lambda: True)
             monkeypatch.setattr("sys.argv", ["fr-cli"])
@@ -57,33 +61,20 @@ class TestNoColorControl:
             monkeypatch.delenv("FORCE_COLOR", raising=False)
             monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
 
-            # prompt_toolkit 一般已安装，若未安装则跳过
-            try:
-                import prompt_toolkit  # noqa: F401
-            except ImportError:
-                pytest.skip("prompt_toolkit not installed")
-
-            assert main._should_disable_colors_early() is True
-        finally:
-            ui.set_no_color(original_no_color)
-
-    def test_main_color_keep_in_batch(self, monkeypatch):
-        """批处理模式不应提前禁用颜色"""
-        from fr_cli.ui import ui
-        original_no_color = ui._NO_COLOR
-        try:
-            import fr_cli.main as main
-
-            monkeypatch.setattr("sys.stdin.isatty", lambda: True)
-            monkeypatch.setattr("sys.stdout.isatty", lambda: True)
-            monkeypatch.setattr("sys.argv", ["fr-cli", "-c", "/model current"])
-            monkeypatch.delenv("NO_COLOR", raising=False)
-            monkeypatch.delenv("FORCE_COLOR", raising=False)
-            monkeypatch.delenv("CLICOLOR_FORCE", raising=False)
-
             assert main._should_disable_colors_early() is False
         finally:
             ui.set_no_color(original_no_color)
+
+    def test_main_color_disable_when_not_tty(self, monkeypatch):
+        """非 TTY(管道/重定向)应提前禁用颜色"""
+        import fr_cli.main as main
+
+        monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+        monkeypatch.setattr("sys.stdout.isatty", lambda: True)
+        monkeypatch.setattr("sys.argv", ["fr-cli"])
+        monkeypatch.delenv("NO_COLOR", raising=False)
+
+        assert main._should_disable_colors_early() is True
 
     def test_force_color_override(self, monkeypatch):
         """FORCE_COLOR 环境变量应覆盖自动禁用"""

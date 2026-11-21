@@ -6,6 +6,65 @@
 
 ### ✨ 新增功能
 
+#### 韩立启动字符画
+- 新增 `fr_cli/ui/hanli.py`：半块真彩色字符画渲染（`print_hanli(variant, min_free_rows)`）
+  - 素材：`fr_cli/assets/hanli_bust.ansi`（56×80 半身像，默认）/ `hanli_full.ansi`（72×103 完整立绘）
+  - 终端高度不足时自动跳过，不撑破布局
+- 启动时默认打印（`repl/bootstrap.py`）；`fr-cli -noart` 跳过；配置 `startup_art: false` 永久关闭
+- REPL 内 `/hanli [full]` 随时重看
+
+#### `!` 命令直执行 + 管道模式
+- 新增 `fr_cli/repl/bang.py`：
+  - 普通模式 `!<cmd>`：执行并展示（截断 3000 字符），不进 AI 上下文
+  - 管道模式 `!<cmd> | <prompt>`：输出截断后作为 user 消息进上下文，问题走对话队列
+- 安全口径：用户显式键入的命令不再二次确认（与 `/shell` 一致）；AI 发起的调用仍走 `sec_shell` 四阶确认
+
+#### 流式 Markdown 渲染
+- `core/stream.py::stream_cnt` 新增 `markdown=True`：非 silent 时经 `ui/markdown_stream.py::StreamingMarkdownRenderer` 边生成边排版（标题/列表/代码块/表格），代码块带 `─` 分隔线与语言标签
+- 中断路径输出 `[已中断]` 标记，三个退出点均先 flush
+- `NO_COLOR=1` 下自动降级纯文本
+
+#### Ctrl+C 中断 + 工具调用可视化
+- AI 输出 / 工具执行中按 `Ctrl+C` 中断当前轮（不再只是清空输入）
+- 工具调用改 Claude Code 风格：`⏺` 头 + dim 体
+
+### 🧹 清理与拆分
+
+#### 死代码清理
+- 删除约 28 个零引用函数与 v3 未接线模块（container / lifecycle / pipeline / provider / errors / builtin_plugins / compat / examples）
+- 删除重复全量渲染的 `fr_cli/ui/markdown.py`（流式渲染器上线后无用）
+
+#### 大文件拆分（均保持导入面不变）
+- `command/registered/services.py`（532 行）→ 扁平 6 文件：mail / cron / notify / dream / disk / m365
+- `core/metrics/plugin.py`（485 行）→ 4 mixin：primitives / hooks / render / labels
+- `agent/builtins/rag.py`（509 行）→ 4 mixin：rag_chunking / rag_index / rag_query / rag_cache
+- `command/executor.py`（509 行）→ 3 mixin：executor_parse / executor_dispatch / executor_ai（顺带提取共享的 `_fmt_tool_result`，消灭 5 处重复）
+- `repl/commands/_common.py`（420 行）→ _help_data（纯数据）/ _help_views（视图）
+- `weapon/defi.py`（464 行）→ defi_format（渲染层）
+- `weapon/m365.py`（456 行）→ m365_auth（认证层）
+- `weapon/cron.py`（439 行）→ cron_schedule（纯函数）
+- `weapon/fs.py`（415 行）→ fs_diff（渲染辅助）
+- `agent/hermes_daemon.py`（449 行）→ hermes_api（HTTP 层）
+- `core/chat/pipeline.py`（488 行）→ pipeline_intent / pipeline_respond / pipeline_post 三阶段
+
+#### 拆分约束（后续维护注意）
+- 测试 monkeypatch 的模块属性不能搬：`weapon.defi._http_get`、`weapon.m365.M365_CONFIG_FILE`、`weapon.cron.CRON_STORE_FILE` 必须留在原模块
+- 带 `@register` / `@hook` 装饰器的函数不是死代码（引用计数分析看不到装饰器注册）
+
+### 🐛 修复
+- 降级路径 Markdown 围栏被 chunk 边界截断、语言标签状态丢失、表格头行不含 `-` 不被识别（3 个既存 bug）
+- 韩立字符画高度保护按纯文本版行数（40）判断，彩色终端实际打印 80 行会溢出一倍——改为按实际打印版本（彩色/纯文本）计算
+- 流式输出在未闭合代码块内结束时最后一行重复打印：`flush()` 的 IN_CODE 分支不清空 buffer，且 `stream_cnt` 两个退出点都 flush——flush 改为幂等 + 去掉重复调用
+- `m365_config_wizard` 对 Result 解包必抛 TypeError（`__slots__` 不可迭代）
+
+### 📊 测试
+- 新增 `tests/test_hanli_art.py`（15）、`tests/test_bang_and_interrupt.py`（9）、`tests/test_stream_markdown.py`（12）、`tests/test_markdown_stream.py`（+1 flush 幂等回归）
+- 全量：74 failed / 1715 passed / 12 skipped —— 失败数与改动前基线（74 failed / 1750 passed）完全一致，均为环境性预存失败（无 API Key / 无默认模型配置 / 顺序依赖）；passed 减少来自随 v3 死代码一并删除的测试
+
+---
+
+### ✨ 新增功能
+
 #### 选品洞察提炼器(Insight Extractor)
 - 新增 `fr_cli/agent/insight_source.py`：可插拔选品数据源
   - `MockSelectionSource`（默认，~80 条合成数据，让流程在没有真实数据时也能跑通）

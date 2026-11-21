@@ -218,11 +218,8 @@ def _init_project(deps, **kwargs):
     aliases=["/pref", "/preferences"],
 )
 def _pref(deps, **kwargs):
-    from fr_cli.core.preferences import get_top_commands, _load_pref
-    p = _load_pref()
+    from fr_cli.core.recommender import get_top_commands
     lines = ["📊 个人偏好统计："]
-    if p.get("provider") or p.get("model"):
-        lines.append(f"  默认提供商/模型: {p.get('provider', '?')}/{p.get('model', '?')}")
     top = get_top_commands(10)
     if top:
         lines.append("  最常用命令:")

@@ -14,96 +14,7 @@ from fr_cli.ui.ui import GREEN, YELLOW, CYAN, DIM, RESET, CODE_FG
 FOLD_THRESHOLD_LINES = 30  # 超过 30 行自动折叠
 
 
-def maybe_fold_output(text: str) -> str:
-    """如果 AI 回答太长，自动折叠为前 30 行 + 提示"""
-    lines = text.split("\n")
-    if len(lines) <= FOLD_THRESHOLD_LINES:
-        return text
-    head = "\n".join(lines[:FOLD_THRESHOLD_LINES])
-    tail_count = len(lines) - FOLD_THRESHOLD_LINES
-    return (
-        f"{head}\n"
-        f"{DIM}... (后面还有 {tail_count} 行，被自动折叠){RESET}\n"
-        f"{DIM}💡 在最近回复按 e 编辑；/export 保存完整内容到文件{RESET}"
-    )
-
-
 # ==================== 中等-6：首次启动交互式引导 ====================
-
-def first_run_wizard(cfg: dict, _prompt=None) -> dict:
-    """首次启动的 5 步交互式引导（用户也可以直接 /key 设 key 跳过）
-
-    步骤：
-    1. 选择提供商（deepseek/zhipu/kimi/...）
-    2. 输入 API Key
-    3. 选择模型
-    4. 设置工作目录
-    5. 完成
-    """
-    from fr_cli.core.llm import list_providers
-
-    print(f"\n{CYAN}🎉 欢迎使用 fr-cli！首次启动配置向导{RESET}\n")
-    providers = list_providers()
-
-    # 1. 选择 provider
-    print(f"{CYAN}Step 1/4: 选择你的 AI 提供商{RESET}")
-    for i, p in enumerate(providers[:8], 1):
-        print(f"  {i}. {p['name']} (默认模型: {p['default_model']})")
-    print(f"  {len(providers)+1}. 稍后设置（用 Mock 模式试用）")
-    try:
-        choice = input(f"\n👉 选择 [1-{len(providers)+1}]: ").strip()
-        idx = int(choice) - 1
-        if idx < 0 or idx > len(providers):
-            raise ValueError
-        if idx == len(providers):
-            print(f"{GREEN}✅ 跳过配置，进入 Mock 模式{RESET}")
-            return cfg
-        provider = providers[idx]["id"]
-    except (ValueError, EOFError, KeyboardInterrupt):
-        print(f"{YELLOW}跳过配置{RESET}")
-        return cfg
-
-    # 2. 输入 key
-    print(f"\n{CYAN}Step 2/4: 输入 {provider} 的 API Key{RESET}")
-    try:
-        key = input("👉 API Key: ").strip()
-    except (EOFError, KeyboardInterrupt):
-        return cfg
-    if not key:
-        print(f"{YELLOW}未输入 key，跳过{RESET}")
-        return cfg
-    cfg["key"] = key
-    providers_cfg = cfg.setdefault("providers", {})
-    providers_cfg.setdefault(provider, {})["key"] = key
-
-    # 3. 选择模型
-    print(f"\n{CYAN}Step 3/4: 选择模型{RESET}")
-    default_model = providers[idx]["default_model"]
-    print(f"  默认: {default_model}")
-    print("  输入自定义模型名（直接回车用默认）")
-    try:
-        model = input(f"👉 模型 [{default_model}]: ").strip() or default_model
-    except (EOFError, KeyboardInterrupt):
-        model = default_model
-    cfg["model"] = model
-    cfg["provider"] = provider
-    providers_cfg[provider]["model"] = model
-
-    # 4. 工作目录
-    print(f"\n{CYAN}Step 4/4: 设置工作目录（直接回车用当前目录）{RESET}")
-    try:
-        wd = input(f"👉 工作目录 [{Path.cwd()}]: ").strip() or str(Path.cwd())
-    except (EOFError, KeyboardInterrupt):
-        wd = str(Path.cwd())
-    cfg["allowed_dirs"] = [wd]
-
-    # 保存
-    from fr_cli.conf.config import save_config
-    save_config(cfg)
-    print(f"\n{GREEN}✅ 配置完成！重启 fr-cli 生效。{RESET}")
-    print(f"{DIM}（或继续在当前会话中使用，新 key 立即生效）{RESET}\n")
-    return cfg
-
 
 # ==================== 长线-1：流式输出 + 代码块语法高亮 ====================
 
@@ -115,24 +26,6 @@ LANG_KEYWORDS = {
     "go": ["func", "var", "const", "if", "else", "for", "range", "return", "package", "import", "type", "struct", "interface", "map", "chan", "go", "defer", "select"],
     "rust": ["fn", "let", "mut", "if", "else", "for", "while", "loop", "match", "return", "struct", "enum", "trait", "impl", "pub", "use", "mod", "as", "where"],
 }
-
-
-def highlight_code_block(code: str, lang: str) -> str:
-    """简易语法高亮（关键字加 ANSI 颜色）"""
-    if not lang or lang not in LANG_KEYWORDS:
-        return code
-    keywords = LANG_KEYWORDS[lang]
-    result = code
-    for kw in keywords:
-        # 单词边界匹配
-        pattern = re.compile(rf"\b({re.escape(kw)})\b")
-        result = pattern.sub(f"\033[1;33m\\1\033[0m{CODE_FG}", result)  # 黄粗体
-    # 字符串高亮
-    result = re.sub(r'(["\'])((?:\\.|(?!\1).)*?)\1', rf'\033[32m\1\2\1\033[0m{CODE_FG}', result)
-    # 注释
-    if lang in ("python", "bash", "go", "rust"):
-        result = re.sub(r'(#[^\n]*)', rf'\033[90m\1\033[0m{CODE_FG}', result)
-    return result
 
 
 # ==================== 长线-2：本地小模型 fallback ====================

@@ -226,15 +226,6 @@ def update_session_incremental(fpath: str, new_messages: List[Dict[str, Any]],
         return {"ok": False, "error": str(e), "snapshot_triggered": False, "delta_count": 0}
 
 
-def read_session_full(fpath: str) -> List[Dict[str, Any]]:
-    """读取完整会话(snapshot + delta)"""
-    try:
-        writer = IncrementalSessionWriter(fpath)
-        return writer.read_all()
-    except Exception:
-        return []
-
-
 # 兼容旧 API:全量读(返回 dict 包含 messages + meta)
 def read_session_full_data(fpath: str) -> Dict[str, Any]:
     """读取完整会话数据(含元信息)"""

@@ -33,10 +33,14 @@ fr_cli/
 │   └── wizard.py              # 邮件/云盘/M365 配置向导
 ├── core/                      # 编排层（无业务逻辑）
 │   ├── core.py                # AppState —— DI 容器
-│   ├── chat.py                # 传统流式对话
+│   ├── chat/                  # 对话编排包
+│   │   ├── pipeline.py        #   主流程：路由 + 直接对话
+│   │   ├── pipeline_intent.py #   阶段一：意图/system prompt/工具清单
+│   │   ├── pipeline_respond.py#   阶段二：流式应答/本地插件/多源融合
+│   │   └── pipeline_post.py   #   阶段三：后处理（记忆/存档/推荐）
 │   ├── intent.py              # 意图判定
 │   ├── thinking.py            # 思维模式
-│   ├── stream.py              # 流式输出
+│   ├── stream.py              # 流式输出（markdown=True 走流式渲染器）
 │   ├── llm.py                 # 多模型客户端
 │   ├── model_factory.py       # 模型工厂
 │   ├── result.py              # Result 统一返回风格
@@ -49,12 +53,17 @@ fr_cli/
 │   ├── prompt.py              # prompt_toolkit TUI
 │   ├── banner.py              # 启动 banner
 │   ├── splash.py              # 终端图片协议探测
+│   ├── hanli.py               # 韩立字符画（启动画面 / /hanli）
+│   ├── markdown_stream.py     # 流式 Markdown 渲染器
 │   └── ...
 ├── command/                   # 命令调度层
 │   ├── registry.py            # 统一工具注册表（@register 装饰器）
-│   ├── executor.py            # AI 回复解析 + 调度
+│   ├── executor.py            # 编排核心（AI 回复调度）
+│   ├── executor_parse.py      #   AI 回复解析（工具调用提取）
+│   ├── executor_dispatch.py   #   依赖装配 + invoke/execute
+│   ├── executor_ai.py         #   AI 命令预扫 + 结果格式化
 │   ├── security.py            # 安全确认封装
-│   └── registered/*.py        # 按类目拆分的工具实现
+│   └── registered/*.py        # 按类目拆分的工具实现（mail/cron/notify/dream/disk/m365…）
 ├── memory/                    # 记忆与历史
 │   ├── history.py             # 手动保存的会话
 │   ├── session.py             # 按日期自动存档
@@ -65,10 +74,10 @@ fr_cli/
 │   ├── i18n.py                # T() 国际化
 │   └── translations/          # 中文/英文翻译字典
 ├── weapon/                    # 武器库
-│   ├── fs.py                  # VFS 沙盒
-│   ├── mail.py / m365.py      # 邮件 / Microsoft 365
+│   ├── fs.py                  # VFS 沙盒（+ fs_diff.py 渲染辅助）
+│   ├── mail.py / m365.py      # 邮件 / Microsoft 365（+ m365_auth.py 认证层）
 │   ├── web.py                 # 搜索 + 抓取
-│   ├── cron.py                # 定时任务
+│   ├── cron.py                # 定时任务（+ cron_schedule.py 纯函数）
 │   ├── disk.py                # 云盘
 │   ├── vision.py              # 多模态看图/画图
 │   ├── launcher.py            # 本机应用启动
@@ -89,21 +98,22 @@ fr_cli/
 │   ├── master.py              # MasterAgent 自我进化
 │   ├── generator.py           # AI 自动生成 Agent
 │   ├── shell_mode.py          # Shell 模式
-│   ├── hermes.py / hermes_daemon.py  # Hermes 守护
+│   ├── hermes.py / hermes_daemon.py  # Hermes 守护（+ hermes_api.py HTTP 层）
 │   ├── personality.py / skills.py    # 人设/技能
 │   └── builtins/              # 内置 Agent
 │       ├── local.py / remote.py / db.py / spider.py
-│       ├── rag.py / stock.py
+│       ├── rag.py / stock.py  # RAG（chunking/index/query/cache 四个 mixin）/ 股票
 │       └── rag_watcher_daemon.py
 ├── dynamic_builder/           # 动态构建系统
 ├── gatekeeper/                # Gatekeeper 守护
 ├── repl/                      # REPL 命令与路由
-│   ├── router.py              # 输入路由
+│   ├── router.py              # 输入路由（! 直执行 / 管道模式走 bang.py）
+│   ├── bang.py                # ! <cmd> 直执行 + ! <cmd> | <prompt> 管道
 │   ├── queue.py               # 对话队列
-│   ├── bootstrap.py           # 启动引导
+│   ├── bootstrap.py           # 启动引导（韩立字符画 / -noart / startup_art）
 │   ├── actions.py             # e/r/u 快捷键
 │   ├── commands.py            # 兼容层重导出
-│   └── commands/*.py          # 各命令处理器
+│   └── commands/*.py          # 各命令处理器（_help_data/_help_views 拆自 _common）
 ├── addon/
 │   └── plugin.py              # 旧式 Plugin
 └── breakthrough/
@@ -123,9 +133,9 @@ main.py 主循环
     ↓
 state.executor.handle_ai_chat()
     ↓
-core/chat.py 组装 system prompt + 工具清单 + 上下文
+core/chat/pipeline.py 路由 → pipeline_intent 组装 system prompt + 工具清单 + 上下文
     ↓
-core/stream.py 流式调用 LLM
+core/stream.py 流式调用 LLM（markdown=True → ui/markdown_stream.py 边生成边排版）
     ↓
 command/executor.process_ai_commands 解析 + 执行
     ↓

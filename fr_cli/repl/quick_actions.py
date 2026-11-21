@@ -40,13 +40,6 @@ def voice_input(duration: int = 5) -> Optional[str]:
     return None
 
 
-def voice_input_linux() -> Optional[str]:
-    """Linux: 用 arecord + vosk/whisper 转写（需要外部依赖）"""
-    if not IS_LINUX:
-        return None
-    return None
-
-
 # ==================== P3-2 截屏 ====================
 
 def screenshot(region: Optional[str] = None) -> Optional[str]:
@@ -86,36 +79,6 @@ def screenshot(region: Optional[str] = None) -> Optional[str]:
 # ==================== P3-3 拖文件检测 ====================
 
 FILE_PATH_PATTERNS = []  # 延迟初始化
-
-
-def detect_dragged_files(text: str) -> list:
-    """从用户输入中检测文件路径（拖拽场景）
-
-    macOS/Linux 拖文件到终端会粘贴形如：
-      /Users/.../foo.png
-      file:///Users/.../foo.png
-      '/Users/.../foo.png'
-      '/Users/.../foo.png' '/Users/.../bar.py'
-    """
-    import re
-
-    found = []
-    # 模式 1：file:// URL
-    for m in re.finditer(r'file://(/\S+?)(?=[\s\'"]|$)', text):
-        path = m.group(1)
-        if os.path.exists(path):
-            found.append(path)
-    # 模式 2：引号包裹的绝对路径
-    for m in re.finditer(r"['\"]((/[^'\"\\s]+))['\"]", text):
-        path = m.group(2)
-        if path.startswith("/") and os.path.exists(path) and path not in found:
-            found.append(path)
-    # 模式 3：裸绝对路径（带扩展名）
-    for m in re.finditer(r'(?<!\S)((/\S+?\.(?:png|jpg|jpeg|gif|pdf|py|js|ts|tsx|jsx|json|md|txt|csv|xlsx|docx|zip|tar|gz|mp3|mp4|mov)))(?=[\s\'"]|$)', text):
-        path = m.group(1)
-        if os.path.exists(path) and path not in found:
-            found.append(path)
-    return found
 
 
 # ==================== P3-4 VSCode / Zed 集成 ====================

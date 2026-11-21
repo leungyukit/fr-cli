@@ -169,10 +169,6 @@ class DreamEngine:
         self._idle_thread = threading.Thread(target=_watcher, daemon=True)
         self._idle_thread.start()
 
-    def notify_interaction(self):
-        """MasterAgent 在每次交互后调用，重置空闲计时"""
-        self._last_interaction_at = datetime.now()
-
     def dream_now(self, lookback=20):
         """立即执行一次 Dream 整理（手动 / 自动都走这里）
 

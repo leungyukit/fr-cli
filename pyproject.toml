@@ -76,7 +76,7 @@ where = ["."]
 include = ["fr_cli*"]
 
 [tool.setuptools.package-data]
-fr_cli = ["conf/default_models.yaml", "assets/*.jpeg", "assets/*.png", "assets/*.jpg", "WEAPON.MD", "README.md"]
+fr_cli = ["conf/default_models.yaml", "assets/*.jpeg", "assets/*.png", "assets/*.jpg", "assets/*.ansi", "assets/*.txt", "WEAPON.MD", "README.md"]
 
 [tool.ruff]
 target-version = "py313"

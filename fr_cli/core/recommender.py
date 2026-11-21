@@ -31,6 +31,16 @@ def record_command_usage(cmd):
     _save_usage(usage)
 
 
+def get_top_commands(n: int = 5) -> list:
+    """获取最常用的 N 个命令 [(cmd, count), ...]（按频率降序）
+
+    取代已删除的 fr_cli.core.preferences 同名功能——
+    那里的写入函数从未被调用, /pref 读到的永远是空数据。
+    """
+    usage = _load_usage()
+    return sorted(usage.items(), key=lambda x: x[1], reverse=True)[:n]
+
+
 def _base_cmd(cmd_str):
     """提取命令字符串中的基础命令（去掉参数）"""
     return cmd_str.split()[0] if cmd_str else ""

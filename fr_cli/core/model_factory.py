@@ -119,26 +119,3 @@ def get_model_factory() -> ModelFactory:
     return _factory
 
 
-def build_models_dict() -> Dict[str, Dict]:
-    """从配置文件构建模型字典（供 llm.py 使用）"""
-    factory = get_model_factory()
-    result = {}
-
-    client_map = {
-        "ZhipuLLMClient": "ZhipuLLMClient",
-        "OpenAICompatibleClient": "OpenAICompatibleClient",
-        "WenxinLLMClient": "WenxinLLMClient"
-    }
-
-    for provider_id in factory.list_providers():
-        config = factory.get_config(provider_id)
-        result[provider_id] = {
-            "name": config.get("name", provider_id),
-            "default_model": config.get("model"),
-            "client_class": client_map.get(config.get("client", "OpenAICompatibleClient"), "OpenAICompatibleClient"),
-            "base_url": config.get("base_url"),
-            "token_plan_base_url": config.get("token_plan_base_url"),
-            "is_token_plan": config.get("is_token_plan", False),
-        }
-
-    return result

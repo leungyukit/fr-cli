@@ -10,6 +10,10 @@
 
 定时任务列表统一收敛到 ~/.fr_cli/config.json 的 cron 命名空间。
 旧文件 ~/.fr_cli/cron.json 会在首次加载时一次性迁移。
+
+模块拆分(原单文件 439 行):
+- cron_schedule.py: 调度规格解析 / 下次执行计算 / 描述(纯函数)
+- cron.py:          本文件——CronManager(线程调度 + 持久化) + 默认实例
 """
 import threading
 import subprocess
@@ -17,85 +21,20 @@ import shlex
 from datetime import datetime
 from pathlib import Path
 
-from croniter import croniter
-
 from fr_cli.ui.ui import RED, GREEN, DIM, YELLOW, RESET
 from fr_cli.lang.i18n import T
 from fr_cli.conf.config import load_namespace, save_namespace
 
+from fr_cli.weapon.cron_schedule import (  # noqa: F401 (re-export,旧导入路径兼容)
+    MIN_INTERVAL,
+    _next_run,
+    _parse_schedule,
+    _schedule_desc,
+)
+
 
 # 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 CRON_STORE_FILE = Path.home() / ".fr_cli" / "cron.json"
-
-# 最小执行间隔（秒）—— interval 模式限制，cron/at 模式不受此限制
-MIN_INTERVAL = 5
-
-
-def _parse_schedule(spec):
-    """解析调度规格，返回 (mode, value) 元组。
-
-    支持：
-      - "every 60s" / "every 60" / "interval:60"  → ("interval", 60.0)
-      - "0 9 * * *" / "cron:0 9 * * *"            → ("cron", "0 9 * * *")
-      - "2026-12-31 23:59:59" / "at:..."           → ("at", datetime)
-
-    如果无法解析，抛 ValueError。
-    """
-    if not spec or not isinstance(spec, str):
-        raise ValueError(f"无效的调度规格: {spec!r}")
-
-    s = spec.strip()
-
-    # at: 模式
-    if s.startswith("at:"):
-        return ("at", datetime.fromisoformat(s[3:].strip()))
-    # ISO 时间
-    try:
-        return ("at", datetime.fromisoformat(s))
-    except ValueError:
-        pass
-
-    # every 模式（旧式 interval 兼容）
-    if s.startswith("every"):
-        rest = s[5:].strip().rstrip("sS").strip()
-        try:
-            return ("interval", float(rest))
-        except ValueError:
-            raise ValueError(f"无法解析 interval: {spec!r}")
-    if s.startswith("interval:"):
-        try:
-            return ("interval", float(s[9:].strip()))
-        except ValueError:
-            raise ValueError(f"无法解析 interval: {spec!r}")
-
-    # cron: 前缀或裸 cron 表达式
-    if s.startswith("cron:"):
-        s = s[5:].strip()
-
-    # 用 croniter 验证是否为合法 cron 表达式
-    try:
-        croniter(s, datetime.now())
-        return ("cron", s)
-    except Exception as e:
-        raise ValueError(f"无效的 cron 表达式: {spec!r} ({e})")
-
-
-def _next_run(mode, value, after=None):
-    """计算下一次执行时间（datetime）。
-
-    mode = "interval":  value 是秒数 → after + timedelta
-    mode = "cron":      value 是 cron 表达式 → croniter.get_next
-    mode = "at":        value 是 datetime → 直接返回
-    """
-    base = after or datetime.now()
-    if mode == "interval":
-        from datetime import timedelta
-        return base + timedelta(seconds=float(value))
-    if mode == "cron":
-        return croniter(value, base).get_next(datetime)
-    if mode == "at":
-        return value
-    raise ValueError(f"未知调度模式: {mode}")
 
 
 class CronManager:
@@ -395,19 +334,6 @@ class CronManager:
             state=state,
             state_provider=state_provider,
         )
-
-
-def _schedule_desc(mode, value):
-    """把调度规格格式化成可读字符串。"""
-    if mode == "interval":
-        return f"every {value}s"
-    if mode == "cron":
-        return f"cron: {value}"
-    if mode == "at":
-        if isinstance(value, datetime):
-            return f"at: {value.isoformat()}"
-        return f"at: {value}"
-    return f"{mode}: {value}"
 
 
 # ------------------------------------------------------------------

@@ -70,36 +70,3 @@ def _df_to_summary(df, path, lang):
     return "\n".join(lines)
 
 
-def analyze_dataframe(path, query, client, model, lang="zh", vfs=None):
-    """读取表格并提交给大模型分析。如果传入 vfs，先校验路径在沙盒内。"""
-    pd = _try_import_pandas()
-    if not pd:
-        return None, "缺少 pandas"
-
-    # 根据扩展名判断类型
-    ext = str(path).lower().split(".")[-1] if "." in str(path) else ""
-    if ext in ("xlsx", "xls"):
-        summary, err = read_excel(path, lang=lang, vfs=vfs)
-    elif ext in ("csv",):
-        summary, err = read_csv(path, lang=lang, vfs=vfs)
-    else:
-        # 尝试两种
-        summary, err = read_csv(path, lang=lang, vfs=vfs)
-        if err:
-            summary, err = read_excel(path, lang=lang, vfs=vfs)
-
-    if err:
-        return None, err
-
-    prompt = f"""你是一个数据分析专家。请根据以下表格数据和用户问题进行分析。
-
-{summary}
-
-用户问题: {query}
-
-请用中文给出清晰、简洁的分析结果。如果涉及计算，请展示计算过程。
-"""
-    from fr_cli.core.stream import stream_cnt
-    messages = [{"role": "user", "content": prompt}]
-    result, _, _, _ = stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=4096)
-    return result, None
