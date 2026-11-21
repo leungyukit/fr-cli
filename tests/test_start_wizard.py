@@ -220,3 +220,35 @@ class TestConfigDefault:
     def test_default_config_has_start_wizard_done_false(self):
         from fr_cli.conf.config import _default_config
         assert _default_config().get("start_wizard_done") is False
+
+
+class TestBoxAlignment:
+    """框线/列对齐回归 —— 中文与 emoji 占 2 列,按代码点补齐会错位"""
+
+    def test_center_display_cjk_and_emoji(self):
+        """center_display 按显示宽度补齐,含 emoji/中文也不超宽"""
+        from fr_cli.ui.ui import center_display, get_display_width
+        assert get_display_width(center_display("尚未配置默认模型", 52)) == 52
+        assert get_display_width(center_display("abc", 10)) == 10
+        # 内容超宽时原样返回,不截断
+        assert center_display("x" * 60, 10) == "x" * 60
+
+    def test_wizard_box_lines_uniform_width(self, capsys):
+        """向导 _box 边框/标题/正文显示宽度一致"""
+        import re
+        from fr_cli.conf.model_wizard import _box
+        from fr_cli.ui.ui import get_display_width
+        capsys.readouterr()  # 清空历史输出
+        _box("步骤 a/6  ·  选择模型供应商", [f"输入编号选择,或按 q 取消", ""])
+        lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
+        widths = {get_display_width(re.sub(r'\033\[[0-9;]*m', '', l)) for l in lines}
+        assert len(widths) == 1, f"框内各行宽度不一致: {widths}"
+
+    def test_wizard_provider_name_column_padding(self):
+        """provider 列表 name 列按显示宽度补齐(中文名不错位)"""
+        from fr_cli.conf.model_wizard import _pad
+        from fr_cli.ui.ui import get_display_width
+        assert get_display_width(_pad("智谱", 14)) == 14
+        assert get_display_width(_pad("DeepSeek", 14)) == 14
+        # 超宽内容保持原样(不截断)
+        assert get_display_width(_pad("Kimi Code (代码平台)", 14)) == 20

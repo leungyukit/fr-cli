@@ -32,9 +32,18 @@ from fr_cli.ui.ui import CYAN, RED, YELLOW, GREEN, DIM, RESET, get_display_width
 # 工具函数
 # ---------------------------------------------------------------------------
 
+def _pad(text: str, width: int) -> str:
+    """按显示宽度右补齐 —— 中文/emoji 占 2 列,str.ljust 按代码点补齐会错位"""
+    return text + " " * max(width - get_display_width(text), 0)
+
+
 def _box(title, lines, width=58):
-    """打印带边框的小标题块"""
-    inner = width - 2
+    """打印带边框的小标题块
+
+    框规格:总宽 = width + 2(左右框线各 1),边框 ╔ + ═×width + ╗,
+    标题/正文按显示宽度补齐到 width(中文占 2 列)。
+    """
+    inner = width
     print()
     print(f"{CYAN}╔{'═' * width}╗{RESET}")
     title_pad = max(inner - get_display_width(title), 0)
@@ -148,7 +157,7 @@ def run_model_wizard(cfg: dict, *, mode: str = "setup", preset_provider: str = N
             default_model = (info.get("default_model") or "?") if info else "?"
             marker = f"{GREEN}✓{RESET}" if p["id"] in providers_cfg else f"{DIM}·{RESET}"
             compat = (info.get("compat") or "?") if info else "?"
-            print(f"  {marker} [{CYAN}{i:>2}{RESET}] {p['id']:<22} {DIM}{p['name']:<14} 默认:{default_model:<24} compat:{compat}{RESET}")
+            print(f"  {marker} [{CYAN}{i:>2}{RESET}] {p['id']:<22} {DIM}{_pad(p['name'], 14)} 默认:{default_model:<24} compat:{compat}{RESET}")
 
         idx = _choose_from_list("👉 供应商编号", providers, allow_back=False)
         if idx is None:

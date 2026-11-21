@@ -303,11 +303,13 @@ def init_config(*, force_wizard: bool = False, interactive: bool = None):
 
     if needs_wizard and interactive and not batch_mode and not c.get("model_wizard_skipped"):
         # ── 引导进入 6 步模型配置向导 ──
-        from fr_cli.ui.ui import get_display_width
+        from fr_cli.ui.ui import center_display, get_display_width
         from fr_cli.conf.model_wizard import run_model_wizard
 
-        def _box_line(content: str, box_width: int = 56) -> str:
-            inner = box_width - 2
+        # 框规格统一:总宽 = _BW + 2(左右框线各 1),边框/标题/正文都按此对齐
+        _BW = 56
+
+        def _box_line(content: str, inner: int = _BW) -> str:
             import re
             plain = re.sub(r'\033\[[0-9;]*m', '', content)
             w = get_display_width(plain)
@@ -315,14 +317,15 @@ def init_config(*, force_wizard: bool = False, interactive: bool = None):
             return f"{YELLOW}║{RESET}{content}{' ' * pad}{YELLOW}║{RESET}"
 
         print()
-        print(f"{YELLOW}╔{'═' * 56}╗{RESET}")
-        print(f"{YELLOW}║{'🧙  尚未配置默认模型':^52}║{RESET}")
-        print(f"{YELLOW}╠{'═' * 56}╣{RESET}")
+        print(f"{YELLOW}╔{'═' * _BW}╗{RESET}")
+        # 标题按显示宽度居中(str.center 按代码点,emoji/中文会顶破右框线)
+        print(f"{YELLOW}║{center_display('🧙  尚未配置默认模型', _BW)}║{RESET}")
+        print(f"{YELLOW}╠{'═' * _BW}╣{RESET}")
         print(_box_line("  fr-cli 需要至少一个 LLM 模型才能正常工作。"))
         print(_box_line("  接下来会引导你完成 6 步配置。"))
         print(_box_line(""))
         print(_box_line(f"  {DIM}也可以稍后执行 {CYAN}/providers setup{RESET}{DIM} 启动向导{RESET}"))
-        print(f"{YELLOW}╚{'═' * 56}╝{RESET}")
+        print(f"{YELLOW}╚{'═' * _BW}╝{RESET}")
         print()
 
         try:

@@ -105,6 +105,18 @@ def get_display_width(text):
             width += 1
     return width
 
+
+def center_display(text: str, width: int) -> str:
+    """按显示宽度居中并补齐到 width 列。
+
+    str.center 按代码点补齐,emoji/中文占 2 列会导致行宽超出、框线错位。
+    """
+    w = get_display_width(text)
+    if w >= width:
+        return text
+    lpad = (width - w) // 2
+    return " " * lpad + text + " " * (width - w - lpad)
+
 def print_bye():
     """打印退出动画"""
     print(f"\n{DIM}欢 迎 下 次 继 续 修 仙{RESET}\n")
