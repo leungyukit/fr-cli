@@ -106,6 +106,8 @@ def __getattr__(name):
         return _root_holder.value / "daemon" / "daemon.pid"
     if name == "DAEMON_STOP_FILE":
         return _root_holder.value / "daemon" / "daemon.stop"
+    if name == "DAEMON_LOG_FILE":
+        return _root_holder.value / "daemon" / "daemon.log"
     if name == "DAEMON_TOKEN_FILE":
         return _root_holder.value / "daemon" / "token"
     if name == "DAEMON_HERMES_CONFIG_FILE":
@@ -134,6 +136,8 @@ def __getattr__(name):
         return _root_holder.value / "hermes" / "daemon.pid"
     if name == "HERMES_DAEMON_STOP_FILE":
         return _root_holder.value / "hermes" / "daemon.stop"
+    if name == "HERMES_DAEMON_LOG_FILE":
+        return _root_holder.value / "hermes" / "daemon.log"
 
     # RAG
     if name == "RAG_DIR":

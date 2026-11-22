@@ -18,6 +18,44 @@ import sys
 import time
 import signal
 import atexit
+import threading
+
+# =================================================================
+# 启动看门狗（只用标准库，且必须早于 fr_cli 导入）
+#
+# 守护进程若在导入/初始化阶段挂起（例如网络调用无超时），旧行为是
+# 永久挂起且不写 pid 文件 → 之后每次启动 fr-cli 都会再 spawn 一个，
+# 旧的永不停 → 进程无限累积。看门狗在超时后自裁，把「永久挂起」
+# 变成「限时自毁 + 下次干净重启」；进入主循环后主动解除。
+#
+# 超时可用环境变量 FR_CLI_DAEMON_WATCHDOG_SECS 覆盖（测试用）。
+# =================================================================
+try:
+    DAEMON_WATCHDOG_SECS = float(os.environ.get("FR_CLI_DAEMON_WATCHDOG_SECS", "120"))
+except (TypeError, ValueError):
+    DAEMON_WATCHDOG_SECS = 120.0
+_watchdog_disarmed = threading.Event()
+
+
+def _arm_watchdog(timeout):
+    def _watch():
+        if not _watchdog_disarmed.wait(timeout):
+            try:
+                sys.stderr.write(
+                    f"[gatekeeper-daemon] 启动看门狗超时（{timeout:.0f}s 未进入主循环），自动退出\n"
+                )
+                sys.stderr.flush()
+            except Exception:
+                pass
+            os._exit(3)
+
+    threading.Thread(target=_watch, name="gatekeeper-daemon-watchdog", daemon=True).start()
+
+
+if __name__ == "__main__":
+    # 仅以脚本方式运行（守护进程本体）时布防；被当库 import（如测试）时
+    # 不布防，避免给宿主进程装上定时自裁的炸弹
+    _arm_watchdog(DAEMON_WATCHDOG_SECS)
 
 # 确保项目根目录在 Python 路径中
 _project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -176,6 +214,9 @@ def run_daemon():
     state = services["state"]
 
     last_reload = time.time()
+
+    # 已进入主循环，解除启动看门狗
+    _watchdog_disarmed.set()
 
     # 主循环：定期检查停止标记 + 热重载配置
     while True:
