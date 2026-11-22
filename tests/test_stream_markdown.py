@@ -5,10 +5,11 @@
 - silent=True 只返回文本不输出
 - markdown=False 降级路径:``` 围栏被 chunk 边界截断仍能识别 + 语言标签
 - 中断路径:[已中断] 可见标记 + 后续 chunk 不显示 + 返回文本带标记
-- use_color 跟随全局 _NO_COLOR 实时状态
+- use_color 跟随全局颜色状态实时变化(全局显式关 + 环境 color_enabled 双 TTY 判定)
 - 行内代码收尾反引号跨 chunk 不丢失
 """
 import io
+import sys
 from contextlib import redirect_stdout
 
 import pytest
@@ -167,12 +168,27 @@ class TestColorFollowsGlobalFlag:
         finally:
             ui.set_no_color(original)
 
-    def test_color_enabled_emits_ansi(self):
+    def test_color_enabled_emits_ansi(self, monkeypatch):
         from fr_cli.ui import ui
+
+        class _TtyBuffer(io.StringIO):
+            def isatty(self):
+                return True
+
+        # 颜色要开需"全局未显式关 + 环境判定(color_enabled)为真",
+        # pytest 默认非 TTY, 这里伪造双 TTY 并清掉颜色环境变量。
+        for var in ("NO_COLOR", "FR_CLI_NO_COLOR", "FORCE_COLOR", "CLICOLOR_FORCE"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
         original = ui._NO_COLOR
         try:
             ui.set_no_color(False)
-            out, _ = _run()
-            assert "\033[" in out
+            buf = _TtyBuffer()
+            with redirect_stdout(buf):
+                stream_cnt(
+                    FakeStreamClient(MD_DOC), "m",
+                    [{"role": "user", "content": "hi"}], "zh",
+                )
+            assert "\033[" in buf.getvalue()
         finally:
             ui.set_no_color(original)

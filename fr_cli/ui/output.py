@@ -25,7 +25,7 @@ from typing import Optional
 
 # 复用现有颜色常量(保持与其他 UI 模块一致)
 from fr_cli.ui.ui import (
-    GREEN, RED, YELLOW, CYAN, DIM, RESET,
+    GREEN, RED, YELLOW, CYAN, DIM, RESET, color_enabled as _ui_color_enabled,
 )
 
 
@@ -40,12 +40,10 @@ def _isatty() -> bool:
 
 
 def _color_enabled() -> bool:
-    """是否启用颜色:环境变量 NO_COLOR / FR_CLI_NO_COLOR / 非 TTY 都关"""
-    if os.environ.get("NO_COLOR"):
-        return False
-    if os.environ.get("FR_CLI_NO_COLOR"):
-        return False
-    return _isatty()
+    """是否启用颜色:统一走 ui.color_enabled() 单一判定源
+    (FORCE_COLOR/CLICOLOR_FORCE 强制开; NO_COLOR/FR_CLI_NO_COLOR 强制关;
+    其余看 stdin+stdout 是否双 TTY), 不再本地重复实现导致两套漂移。"""
+    return _ui_color_enabled()
 
 
 _COLOR = _color_enabled()

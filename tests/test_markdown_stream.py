@@ -27,9 +27,18 @@ class TestRendererBasic(unittest.TestCase):
         self.assertIn("print()", out)
 
     def test_inline_code_color(self):
-        r = StreamingMarkdownRenderer(use_color=True)
-        out = r.feed("看 `print()`\n")
-        self.assertIn("\033[", out)
+        from fr_cli.ui import ui
+        original = ui._NO_COLOR
+        try:
+            # 显式 use_color=True 需全局处于开色态才有码可拼
+            # (pytest 环境非 TTY, ui 默认禁色; 旧版靠 import 时硬编码回填
+            # 掩盖这一点, 该回填正是"非 TTY 泄漏 ?[96m 乱码"的根因, 已删)
+            ui.set_no_color(False)
+            r = StreamingMarkdownRenderer(use_color=True)
+            out = r.feed("看 `print()`\n")
+            self.assertIn("\033[", out)
+        finally:
+            ui.set_no_color(original)
 
     def test_bold(self):
         r = StreamingMarkdownRenderer(use_color=False)
@@ -56,9 +65,15 @@ class TestRendererCodeBlock(unittest.TestCase):
         self.assertEqual(r.state, "NORMAL")
 
     def test_code_block_color(self):
-        r = StreamingMarkdownRenderer(use_color=True)
-        out = r.feed("```\nprint(1)\n")
-        self.assertIn("\033[", out)
+        from fr_cli.ui import ui
+        original = ui._NO_COLOR
+        try:
+            ui.set_no_color(False)
+            r = StreamingMarkdownRenderer(use_color=True)
+            out = r.feed("```\nprint(1)\n")
+            self.assertIn("\033[", out)
+        finally:
+            ui.set_no_color(original)
 
 
 class TestRendererLists(unittest.TestCase):

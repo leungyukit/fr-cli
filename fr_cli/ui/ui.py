@@ -22,15 +22,33 @@ _COLOR_CODES = {
 }
 
 # ── NO_COLOR 支持 ──
-# 若环境变量 NO_COLOR 设置（非空），则禁用所有 ANSI 颜色
-# 同时检测非 TTY 环境（管道/重定向）自动禁用
-_NO_COLOR = bool(os.environ.get("NO_COLOR") or not sys.stdout.isatty())
+# 单一判定源: 所有 UI 模块(ui / output / markdown_stream / stream)都走这里,
+# 避免历史上"ui.py 只认 NO_COLOR、output.py 还认 FR_CLI_NO_COLOR"的两套漂移
+# (曾导致 FR_CLI_NO_COLOR=1 关不掉 markdown 流式输出的颜色)。
+#
+# 优先级(从高到低):
+#   1. FORCE_COLOR / CLICOLOR_FORCE  → 强制开色(忽略 TTY 检测)
+#   2. NO_COLOR / FR_CLI_NO_COLOR    → 强制关色(标准约定)
+#   3. stdin 与 stdout 均为 TTY      → 开色; 否则关色(管道/重定向/日志)
+def color_enabled() -> bool:
+    """当前环境是否应输出 ANSI 颜色(每次调用实时判定, 不用 import 时快照)"""
+    if os.environ.get("FORCE_COLOR") or os.environ.get("CLICOLOR_FORCE"):
+        return True
+    if os.environ.get("NO_COLOR") or os.environ.get("FR_CLI_NO_COLOR"):
+        return False
+    try:
+        return bool(sys.stdin.isatty() and sys.stdout.isatty())
+    except Exception:
+        return False
+
+
+_NO_COLOR = not color_enabled()
 
 
 def set_no_color(value: bool = True) -> None:
     """
-    运行时启用/禁用 ANSI 颜色。
-    当 prompt_toolkit.patch_stdout 接管 stdout 时，原始 ANSI 转义序列会被当作
+    运行时启用/禁用 ANSI 颜色(显式覆盖, 优先于环境判定)。
+    当 prompt_toolkit.patch_stdout 接管 stdout 时,原始 ANSI 转义序列会被当作
     纯文本显示为 ?[92m 等乱码；调用本函数可全局关闭颜色输出。
     """
     global _NO_COLOR, RESET, BOLD, DIM, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, MAROON, GRAY, CODE_BG, CODE_FG
@@ -59,7 +77,7 @@ def set_no_color(value: bool = True) -> None:
 
 def reset_color() -> None:
     """根据当前环境变量重新初始化颜色状态"""
-    set_no_color(bool(os.environ.get("NO_COLOR") or not sys.stdout.isatty()))
+    set_no_color(not color_enabled())
 
 
 # 根据初始化时的环境状态设置颜色常量

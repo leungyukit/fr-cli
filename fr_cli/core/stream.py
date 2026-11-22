@@ -23,6 +23,19 @@ def _is_prompt_toolkit_stdout() -> bool:
     return "prompt_toolkit" in type(sys.stdout).__module__
 
 
+def _markdown_use_color() -> bool:
+    """流式 Markdown 渲染器的颜色开关(实时判定, 不用 import 时快照)
+
+    颜色要开需同时满足:
+    ① ui 未被 set_no_color(True) 显式关掉(运行时可覆盖态)
+    ② 环境判定 color_enabled() 为真(双 TTY 且无 NO_COLOR / FR_CLI_NO_COLOR)
+    任一不满足 → False, 渲染器原样吐文本, 不会向非 TTY 泄漏
+    \\033[96m 等序列(历史上在日志 / PTY 捕获端显示为 ?[96m 乱码)。
+    """
+    from fr_cli.ui import ui as _ui
+    return (not _ui._NO_COLOR) and _ui.color_enabled()
+
+
 class _ColorDisable:
     """临时禁用 stream.py 内部颜色常量的上下文管理器
 
@@ -91,12 +104,13 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
         _current_interrupt.reset()
         interrupted = False
 
-        # 流式 Markdown 渲染器（实时读取全局无色开关，避免导入快照过期）
+        # 流式 Markdown 渲染器(实时读取全局颜色状态, 不用 import 时快照):
+        # 组合判定见 _markdown_use_color(); 非 TTY / NO_COLOR / FR_CLI_NO_COLOR
+        # 任一命中即 use_color=False, 不向非 TTY 泄漏 ANSI 转义序列。
         renderer = None
         if markdown and not silent:
-            from fr_cli.ui import ui as _ui
             from fr_cli.ui.markdown_stream import StreamingMarkdownRenderer
-            renderer = StreamingMarkdownRenderer(use_color=not _ui._NO_COLOR)
+            renderer = StreamingMarkdownRenderer(use_color=_markdown_use_color())
 
         if not silent:
             p = custom_prefix or f"{GREEN}{T('prompt_ai', lang)} "
