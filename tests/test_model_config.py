@@ -1385,22 +1385,34 @@ class TestLegacyNestedModelsYaml:
         return p
 
     def test_factory_normalizes_nested_format(self, tmp_path):
-        """嵌套格式加载后归一化为扁平 provider 字典"""
+        """嵌套格式加载后归一化为扁平 provider 字典
+
+        合并语义：内置目录为底座，用户文件覆盖其上。用户的定制必须保留，
+        但不能因为用户只写了 2 个 provider 就把内置厂商目录整体遮蔽掉。
+        """
         from fr_cli.core.model_factory import ModelFactory
         p = self._write(tmp_path)
         inst = ModelFactory()
         orig = getattr(inst, "_config", None)
         try:
             inst.load_config(str(p))
-            assert inst.list_providers() == ["deepseek", "volcengine-plan"]
+            ids = inst.list_providers()
+            # 无伪条目
+            assert "providers" not in ids and "settings" not in ids
+            # 用户条目与定制都在
+            assert "deepseek" in ids and "volcengine-plan" in ids
             assert inst.get_model_name("deepseek") == "deepseek-chat"
             assert inst.get_config("volcengine-plan")["model"] == "ark-code-latest"
             assert inst.get_config("volcengine-plan")["base_url"] == "https://ark.example.com/api/v3"
+            assert inst.get_config("deepseek")["base_url"] == "https://api.deepseek.com/v1"
+            # 内置目录未被遮蔽
+            for pid in ("zhipu", "openai", "minimax", "kimi"):
+                assert pid in ids, f"内置 provider {pid} 被用户文件遮蔽了"
         finally:
             inst._config = orig
 
     def test_factory_flat_format_untouched(self, tmp_path):
-        """新版扁平格式不受影响(不误触发归一化)"""
+        """新版扁平格式不受影响(不误触发归一化)，且不遮蔽内置目录"""
         from fr_cli.core.model_factory import ModelFactory
         flat = {"zhipu": {"name": "智谱", "model": "glm-4-flash"}}
         p = tmp_path / "models.json"
@@ -1409,8 +1421,12 @@ class TestLegacyNestedModelsYaml:
         orig = getattr(inst, "_config", None)
         try:
             inst.load_config(str(p))
-            assert inst.list_providers() == ["zhipu"]
+            ids = inst.list_providers()
+            assert "zhipu" in ids
             assert inst.get_model_name("zhipu") == "glm-4-flash"
+            assert inst.get_config("zhipu")["name"] == "智谱"
+            # 内置目录仍在（用户文件不再整体替换）
+            assert "openai" in ids and "deepseek" in ids
         finally:
             inst._config = orig
 
