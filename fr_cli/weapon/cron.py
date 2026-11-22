@@ -18,10 +18,12 @@
 import threading
 import subprocess
 import shlex
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
 from fr_cli.ui.ui import RED, GREEN, DIM, YELLOW, RESET
+from fr_cli.core.stream import _is_prompt_toolkit_stdout
 from fr_cli.lang.i18n import T
 from fr_cli.conf.config import load_namespace, save_namespace
 
@@ -35,6 +37,97 @@ from fr_cli.weapon.cron_schedule import (  # noqa: F401 (re-export,旧导入路�
 
 # 保留用于一次性迁移（已弃用，新数据写入 ~/.fr_cli/config.json）
 CRON_STORE_FILE = Path.home() / ".fr_cli" / "cron.json"
+
+
+# ------------------------------------------------------------------
+# patch_stdout 守卫
+#
+# job 跑在 threading.Timer 后台线程里，裸 print 会插进 prompt_toolkit 的
+# 渲染帧，把补全菜单/提示栏劈碎（与 repl/queue.py 的 AI 回答线程同款处理）。
+# prompt_toolkit 3.x 的 patch_stdout 退出时无条件恢复 sys.stdout，多个 job
+# 并发执行时会互相冲掉代理，因此用引用计数让并发 job 共享同一个代理；
+# 无 TUI 运行时 patch_stdout 自动退化为直写，无需判断环境。
+# ------------------------------------------------------------------
+class _PatchStdoutGuard:
+    """进程内共享的 patch_stdout 引用计数守卫"""
+
+    def __init__(self):
+        self._lock = threading.Lock()
+        self._cm = None
+        self._refs = 0
+
+    @staticmethod
+    def _enter():
+        """安装代理；prompt_toolkit 缺失或异常时返回 None（退化为直写）"""
+        try:
+            from prompt_toolkit.patch_stdout import patch_stdout
+            cm = patch_stdout()
+            cm.__enter__()
+            return cm
+        except Exception:
+            return None
+
+    def __call__(self):
+        return self._guarded()
+
+    @contextmanager
+    def _guarded(self):
+        with self._lock:
+            if self._refs == 0:
+                self._cm = self._enter()
+            self._refs += 1
+        try:
+            yield
+        finally:
+            with self._lock:
+                self._refs -= 1
+                if self._refs == 0 and self._cm is not None:
+                    cm, self._cm = self._cm, None
+                    cm.__exit__(None, None, None)
+
+
+_stdout_guard = _PatchStdoutGuard()
+
+
+_color_disable_lock = threading.Lock()
+_color_disable_depth = 0
+_color_disable_orig = None
+
+
+class _ProxyColorDisable:
+    """patch_stdout 接管 stdout 期间临时禁用本模块颜色常量。
+
+    StdoutProxy 非 raw 模式走 Vt100_Output.write()，该方法会把文本里的
+    ESC 字节替换成字面 '?'（prompt_toolkit/output/vt100.py 的 "Removes
+    vt100 escape codes -- used for safely writing text"），直接打印带色文本
+    会让用户看到 ?[2m[Cron 1]?[0m 这类乱码。与 core/stream.py 的
+    _ColorDisable 同款处理：接管期间输出纯文本，退出后恢复颜色。
+
+    多个 job 并发执行时会嵌套/并行进入：颜色常量是模块级全局，直接
+    保存/恢复会竞态——先退出的 job 把颜色恢复回真值，让仍在打印的
+    并发 job 打出 ?[2m 乱码。因此与 _stdout_guard 同样用引用计数：
+    只有最外层退出时才恢复。
+    """
+
+    def __enter__(self):
+        global RED, GREEN, DIM, YELLOW, RESET
+        global _color_disable_depth, _color_disable_orig
+        with _color_disable_lock:
+            if _color_disable_depth == 0:
+                _color_disable_orig = (RED, GREEN, DIM, YELLOW, RESET)
+                if _is_prompt_toolkit_stdout():
+                    RED = GREEN = DIM = YELLOW = RESET = ""
+            _color_disable_depth += 1
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        global RED, GREEN, DIM, YELLOW, RESET
+        global _color_disable_depth, _color_disable_orig
+        with _color_disable_lock:
+            _color_disable_depth -= 1
+            if _color_disable_depth == 0 and _color_disable_orig is not None:
+                RED, GREEN, DIM, YELLOW, RESET = _color_disable_orig
+                _color_disable_orig = None
 
 
 class CronManager:
@@ -67,29 +160,34 @@ class CronManager:
 
         state = self._resolve_state(state_provider)
 
-        try:
-            if job_type == "agent" and agent_name:
-                if state is None:
-                    print(f"{RED}[Cron {job_id}] Error: Agent 任务需要 AppState{RESET}")
-                    return False  # 不再注册下次
-                from fr_cli.agent.executor import run_agent
-                agent_result = run_agent(agent_name, state, user_input=agent_input)
-                out = (agent_result.unwrap_or("") or "")[:200]
-                if agent_result.is_fail():
-                    out = f"Error: {agent_result.error}"
-                print(f"{DIM}[Cron {job_id}] Agent[{agent_name}]{RESET} {out}")
-            else:
-                try:
-                    cmd_list = shlex.split(cmd)
-                except ValueError:
-                    cmd_list = [cmd]
-                res = subprocess.run(cmd_list, shell=False, capture_output=True, text=True, timeout=30)
-                out = res.stdout.strip()[:100]
-                print(f"{DIM}[Cron {job_id}]{RESET} {out}")
-            return True
-        except Exception as e:
-            print(f"{RED}[Cron {job_id}] Error: {e}{RESET}")
-            return False
+        # patch_stdout 代理接管 stdout 期间禁色：StdoutProxy 非 raw 模式走
+        # Vt100_Output.write()，会把 ANSI 的 ESC 字节替换成字面 '?'，直接打色
+        # 会显示 ?[2m[Cron 1]?[0m 这类乱码。与 core/stream.py 的 _ColorDisable
+        # 同款处理：接管期间输出纯文本，退出后恢复颜色。
+        with _ProxyColorDisable():
+            try:
+                if job_type == "agent" and agent_name:
+                    if state is None:
+                        print(f"{RED}[Cron {job_id}] Error: Agent 任务需要 AppState{RESET}")
+                        return False  # 不再注册下次
+                    from fr_cli.agent.executor import run_agent
+                    agent_result = run_agent(agent_name, state, user_input=agent_input)
+                    out = (agent_result.unwrap_or("") or "")[:200]
+                    if agent_result.is_fail():
+                        out = f"Error: {agent_result.error}"
+                    print(f"{DIM}[Cron {job_id}] Agent[{agent_name}]{RESET} {out}")
+                else:
+                    try:
+                        cmd_list = shlex.split(cmd)
+                    except ValueError:
+                        cmd_list = [cmd]
+                    res = subprocess.run(cmd_list, shell=False, capture_output=True, text=True, timeout=30)
+                    out = res.stdout.strip()[:100]
+                    print(f"{DIM}[Cron {job_id}]{RESET} {out}")
+                return True
+            except Exception as e:
+                print(f"{RED}[Cron {job_id}] Error: {e}{RESET}")
+                return False
 
     def _schedule_next(self, job):
         """根据 job 的调度模式注册下一次执行。
@@ -130,18 +228,21 @@ class CronManager:
         # 一次性任务：执行后从列表移除
         is_one_shot = job["mode"] == "at"
 
-        self._execute_job(job)
+        # 整个执行过程（含 _execute_job 的 print 与 agent 输出）包进
+        # patch_stdout 守卫，防止后台线程裸写劈碎 TUI 补全菜单
+        with _stdout_guard():
+            self._execute_job(job)
 
-        if is_one_shot:
-            with self._lock:
-                if job in self.jobs:
-                    self.jobs.remove(job)
+            if is_one_shot:
+                with self._lock:
+                    if job in self.jobs:
+                        self.jobs.remove(job)
+                self._persist()
+                return
+
+            # 注册下一次
+            self._schedule_next(job)
             self._persist()
-            return
-
-        # 注册下一次
-        self._schedule_next(job)
-        self._persist()
 
     def add_job(
         self,

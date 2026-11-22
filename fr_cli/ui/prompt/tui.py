@@ -333,7 +333,6 @@ class FanRenPrompt:
             result = self._session.prompt(
                 indicator,
                 placeholder=placeholder,
-                complete_style="READLINE_LIKE",
                 complete_in_thread=True,
             )
             self._exit_requested = False

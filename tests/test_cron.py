@@ -169,3 +169,201 @@ class TestShellSafety:
         if result is not None:
             job_id, _ = result
             assert job_id is not None
+
+
+class TestPatchStdoutGuard:
+    """patch_stdout 守卫 —— 后台 Timer 线程裸 print 劈碎 TUI 的回归防护"""
+
+    def test_guard_installs_proxy_and_restores(self):
+        """进入守卫时 sys.stdout 被代理替换，退出后恢复原状"""
+        from fr_cli.weapon.cron import _stdout_guard
+
+        original = sys.stdout
+        with _stdout_guard():
+            assert sys.stdout is not original
+        assert sys.stdout is original
+
+    def test_guard_nested_shares_single_proxy(self):
+        """嵌套进入共享同一代理，内层退出不恢复裸 stdout（3.0.52 退出竞争回归）"""
+        from fr_cli.weapon.cron import _stdout_guard
+
+        original = sys.stdout
+        with _stdout_guard():
+            proxy = sys.stdout
+            with _stdout_guard():
+                assert sys.stdout is proxy
+            assert sys.stdout is proxy
+        assert sys.stdout is original
+
+    def test_guard_concurrent_entries_keep_proxy(self):
+        """并发进入：全部退出前 stdout 始终是代理，不会被人提前冲掉"""
+        import threading
+        import time
+
+        from fr_cli.weapon.cron import _stdout_guard
+
+        original = sys.stdout
+        violations = []
+
+        def worker():
+            try:
+                with _stdout_guard():
+                    time.sleep(0.03)
+                    if sys.stdout is original:
+                        violations.append("代理被提前恢复")
+            except Exception as e:
+                violations.append(repr(e))
+
+        threads = [threading.Thread(target=worker) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert violations == []
+        assert sys.stdout is original
+
+    def test_runner_wrapper_executes_under_guard(self, manager, monkeypatch):
+        """_runner_wrapper 执行 job 期间输出走守卫代理，且正常注册下一次"""
+        monkeypatch.setattr(manager, "_persist", lambda: None)  # 不写真实配置
+        seen = {}
+        original_execute = manager._execute_job
+
+        def spy(job):
+            seen["stdout"] = sys.stdout
+            return original_execute(job)
+
+        monkeypatch.setattr(manager, "_execute_job", spy)
+        before = sys.stdout
+        job_id, _ = manager.add_job("echo guard_ok", 3600, "zh")
+        job = next(j for j in manager.jobs if j["id"] == job_id)
+        old_timer = job["timer"]
+        old_timer.cancel()
+        manager._runner_wrapper(job)
+        # 执行期间输出走代理（防劈屏），退出后恢复
+        assert seen["stdout"] is not before
+        assert sys.stdout is before
+        # 已注册下一次执行
+        assert job["timer"] is not None and job["timer"] is not old_timer
+        job["timer"].cancel()
+
+
+class _FakeProxyStdout:
+    """伪装成 prompt_toolkit.patch_stdout.StdoutProxy 的捕获式 stdout"""
+
+    def __init__(self):
+        self.chunks = []
+
+    def write(self, data):
+        self.chunks.append(data)
+        return len(data)
+
+    def flush(self):
+        pass
+
+    @property
+    def text(self):
+        return "".join(self.chunks)
+
+
+# 让 _is_prompt_toolkit_stdout() 的模块名检查命中
+_FakeProxyStdout.__module__ = "prompt_toolkit.patch_stdout"
+
+
+class TestProxyColorDisable:
+    """补全菜单防劈屏的颜色处理 —— 代理接管期间禁色，输出纯文本"""
+
+    def test_execute_job_strips_color_under_proxy(self, manager, monkeypatch):
+        """stdout 被 patch_stdout 代理时，[Cron N] 输出不含 ANSI 转义（?[2m 乱码回归）"""
+        import fr_cli.weapon.cron as cron_mod
+
+        # pytest 环境全局禁色（ui.py 的 _NO_COLOR），先伪造颜色常量以验证禁色逻辑
+        monkeypatch.setattr(cron_mod, "DIM", "\033[2m")
+        monkeypatch.setattr(cron_mod, "RESET", "\033[0m")
+        fake = _FakeProxyStdout()
+        monkeypatch.setattr(sys, "stdout", fake)
+        job = {"id": 1, "cmd": "echo a", "job_type": "shell"}
+        manager._execute_job(job)
+        assert "[Cron 1]" in fake.text
+        assert "\033" not in fake.text
+
+    def test_execute_job_keeps_color_without_proxy(self, manager, monkeypatch, capsys):
+        """普通 stdout（无代理）时保留颜色，不影响非 TUI 场景"""
+        import fr_cli.weapon.cron as cron_mod
+
+        monkeypatch.setattr(cron_mod, "DIM", "\033[2m")
+        monkeypatch.setattr(cron_mod, "RESET", "\033[0m")
+        job = {"id": 2, "cmd": "echo b", "job_type": "shell"}
+        manager._execute_job(job)
+        out = capsys.readouterr().out
+        assert "[Cron 2]" in out
+        assert "\033" in out
+
+    def test_color_disable_restores_after_exit(self, monkeypatch):
+        """退出上下文后颜色常量恢复，后续主线程输出不受影响"""
+        import fr_cli.weapon.cron as cron_mod
+
+        monkeypatch.setattr(cron_mod, "RED", "\033[91m")
+        monkeypatch.setattr(cron_mod, "DIM", "\033[2m")
+        fake = _FakeProxyStdout()
+        monkeypatch.setattr(sys, "stdout", fake)
+        with cron_mod._ProxyColorDisable():
+            assert cron_mod.RED == "" and cron_mod.DIM == ""
+        assert cron_mod.RED == "\033[91m" and cron_mod.DIM == "\033[2m"
+
+    def test_color_disable_noop_without_proxy(self, monkeypatch):
+        """无代理时 _ProxyColorDisable 不动颜色常量"""
+        import fr_cli.weapon.cron as cron_mod
+
+        monkeypatch.setattr(cron_mod, "RED", "\033[91m")
+        with cron_mod._ProxyColorDisable():
+            assert cron_mod.RED == "\033[91m"
+
+    def test_color_disable_concurrent_entries(self, monkeypatch):
+        """并发进入：先退出者不恢复颜色，仍在打印的 job 不会打出 ?[2m 乱码"""
+        import threading
+
+        import fr_cli.weapon.cron as cron_mod
+
+        monkeypatch.setattr(cron_mod, "DIM", "\033[2m")
+        monkeypatch.setattr(cron_mod, "RESET", "\033[0m")
+        fake = _FakeProxyStdout()
+        monkeypatch.setattr(sys, "stdout", fake)
+
+        a_entered = threading.Event()
+        b_entered = threading.Event()
+        a_exited = threading.Event()
+        errors = []
+
+        def worker_a():
+            try:
+                with cron_mod._ProxyColorDisable():
+                    a_entered.set()
+                    b_entered.wait(2)
+                # A 先退出，但 B 仍在上下文内
+                a_exited.set()
+            except Exception as e:  # pragma: no cover
+                errors.append(repr(e))
+
+        def worker_b():
+            try:
+                a_entered.wait(2)
+                with cron_mod._ProxyColorDisable():
+                    b_entered.set()
+                    a_exited.wait(2)
+                    # A 已退出、B 仍持有：颜色必须保持禁用
+                    if cron_mod.DIM != "" or cron_mod.RESET != "":
+                        errors.append(f"颜色被提前恢复: DIM={cron_mod.DIM!r}")
+                    print(f"{cron_mod.DIM}[Cron 9]{cron_mod.RESET} x")
+            except Exception as e:  # pragma: no cover
+                errors.append(repr(e))
+
+        ta = threading.Thread(target=worker_a)
+        tb = threading.Thread(target=worker_b)
+        ta.start()
+        tb.start()
+        ta.join(5)
+        tb.join(5)
+        assert errors == []
+        assert "\033" not in fake.text
+        # 全部退出后恢复真值
+        assert cron_mod.DIM == "\033[2m" and cron_mod.RESET == "\033[0m"
