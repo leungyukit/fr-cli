@@ -4,6 +4,8 @@
 
 ## [Unreleased]
 
+## [2.8.6] - 2026-11-24
+
 ### 新增功能
 
 #### 韩立启动字符画
@@ -116,6 +118,35 @@
 ### 兼容
 - 路径访问改为 lambda/函数形式，便于测试 monkeypatch `MASTER_DIR / ROOT` 隔离
 - 无破坏性变更
+
+### 新增功能
+
+#### ReAct 主循环强制规划步
+- 新增 `fr_cli/agent/master_planner.py`：任务型输入（本地启发式门控，零成本）先让 LLM 产出 N 步结构化计划并渲染，再把计划作为 system 消息播种进 ReAct 循环
+- 修"模型不自觉就静默退化成一问一答"（session.json 实证 17 个任务 11 个零工具调用）
+- 规划调用 silent=True，模型思维链不刷屏；计划展示统一走 `render_plan`
+- `/mode plan` 与 MasterAgent 解耦：计划模式不再被整体禁用（cot/tot/react 仍禁用）
+
+#### 工具调用容错识别
+- 新增 `fr_cli/core/plan/toolcalls.py::extract_tool_calls`：四层兜底（整段裸 JSON / 任意代码围栏 / 字符串感知括号匹配挖标签内 JSON / 显式扫工具标签内层），键位兼容 `tool+params`、`tool+arguments`、`name+arguments`、OpenAI `function` 风格，按 `(tool, params)` 去重
+- 修 live 实测静默失败：step-5-preview 实际吐裸 JSON，旧解析只认 tool 围栏，导致工具调用被当成"最终答案"、ReAct 循环一步退出、工具从未执行
+- 播种消息补显式格式规定作双保险
+
+### 优化
+
+#### 输入区蓝色箭头 + 自适应分隔线
+- 提示位置蓝色小箭头；输入区蓝色横线，Enter 后变浅灰
+
+### 修复
+
+#### ANSI 序列泄漏治理
+- security 高危确认路径 5 处带色裸 print / `input()` 提示，在 REPL `patch_stdout` 代理期把 ESC 吐成字面问号加方括号，用户看到乱码；改走 `print_styled` 并新增公开 `ui.use_color()` 助手
+- 核心对话路径 19 处带色裸 print 转 `print_styled()`，带全量对比基线
+- 计划 JSON 容错：`parse_plan_json` 容忍思维链前后文与代码围栏，不再一讲废话就解析失败
+
+### 测试
+- 新增 `test_master_planner` / `test_input_separator` / `test_toolcall_extraction`；全量 3 失败 / 1990 通过 / 12 跳过，零新增失败
+- live 复验：裸 JSON 工具调用真执行（session.json 实证 step_count=4、3 个 steps），原始字节流乱码计数 0
 
 ---
 
