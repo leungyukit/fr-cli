@@ -42,16 +42,20 @@ def _isatty() -> bool:
 def _color_enabled() -> bool:
     """是否启用颜色:统一走 ui.color_enabled() 单一判定源
     (FORCE_COLOR/CLICOLOR_FORCE 强制开; NO_COLOR/FR_CLI_NO_COLOR 强制关;
-    其余看 stdin+stdout 是否双 TTY), 不再本地重复实现导致两套漂移。"""
+    stdout 被 prompt_toolkit.patch_stdout 代理期间一律关; 其余看
+    stdin+stdout 是否双 TTY), 不再本地重复实现导致两套漂移。
+
+    每次调用实时判定, 不用 import 时快照: patch_stdout 代理是 REPL 对话
+    中途才装上的, import 时(stdout 还是真 TTY)求值的快照会把代理期的
+    颜色决策冻死在"开", 之后每次 _c() 都往 StdoutProxy 里打 ESC, 用户
+    看到的就是 ?[92m 这类乱码。
+    """
     return _ui_color_enabled()
-
-
-_COLOR = _color_enabled()
 
 
 def _c(color: str, text: str) -> str:
     """带颜色码的字符串(若颜色关闭则原样返回)"""
-    if not _COLOR:
+    if not _color_enabled():
         return text
     return f"{color}{text}{RESET}"
 

@@ -148,11 +148,15 @@ def _cmd_mode(state, parts):
             print(f"{GREEN}[OK] UI 模式已切换: {ui_desc.get(ui_mode, ui_mode)}{RESET}")
         return False
 
-    # 思维模式切换: /mode <direct|cot|tot|react>
-    # MasterAgent 模式下思维模式由其内部 ReAct 循环控制，/mode 无效
-    if getattr(state, 'master_agent', None) and state.master_agent.is_enabled():
-        print(f"{YELLOW}[!] MasterAgent 主控模式下，思维模式由其内部 ReAct 循环自主管理，/mode 命令无效。{RESET}")
-        print(f"{DIM}  提示: 使用 /master off 关闭主控后可切换思维模式。{RESET}")
+    # 思维模式切换: /mode <direct|cot|tot|react|plan>
+    # MasterAgent 开启时 cot/tot/react 由其内部 ReAct 循环自主管理, 切换无效;
+    # 但 plan(计划模式)始终允许 —— 路由层 plan 优先于 master(_route_mode 先查
+    # thinking_mode), 用户可随时 /mode plan 进入"先出计划→确认→分步执行",
+    # /mode direct 回到 MasterAgent 主控。
+    if (getattr(state, 'master_agent', None) and state.master_agent.is_enabled()
+            and arg1 and arg1.lower() in ("cot", "tot", "react")):
+        print(f"{YELLOW}[!] MasterAgent 主控模式下，cot/tot/react 思维模式由其内部 ReAct 循环自主管理，无效。{RESET}")
+        print(f"{DIM}  提示: 计划模式(/mode plan)始终可用; 使用 /master off 关闭主控后可切换全部思维模式。{RESET}")
         return False
 
     from fr_cli.core.thinking import ThinkingEngine

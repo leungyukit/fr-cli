@@ -7,7 +7,8 @@
 
 模块拆分：
 - prompts: PLAN_PROMPT_ZH / PLAN_PROMPT_EN / SUMMARY_PROMPT_*
-- generator: generate_plan / render_plan / _get_tools_text / _clean_json_text / _try_parse_json
+- generator: generate_plan / render_plan / _get_tools_text / _clean_json_text / _try_parse_json / parse_plan_json
+- toolcalls: extract_tool_calls
 - executor: execute_step / execute_plan / _resolve_step_params / _fold_text / summarize_execution
 - storage: PLANS_DIR / save_plan / load_plan / list_saved_plans
 """
@@ -22,8 +23,10 @@ from fr_cli.core.plan.generator import (
     _get_tools_text,
     _try_parse_json,
     generate_plan,
+    parse_plan_json,
     render_plan,
 )
+from fr_cli.core.plan.toolcalls import extract_tool_calls
 from fr_cli.core.plan.executor import (
     _fold_text,
     _resolve_step_params,

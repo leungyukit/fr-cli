@@ -300,3 +300,102 @@ class TestGeneratePlan:
                 result = generate_plan(mock_state, "input", lang="zh")
         assert result is not None
         assert result.get("goal") == "g"
+
+
+class TestParsePlanJsonTolerant:
+    """方向3a: 计划 JSON 契约容错解析
+
+    固化的漏洞(live 实测复现): step-5-preview 在计划模式下先吐一大段思维链
+    ("Need include goal... Let's craft steps...")再给 JSON, 旧 _clean_json_text
+    只认"纯 JSON 或 ``` 开头", 解析直接失败 → 用户看到 [x] 计划生成失败,
+    且思维链原文还刷屏。现在用字符串感知的候选对象迭代捞第一个可解析的计划。
+    """
+
+    def test_cot_prose_before_and_after(self):
+        """思维链前后文包裹(最典型的 live 失败形态)"""
+        from fr_cli.core.plan.generator import parse_plan_json
+
+        text = (
+            'Let me think. Need include "goal". Something like {...}\n'
+            "Let's craft steps:\n"
+            '{"goal": "选品调研", "summary": "s", "steps": ['
+            '{"description": "搜索", "tool": "search_web", '
+            '"params": {"query": "x"}, "reasoning": "r"}], '
+            '"summary2": "ignored"}\n'
+            "That should be valid JSON."
+        )
+        plan = parse_plan_json(text)
+        assert plan is not None
+        assert plan["goal"] == "选品调研"
+        assert plan["steps"][0]["tool"] == "search_web"
+
+    def test_skips_invalid_brace_fragments_in_cot(self):
+        """CoT 里的 {...} / {"依赖步骤": 1} 碎片被跳过, 找到真正的计划"""
+        from fr_cli.core.plan.generator import parse_plan_json
+
+        text = (
+            "Need ensure JSON no markdown.\n"
+            'params: {"query": "2025 silicone"} and {"依赖步骤": 1}\n'
+            '{"goal": "g", "steps": [{"description": "d", "tool": null, '
+            '"params": {}, "reasoning": "r"}], "summary": "s"}'
+        )
+        plan = parse_plan_json(text)
+        assert plan is not None
+        assert plan["steps"][0]["tool"] is None  # null 规范化为 None
+
+    def test_markdown_fence_still_works(self):
+        """```json 围栏形态不回退"""
+        from fr_cli.core.plan.generator import parse_plan_json
+
+        text = '```json\n{"goal": "g", "steps": []}\n```'
+        plan = parse_plan_json(text)
+        assert plan is not None and plan["goal"] == "g"
+
+    def test_braces_inside_strings_not_mismatched(self):
+        """JSON 字符串字面量内的花括号不算结构括号"""
+        from fr_cli.core.plan.generator import _extract_json_object
+
+        raw = _extract_json_object('前缀 {"a": "包含}花括号"} 后缀')
+        assert raw == '{"a": "包含}花括号"}'
+
+    def test_unparseable_returns_none(self):
+        from fr_cli.core.plan.generator import parse_plan_json
+
+        assert parse_plan_json("完全没有JSON") is None
+        assert parse_plan_json("") is None
+        assert parse_plan_json("[1, 2, 3]") is None  # 数组不是计划
+        assert parse_plan_json('{"goal": "g"}') is None  # 缺 steps
+
+    def test_tool_null_variants_normalized(self):
+        """tool 的 ""/"null"/"None" 统一规范化为 None"""
+        from fr_cli.core.plan.generator import parse_plan_json
+
+        text = json.dumps({"goal": "g", "steps": [
+            {"description": "a", "tool": "null", "params": {}},
+            {"description": "b", "tool": "", "params": {}},
+            {"description": "c", "tool": "None", "params": {}},
+        ]})
+        plan = parse_plan_json(text)
+        assert [s["tool"] for s in plan["steps"]] == [None, None, None]
+
+    def test_generate_plan_uses_tolerant_parser(self):
+        """generate_plan 走容错解析: CoT 前后文形态不再失败"""
+        from fr_cli.core.plan.generator import generate_plan
+
+        mock_state = MagicMock()
+        mock_state.model_name = "test-model"
+        mock_state.lang = "zh"
+        mock_state.cfg = {}
+
+        cot = (
+            "Let me think about the steps...\n"
+            '{"goal": "g", "steps": [{"description": "d", "tool": null, '
+            '"params": {}, "reasoning": "r"}]}\n'
+            "Done reasoning."
+        )
+        with patch("fr_cli.core.plan.generator.stream_cnt") as mock_stream:
+            mock_stream.return_value = (cot, {}, 0.1, False)
+            with patch("fr_cli.core.plan.generator._get_tools_text", return_value="tools"):
+                result = generate_plan(mock_state, "input", lang="zh")
+        assert result is not None
+        assert result["goal"] == "g"

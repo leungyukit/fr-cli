@@ -7,6 +7,7 @@
   master_prompt.py         默认 system prompt 模板（中文/英文/规划/反思）
   master_prompt_builder.py  System Prompt 组装 mixin
   master_loop.py           ReAct 主循环 mixin
+  master_planner.py        强制规划步 mixin（任务型输入先出计划再执行）
   master_reflect.py        反思进化 mixin
 
 配置文件体系（~/.fr_cli/master/）：
@@ -41,12 +42,14 @@ from fr_cli.conf.paths import MASTER_DIR  # noqa: E402,F401
 
 # Mixin 组件
 from fr_cli.agent.master_loop import MasterAgentLoopMixin
+from fr_cli.agent.master_planner import MasterAgentPlannerMixin
 from fr_cli.agent.master_prompt_builder import MasterAgentPromptMixin
 from fr_cli.agent.master_reflect import MasterAgentReflectMixin
 
 
 class MasterAgent(
     MasterAgentLoopMixin,
+    MasterAgentPlannerMixin,
     MasterAgentReflectMixin,
     MasterAgentPromptMixin,
 ):

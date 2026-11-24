@@ -20,7 +20,7 @@ from pathlib import Path
 
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
-from fr_cli.ui.ui import DIM, RESET
+from fr_cli.ui.ui import DIM, RESET, print_styled
 
 from fr_cli.agent.master_storage import (
     SESSION_FILE,
@@ -60,7 +60,9 @@ class MasterAgentLoopMixin:
         # 模型未配置时阻止调用
         if not self.state.model_name:
             from fr_cli.ui.ui import YELLOW, CYAN
-            print(f"{YELLOW}[!] 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
+            # REPL 的 AI 对话跑在 patch_stdout 代理里, 裸 print 打色只会得到
+            # ?[93m 乱码(StdoutProxy 非 raw 模式把 ESC 换成 '?'), 走 print_styled
+            print_styled(f"{YELLOW}[!] 模型未配置，请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}")
             return None, False
 
         self._step_count = 0
@@ -96,6 +98,35 @@ class MasterAgentLoopMixin:
 
         # 长上下文自动压缩（后台任务也受益）
         self._maybe_compress_messages(messages)
+
+        # ---------- 强制规划步: 任务型输入先出 N 步计划, 再逐步执行 ----------
+        # 门控是本地启发式(零成本): 短问候/纯咨询直接答; 任务型输入先让 LLM
+        # 产出结构化计划并渲染展示, 再把计划(纯文本)作为 system 消息播种进
+        # 下面的 ReAct 循环 —— 循环机制不变(工具调用/观察/记忆/反思全复用),
+        # 只是每一步都在计划上下文里决策, 不再静默退化成一问一答。
+        # 规划失败只打印一行提示后原样继续, 无回归。
+        if self._needs_planning(user_input):
+            plan = self._plan_for_task(user_input, lang)
+            if plan:
+                from fr_cli.core.plan.generator import render_plan
+                from fr_cli.ui.ansi import strip_ansi
+
+                plan_display = render_plan(plan, lang)
+                print()
+                print_styled(plan_display)
+                print()
+                # 播种: 剥掉 ANSI(省 token, 也避免模型模仿颜色码)
+                messages.append({"role": "system", "content": (
+                    "已为用户制定以下执行计划, 请严格按步骤推进:\n"
+                    f"{strip_ansi(plan_display)}\n"
+                    "每一步: 需要工具时, 只输出一个 JSON 对象描述工具调用"
+                    "(可以用代码围栏包住), 形如 "
+                    '{"tool": "工具名", "params": {参数}}, '
+                    "拿到观察结果后进入下一步; 所有步骤完成后给出最终回答。"
+                )})
+                # 记入会话(中断恢复/复盘用)
+                if isinstance(self.session.get("current_task"), dict):
+                    self.session["current_task"]["plan"] = plan
 
         # 交互运行(REPL 对话)流式输出,让用户实时看到思考与最终回答;
         # Hermes 后台隔离运行保持 silent(输出进任务日志而非终端)
@@ -200,7 +231,8 @@ class MasterAgentLoopMixin:
                 path = create_session(self.state.messages, session_id=getattr(self.state, "session_id", None))
                 if path:
                     self.state.auto_session_path = path
-                    print(f"{DIM}自动会话已创建: {Path(path).name}{RESET}")
+                    # 同上门控: patch_stdout 代理下打 DIM 只会得到 ?[2m...?[0m
+                    print_styled(f"{DIM}自动会话已创建: {Path(path).name}{RESET}")
             else:
                 update_session(self.state.auto_session_path, self.state.messages)
 
@@ -216,21 +248,22 @@ class MasterAgentLoopMixin:
     def _extract_tool_calls(text):
         """
         从 assistant 回复中提取工具调用。
-        同时支持两种格式：
-          1. ```tool 代码块（MasterAgent 原生格式）
-          2. 【调用：tool_name({...})】（传统流式对话兼容格式）
+        格式 1（主路径，容错多形态）：见 toolcalls.extract_tool_calls ——
+          认 tool_call XML 标签 / ```tool 等代码围栏 / 裸 JSON / 对象数组，
+          键位兼容 tool+params、tool+arguments、name+arguments。
+          旧实现只认 ```tool 围栏，live 实测 step-5-preview 的
+          tool_call XML 形态被当成"最终答案"，工具从未执行（静默失败）。
+        格式 2：【调用：tool_name({...})】（传统流式对话兼容格式）
         """
         calls = []
 
-        # 格式 1：```tool 代码块
-        pattern = r'```tool\s*\n(.*?)\n```'
-        for m in re.finditer(pattern, text, re.DOTALL):
-            try:
-                data = json.loads(m.group(1).strip())
-                if "tool" in data:
-                    calls.append(data)
-            except Exception:
-                pass
+        # 格式 1：工具调用代码块（容错多形态，见 toolcalls.extract_tool_calls）
+        # live 实测 step-5-preview 吐的是 tool_call XML 标签包裹的 JSON /
+        # 裸 JSON / 普通围栏，旧实现只认 ```tool 围栏，导致工具调用被当成
+        # "最终答案"、ReAct 循环一步退出、工具从未执行（静默失败）。
+        from fr_cli.core.plan.toolcalls import extract_tool_calls
+        for call in extract_tool_calls(text):
+            calls.append({"tool": call["tool"], "params": call.get("params", {})})
 
         # 格式 2：【调用：tool_name({...})】（兼容传统模式）
         i = 0

@@ -93,14 +93,37 @@ def test_hermes_research_demo():
 
         original_messages = list(state.messages)
 
-        # mock stream_cnt：第一次返回 write_file 调用，第二次返回最终回答
-        call_count = [0]
+        # mock stream_cnt：按消息内容应答(不按调用次数 —— ReAct 主循环的
+        # 强制规划步会先发一次规划请求, 按次数数会让序列错位)
+        #   规划 prompt(含"任务规划专家") → 返回结构化计划 JSON
+        #   ReAct 首次非规划调用      → 返回 write_file 工具调用
+        #   之后                      → 返回最终回答
+        wrote = [False]
         report_path = str(env.workspace / "report.md")
         report_content = "# AI Agent 调研报告\\n\\n这是自动生成的报告。"
 
         def fake_stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=2048, silent=True):
-            call_count[0] += 1
-            if call_count[0] == 1:
+            user_msg = ""
+            for m in reversed(messages):
+                if m.get("role") == "user":
+                    user_msg = str(m.get("content", ""))
+                    break
+            if "任务规划专家" in user_msg:
+                # 强制规划步: 后台任务也先出 N 步计划(方向1)
+                import json as _json
+                plan = {
+                    "goal": "写一份 AI Agent 调研报告到 workspace/report.md",
+                    "summary": "一步写入报告文件",
+                    "steps": [{
+                        "description": "写调研报告到 report.md",
+                        "tool": "write_file",
+                        "params": {"path": report_path, "content": report_content},
+                        "reasoning": "直接落盘",
+                    }],
+                }
+                return _json.dumps(plan, ensure_ascii=False), None, None, None
+            if not wrote[0]:
+                wrote[0] = True
                 text = f'```tool\n{{"tool": "write_file", "params": {{"path": "{report_path}", "content": "{report_content}"}}}}\n```'
             else:
                 text = "报告已写入 workspace/report.md。"

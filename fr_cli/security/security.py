@@ -7,7 +7,7 @@ v2.4.4 行为变更：
 - 新增 `clear_all_auto_confirm()` 全局撤销（供 /unconfirm 命令使用）
 """
 import os
-from fr_cli.ui.ui import RED, BOLD, YELLOW, CYAN, RESET
+from fr_cli.ui.ui import RED, BOLD, YELLOW, CYAN, RESET, print_styled, use_color
 from fr_cli.lang.i18n import T
 from fr_cli.conf.config import save_config
 
@@ -56,12 +56,16 @@ def ask(k, d, l, fconfirm, sconfirm, config):
     if os.environ.get("FR_CLI_NON_INTERACTIVE"):
         return False, sconfirm, fconfirm
 
-    print(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
-    print(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
-    print(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
+    # ReAct 工具执行跑在 prompt_toolkit patch_stdout 代理里(queue.py), 裸 print
+    # 打色会把 ESC 替换成 '?' 泄漏 ?[91m 乱码; 统一走 print_styled(色关自动剥序列)
+    print_styled(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
+    print_styled(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
+    print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
 
     while True:
-        c = input(f"{BOLD} {RESET}").strip().lower()
+        # input() 提示同理: 代理期不能带转义序列, 退化为纯空格
+        prompt = f"{BOLD} {RESET}" if use_color() else " "
+        c = input(prompt).strip().lower()
         if c == 'y':
             return True, sconfirm, fconfirm
         elif c == 'a':
@@ -81,7 +85,7 @@ def ask(k, d, l, fconfirm, sconfirm, config):
         elif c == 'n' or c == '':
             return False, sconfirm, fconfirm
         # 未识别输入：重新提示（保留原 UX）
-        print(f"  {YELLOW}[!] 请输入 Y/A/F/N 之一{RESET}")
+        print_styled(f"  {YELLOW}[!] 请输入 Y/A/F/N 之一{RESET}")
 
 
 def _migrate_fconfirm(fconfirm):

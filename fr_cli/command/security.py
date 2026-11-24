@@ -12,7 +12,7 @@ v2.5.1 行为变更：
 """
 import os
 
-from fr_cli.ui.ui import DIM, RESET
+from fr_cli.ui.ui import DIM, RESET, print_styled
 from fr_cli.security.security import ask, clear_all_auto_confirm, _migrate_fconfirm
 from fr_cli.security.policy import (
     SANDBOX_SECURITY_KEYS,
@@ -67,7 +67,8 @@ class SecurityManager:
         # sandbox_auto：仅沙盒内操作自动放行
         if mode == "sandbox_auto" and k in SANDBOX_SECURITY_KEYS:
             if k not in self._auto_echoed:
-                print(f"{DIM}自动放行沙盒操作: {k} ({d}){RESET}")
+                # 同 security.ask: 代理期裸打色会泄漏 ?[2m, 走 print_styled
+                print_styled(f"{DIM}自动放行沙盒操作: {k} ({d}){RESET}")
                 self._auto_echoed.add(k)
             return True
 

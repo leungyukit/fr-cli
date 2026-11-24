@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import Any, Dict, List
 
-from fr_cli.ui.ui import DIM, RESET
+from fr_cli.ui.ui import DIM, RESET, print_styled
 from fr_cli.memory.compress import maybe_compress
 
 
@@ -35,7 +35,7 @@ def auto_compress_messages(state, messages):
         )
         if did_compress:
             saved = max(0, before - after)
-            print(f"{DIM}已压缩早期对话摘要(估算节省约 {saved} tokens){RESET}")
+            print_styled(f"{DIM}已压缩早期对话摘要(估算节省约 {saved} tokens){RESET}")
             messages[:] = compressed
     except Exception:
         pass

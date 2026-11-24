@@ -30,6 +30,34 @@ from fr_cli.ui.prompt.status import StatusState
 from fr_cli.ui.ui import YELLOW, RESET
 from fr_cli.conf.paths import ROOT
 
+# 输入态指示符: 蓝色小箭头(样式见 _PROMPT_STYLE 的 "indicator"), 与输入区上方
+# 的蓝色分隔线组成"输入区"视觉; Enter 提交后分隔线变浅灰表示退出输入态。
+# 3 字符宽度(" ❯ ")与旧指示符(" ▍ ")一致, placeholder 的前导对齐不用改。
+INPUT_INDICATOR = ("class:indicator", " ❯ ")
+
+# prompt_toolkit 样式表(模块级常量, 便于测试锁定"蓝色箭头"不回退)
+_PROMPT_STYLE = {
+    "indicator": "ansibrightblue bold",
+    "placeholder": "ansibrightblack",
+    "separator": "ansibrightblack",
+    "input-label": "bg:ansicyan ansiblack bold",
+    "hint": "ansiyellow",
+    "status-yellow": "ansiyellow",
+    "status-cyan": "ansibrightcyan",
+    "status-green": "ansigreen",
+    "status-gray": "ansibrightblack",
+    "status-magenta": "ansimagenta",
+    "status-red": "ansired",
+    "status-sep": "ansibrightblack",
+    "completion-menu": "bg:#1e1e1e #ffffff",
+    "completion-menu.completion": "bg:#1e1e1e #cccccc",
+    "completion-menu.completion.current": "bg:#094771 #ffffff bold",
+    "completion-menu.meta": "bg:#1e1e1e #888888",
+    "completion-menu.meta.current": "bg:#094771 #ffffff",
+    "scrollbar.arrow": "bg:#1e1e1e #888888",
+    "scrollbar": "bg:#444444",
+}
+
 
 class FanRenPrompt:
     """基于 prompt_toolkit 的 TUI 输入面板
@@ -93,27 +121,7 @@ class FanRenPrompt:
             key_bindings=self._kb,
             mouse_support=False,
             bottom_toolbar=_toolbar,
-            style=Style.from_dict({
-                "indicator": "ansicyan bold",
-                "placeholder": "ansibrightblack",
-                "separator": "ansibrightblack",
-                "input-label": "bg:ansicyan ansiblack bold",
-                "hint": "ansiyellow",
-                "status-yellow": "ansiyellow",
-                "status-cyan": "ansibrightcyan",
-                "status-green": "ansigreen",
-                "status-gray": "ansibrightblack",
-                "status-magenta": "ansimagenta",
-                "status-red": "ansired",
-                "status-sep": "ansibrightblack",
-                "completion-menu": "bg:#1e1e1e #ffffff",
-                "completion-menu.completion": "bg:#1e1e1e #cccccc",
-                "completion-menu.completion.current": "bg:#094771 #ffffff bold",
-                "completion-menu.meta": "bg:#1e1e1e #888888",
-                "completion-menu.meta.current": "bg:#094771 #ffffff",
-                "scrollbar.arrow": "bg:#1e1e1e #888888",
-                "scrollbar": "bg:#1e1e1e #444444",
-            }),
+            style=Style.from_dict(_PROMPT_STYLE),
         )
 
     def _build_keybindings(self) -> KeyBindings:
@@ -325,7 +333,7 @@ class FanRenPrompt:
 
         try:
             self._prefix_hint = prefix_hint
-            indicator = FormattedText([("class:indicator", " ▍ ")])
+            indicator = FormattedText([INPUT_INDICATOR])
             placeholder = FormattedText([
                 ("class:placeholder", "  输消息 · / 命令 · @ Agent · ! shell · Ctrl+E/R/U 编辑")
             ])

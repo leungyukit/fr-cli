@@ -12,7 +12,7 @@ import copy
 from pathlib import Path
 
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import DIM, RED, RESET, YELLOW
+from fr_cli.ui.ui import DIM, RED, RESET, YELLOW, print_styled
 from fr_cli.memory.context import build_context_summary, extract_recent_turns, save_context
 from fr_cli.memory.session import create_session, update_session
 
@@ -34,7 +34,7 @@ def handle_plan_mode(state, u):
     # 1. 生成计划
     plan = generate_plan(state, u, lang)
     if not plan:
-        print(
+        print_styled(
             f"{RED}{'[x] 计划生成失败' if lang == 'zh' else '[x] Failed to generate plan'}{RESET}"
         )
         return
@@ -42,15 +42,15 @@ def handle_plan_mode(state, u):
     state.active_plan = plan
     state.plan_step_idx = 0
 
-    # 2. 展示计划
+    # 2. 展示计划(render_plan 自带 ANSI, 走 print_styled 防代理期 ?[ 乱码)
     print()
-    print(render_plan(plan, lang))
+    print_styled(render_plan(plan, lang))
     print()
 
     # 3. 用户确认
     confirm_msg = "是否执行该计划?" if lang == "zh" else "Execute this plan?"
     if not prompt.confirm(confirm_msg, default=True):
-        print(f"{YELLOW}{'[STOP] 已取消执行' if lang == 'zh' else '[STOP] Cancelled'}{RESET}")
+        print_styled(f"{YELLOW}{'[STOP] 已取消执行' if lang == 'zh' else '[STOP] Cancelled'}{RESET}")
         state.active_plan = None
         return
 
@@ -95,7 +95,7 @@ def handle_plan_mode(state, u):
         path = create_session(state.messages, session_id=getattr(state, "session_id", None))
         if path:
             state.auto_session_path = path
-            print(f"{DIM}{Path(path).name}{RESET}")
+            print_styled(f"{DIM}{Path(path).name}{RESET}")
     else:
         update_session(state.auto_session_path, state.messages)
 

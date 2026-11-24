@@ -10,8 +10,9 @@ import shutil
 import re
 from fr_cli.ui.ui import (
     CYAN, YELLOW, BOLD, DIM, RESET, GRAY,
-    get_display_width, _NO_COLOR,
+    get_display_width,
 )
+from fr_cli.ui import ui as _ui  # 实时颜色判定(不用 import 快照)
 from fr_cli import __version__
 
 
@@ -117,8 +118,13 @@ def print_banner(model_name: str, limit: int, allowed_dirs: list, session_name: 
     print()
 
 
-def print_input_separator(width: int = None):
-    """在 TUI 输入区上方打印分隔线：── input ──────...
+def print_input_separator(width: int = None, active: bool = True):
+    """在 TUI 输入区打印全宽分隔线, 颜色表示输入态。
+
+    active=True(输入态, 蓝): 打印在 prompt 上方, 与上方 AI 回答分隔,
+        提示用户进入输入区; 箭头指示符同色, 组成"输入区"视觉。
+    active=False(提交后, 浅灰): Enter 之后打印在输入内容下方,
+        表示输入态结束(当前不在输入)。
 
     直接使用当前终端窗口宽度，不受 banner 框宽上限限制，
     确保分隔线始终铺满终端整行。
@@ -131,5 +137,11 @@ def print_input_separator(width: int = None):
     label = "── input "
     # 总长度 = 终端宽度
     dash_count = max(width - len(label), 10)
-    sep_color = "" if _NO_COLOR else "\033[90m"
+    if not _ui.color_enabled():
+        # 无颜色时用标签区分状态: input=输入态 / done=输入态已结束
+        label = "── input " if active else "── done "
+        dash_count = max(width - len(label), 10)
+        print(f"{label}{'─' * dash_count}{RESET}")
+        return
+    sep_color = "\033[94m" if active else "\033[90m"  # 亮蓝 / 亮黑(浅灰)
     print(f"{sep_color}{label}{'─' * dash_count}{RESET}")

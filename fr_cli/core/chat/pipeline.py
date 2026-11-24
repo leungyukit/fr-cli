@@ -22,7 +22,7 @@ from __future__ import annotations
 import copy
 
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import CYAN, RESET, YELLOW
+from fr_cli.ui.ui import CYAN, RESET, YELLOW, print_styled
 
 from fr_cli.core.chat.helpers import auto_compress_messages
 from fr_cli.core.chat.pipeline_intent import (  # noqa: F401 (re-export,旧导入路径兼容)
@@ -47,7 +47,7 @@ def handle_ai_chat(state, u):
     """处理 AI 正常对话流程"""
     # 模型未配置时阻止调用
     if not state.model_name:
-        print(
+        print_styled(
             f"{YELLOW}[!] 模型未配置,请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}"
         )
         return

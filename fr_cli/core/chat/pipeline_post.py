@@ -11,7 +11,7 @@ import sys
 from pathlib import Path
 
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import CYAN, DIM, GREEN, RESET
+from fr_cli.ui.ui import CYAN, DIM, GREEN, RESET, print_styled
 from fr_cli.core.sysmon import get_sys_stats
 from fr_cli.memory.context import build_context_summary, extract_recent_turns, save_context
 from fr_cli.memory.session import create_session, update_session
@@ -27,21 +27,21 @@ def _post_process(state, updated_messages, txt, usage, response_time, u, lang):
         output_tokens = usage.get("completion_tokens", 0)
         total_tokens = usage.get("total_tokens", 0)
         usage_pct = f" ({total_tokens / state.limit * 100:.0f}%)" if state.limit else ""
-        print(
+        print_styled(
             f"{DIM}{response_time:.1f}s · {state.display_model} · "
             f"↓{input_tokens} ↑{output_tokens} Σ{total_tokens}{usage_pct}"
             f"{stats_extra}{RESET}"
         )
     else:
-        print(f"{DIM}{response_time:.1f}s · {state.display_model}{stats_extra}{RESET}")
+        print_styled(f"{DIM}{response_time:.1f}s · {state.display_model}{stats_extra}{RESET}")
 
     # 智能功能推荐
     from fr_cli.core.recommender import recommend_features
     recommendations = recommend_features(u)
     if recommendations:
-        print(f"{GREEN}推荐功能:{RESET}")
+        print_styled(f"{GREEN}推荐功能:{RESET}")
         for i, rec in enumerate(recommendations[:5], 1):
-            print(f"  {DIM}[{i}]{RESET} {CYAN}{rec['cmd']}{RESET} - {rec['desc']}")
+            print_styled(f"  {DIM}[{i}]{RESET} {CYAN}{rec['cmd']}{RESET} - {rec['desc']}")
 
     # 智能插件进化检测 & Agent 分身检测(统一入口)
     from fr_cli.agent.artifact_detector import detect_plugin_artifact, detect_agent_artifact
@@ -61,7 +61,7 @@ def _post_process(state, updated_messages, txt, usage, response_time, u, lang):
         path = create_session(state.messages, session_id=getattr(state, "session_id", None))
         if path:
             state.auto_session_path = path
-            print(f"{DIM}{Path(path).name}{RESET}")
+            print_styled(f"{DIM}{Path(path).name}{RESET}")
     else:
         update_session(state.auto_session_path, state.messages)
 

@@ -224,7 +224,7 @@ def main():
     first_iter = True
     while True:
         # 分隔线 ── input ────（Kimi Code 风格：自带"input"标签）
-        print_input_separator()
+        print_input_separator(active=True)
 
         # 第一次引导提示（只在 TTY 下显示）
         prefix_hint = ""
@@ -239,6 +239,8 @@ def main():
                 state._queue_mgr.wait_for_complete()
             print_bye()
             break
+        # 输入态结束: 浅灰分隔线打印在已提交输入的下方, 表示当前不在输入状态
+        print_input_separator(active=False)
         if not u:
             continue
 

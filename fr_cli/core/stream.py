@@ -19,8 +19,13 @@ _MAX_BUFFER_CHARS = 4096  # 累积超过这个数强制 flush
 
 
 def _is_prompt_toolkit_stdout() -> bool:
-    """检测当前 stdout 是否被 prompt_toolkit.patch_stdout 接管"""
-    return "prompt_toolkit" in type(sys.stdout).__module__
+    """检测当前 stdout 是否被 prompt_toolkit.patch_stdout 接管
+
+    判定逻辑收口在 ui.stdout_is_prompt_toolkit_proxy()(单一判定源),
+    这里保留薄封装: cron.py 等历史 import 与本文件的 monkeypatch 测试不变。
+    """
+    from fr_cli.ui import ui as _ui
+    return _ui.stdout_is_prompt_toolkit_proxy()
 
 
 def _markdown_use_color() -> bool:
@@ -29,11 +34,18 @@ def _markdown_use_color() -> bool:
     颜色要开需同时满足:
     ① ui 未被 set_no_color(True) 显式关掉(运行时可覆盖态)
     ② 环境判定 color_enabled() 为真(双 TTY 且无 NO_COLOR / FR_CLI_NO_COLOR)
-    任一不满足 → False, 渲染器原样吐文本, 不会向非 TTY 泄漏
-    \\033[96m 等序列(历史上在日志 / PTY 捕获端显示为 ?[96m 乱码)。
+    ③ stdout 没被 prompt_toolkit.patch_stdout 代理 —— StdoutProxy 非 raw
+       模式走 Vt100_Output.write(), 会把 ANSI 的 ESC 字节替换成字面 '?',
+       打色就显示 ?[96m 乱码(与 _ColorDisable / cron 的 _ProxyColorDisable
+       同款策略; 真实 TTY 下 isatty 仍为 True, 只有这项能拦住)
+    任一不满足 → False, 渲染器原样吐文本, 不会泄漏转义序列。
     """
     from fr_cli.ui import ui as _ui
-    return (not _ui._NO_COLOR) and _ui.color_enabled()
+    return (
+        not _ui._NO_COLOR
+        and _ui.color_enabled()
+        and not _is_prompt_toolkit_stdout()
+    )
 
 
 class _ColorDisable:

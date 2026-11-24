@@ -192,3 +192,39 @@ class TestColorFollowsGlobalFlag:
             assert "\033[" in buf.getvalue()
         finally:
             ui.set_no_color(original)
+
+    def test_no_ansi_when_stdout_proxied_by_prompt_toolkit(self, monkeypatch):
+        """真实 REPL 回归: stdout 被 patch_stdout 代理时 markdown 渲染必须无色。
+
+        StdoutProxy 非 raw 模式会把 ANSI 的 ESC 字节替换成字面 '?',
+        打色就显示 ?[96m?[1m•?[0m 乱码。真实冒烟曾暴露这项遗漏:
+        _ColorDisable 有检测但只管 stream.py 自己的常量, renderer 的
+        use_color 漏了, 现已补进 _markdown_use_color()。
+        """
+        from fr_cli.ui import ui
+
+        class _ProxyStdout(io.StringIO):
+            def isatty(self):
+                return True
+
+        # 让 _is_prompt_toolkit_stdout() 认不出这是普通 StringIO
+        _ProxyStdout.__module__ = "prompt_toolkit.patch_stdout"
+
+        for var in ("NO_COLOR", "FR_CLI_NO_COLOR", "FORCE_COLOR", "CLICOLOR_FORCE"):
+            monkeypatch.delenv(var, raising=False)
+        monkeypatch.setattr(sys.stdin, "isatty", lambda: True, raising=False)
+        original = ui._NO_COLOR
+        try:
+            ui.set_no_color(False)
+            buf = _ProxyStdout()
+            with redirect_stdout(buf):
+                stream_cnt(
+                    FakeStreamClient(MD_DOC), "m",
+                    [{"role": "user", "content": "hi"}], "zh",
+                )
+            out = buf.getvalue()
+            assert "\033[" not in out, f"代理环境下泄漏 ESC: {out!r}"
+            assert "?[" not in out, f"代理环境下泄漏残损序列: {out!r}"
+            assert "•" in out  # 内容与项目符号不受影响
+        finally:
+            ui.set_no_color(original)

@@ -11,7 +11,7 @@ from __future__ import annotations
 import sys
 
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import BOLD, CYAN, DIM, GREEN, RED, RESET
+from fr_cli.ui.ui import BOLD, CYAN, DIM, GREEN, RED, RESET, print_styled
 from fr_cli.core.stream import stream_cnt
 from fr_cli.core.intent import has_save_intent
 
@@ -70,7 +70,7 @@ def _stream_and_respond(state, updated_messages, u, lang):
         except Exception:
             pass
         from fr_cli.core.errors import friendly_print
-        print(f"{RED}{friendly_print(e)}{RESET}")
+        print_styled(f"{RED}{friendly_print(e)}{RESET}")
         return None, None, 0.0
 
     if usage:
@@ -98,7 +98,7 @@ def _stream_and_respond(state, updated_messages, u, lang):
         clean_txt, cmd_results = state.executor.process_ai_commands(txt, updated_messages)
     except Exception as e:
         from fr_cli.core.errors import friendly_print
-        print(f"{RED}{friendly_print(e)}{RESET}")
+        print_styled(f"{RED}{friendly_print(e)}{RESET}")
         clean_txt, cmd_results = txt, []
 
     # AI 响应已在 stream_cnt 中实时渲染（流式 Markdown），此处不再整篇重渲染，
@@ -108,10 +108,10 @@ def _stream_and_respond(state, updated_messages, u, lang):
         for result in cmd_results:
             folded = fold_result(result)
             head, _, body = folded.partition("\n")
-            print(f"{CYAN}[*]{RESET} {BOLD}{head.strip()}{RESET}")
+            print_styled(f"{CYAN}[*]{RESET} {BOLD}{head.strip()}{RESET}")
             body = body.strip("\n")
             if body.strip():
-                print(f"{DIM}{body}{RESET}")
+                print_styled(f"{DIM}{body}{RESET}")
 
         # 多源汇总第二轮
         usage, response_time = _multi_source_blend(
