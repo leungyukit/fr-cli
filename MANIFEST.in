@@ -7,3 +7,12 @@ include fr_cli/assets/*.jpg
 include fr_cli/assets/*.ansi
 include fr_cli/assets/*.txt
 recursive-include fr_cli/web/static *
+
+# ---- 发布产物完整性 ----
+# CHANGELOG/USAGE/AGENTS 是用户与 agent 的说明书，必须随 sdist 发布
+include CHANGELOG.md
+include USAGE.md
+include AGENTS.md
+# tests/ 不随 sdist 发布：其中 test_release_audit.py 故意包含"假密钥"字面量
+# （扫描器自身的测试 fixture），打进产物会让发布前自检误报为真密钥泄漏
+prune tests
