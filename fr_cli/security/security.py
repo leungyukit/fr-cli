@@ -73,18 +73,29 @@ def ask(k, d, l, fconfirm, sconfirm, config):
     # 整段提示 + 读输入放进全局锁 —— 并行工具调用时**同一时刻只会有一个确认问句**,
     # 用户的 Y/A/F/N 不会串到别的工具上（见 _CONFIRM_LOCK 注释）。
     with _CONFIRM_LOCK:
-        print_styled(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
-        print_styled(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
-        print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
-
         # v2.8.7：后台线程发起确认时**不能**用裸 input() ——
         # 主线程的 prompt_toolkit 正占着 stdin（raw 模式），两边抢同一个 fd：
         # 用户敲的 Y/A/F/N 全被输入框吞掉，input() 永远等不到 → 终端假死。
         # 改由主线程代读，答案经确认中转站送回（详见 security/interactive.py）。
-        if _use_confirm_broker():
+        #
+        # ⚠️ 顺序很关键：**先注册请求，再打印提示**。
+        # 用户看到提示就可能立刻敲答案 —— 若先打印后注册，主线程读到的答案
+        # 会早于请求注册，答案被当成普通聊天消息丢掉，确认永远等不到
+        # （终端表现为"敲了 Y 毫无反应"，比假死更难查）。
+        use_broker = _use_confirm_broker()
+        pending = _register_confirm(k, d) if use_broker else None
+        if pending is None:
+            # 中转站此刻不可用（未启用 / 注册失败）→ 落回裸 input() 路径
+            use_broker = False
+
+        print_styled(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
+        print_styled(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
+        print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
+
+        if use_broker:
             print_styled(f"  {DIM}↳ 请在下方输入框输入 Y / A / F / N 回答{RESET}")
             while True:
-                c = _request_confirm_via_broker(k, d)
+                c = _wait_confirm(pending)
                 if c is None:
                     # 超时 / 取消 / 中转站被关闭 —— 按"拒绝"处理（fail-closed）
                     return False, sconfirm, fconfirm
@@ -127,15 +138,31 @@ def _use_confirm_broker() -> bool:
         return False
 
 
-def _request_confirm_via_broker(k, d):
-    """向主线程请求一次确认答案（阻塞）。
+def _register_confirm(k, d):
+    """向中转站**注册**一次确认请求（不等待）。
+
+    必须在打印确认提示**之前**调用 —— 否则用户可能在我们注册之前就把答案
+    敲了进来（答案被当成聊天消息丢掉，确认永远等不到）。
+
+    Returns:
+        PendingConfirm | None: None 表示中转站不可用（调用方回落裸 input()）
+    """
+    try:
+        from fr_cli.security.interactive import BROKER
+        return BROKER.register(k, d)
+    except Exception:
+        return None
+
+
+def _wait_confirm(pending, timeout=None):
+    """等待已注册的确认请求返回答案（阻塞）。
 
     Returns:
         str | None: 答案；超时 / 取消返回 None（调用方按拒绝处理）
     """
     try:
         from fr_cli.security.interactive import BROKER, DEFAULT_TIMEOUT
-        return BROKER.request(k, d, timeout=DEFAULT_TIMEOUT)
+        return BROKER.wait_for(pending, timeout if timeout is not None else DEFAULT_TIMEOUT)
     except Exception:
         return None
 

@@ -126,24 +126,34 @@ class ConfirmBroker:
 
     # ---------- 请求 / 投递 ----------
 
-    def request(self, key: str, desc: str, timeout: float = DEFAULT_TIMEOUT):
-        """后台线程发起确认请求并阻塞等待答案。
+    def register(self, key: str, desc: str):
+        """挂上一个待确认请求（**不等待**）。
 
-        Args:
-            key:   安全类别（sec_read / sec_write / ...）
-            desc:  展示给用户的目标描述
-            timeout: 等待秒数；None 表示用默认 300s
+        为什么要把"注册"和"等待"拆开：
+
+        用户看到确认提示就可能**立刻**敲答案。若"先打印提示、后注册请求"，
+        主线程读到的答案会早于请求注册 —— 答案被当成普通聊天消息丢掉，
+        确认永远等不到（终端表现为"敲了 Y 毫无反应"，比假死更难查）。
+        先注册再打印，用户看到提示时请求必然已就绪。
 
         Returns:
-            str | None: 答案（'y'/'a'/'f'/'n'）；超时或被取消返回 None
-                         —— 调用方必须按**拒绝**处理。
+            PendingConfirm | None: None 表示中转站未启用（调用方应回落裸 input()）
         """
         pending = PendingConfirm(key, desc)
         with self._lock:
             if not self._enabled:
-                # 中转站没开 —— 调用方应回退到裸 input()
                 return None
             self._pending = pending
+        return pending
+
+    def wait_for(self, pending, timeout: float = DEFAULT_TIMEOUT):
+        """等待**已注册**的请求返回答案。
+
+        Returns:
+            str | None: 答案；超时 / 被取消返回 None（调用方按拒绝处理）
+        """
+        if pending is None:
+            return None
         try:
             if not pending.wait(timeout):
                 return None
@@ -152,6 +162,19 @@ class ConfirmBroker:
             with self._lock:
                 if self._pending is pending:
                     self._pending = None
+
+    def request(self, key: str, desc: str, timeout: float = DEFAULT_TIMEOUT):
+        """注册并阻塞等待答案（register + wait_for 的组合）。
+
+        Returns:
+            str | None: 答案（'y'/'a'/'f'/'n'）；超时或被取消返回 None
+                         —— 调用方必须按**拒绝**处理。
+        """
+        pending = self.register(key, desc)
+        if pending is None:
+            # 中转站没开 —— 调用方应回退到裸 input()
+            return None
+        return self.wait_for(pending, timeout)
 
     def deliver(self, answer: str) -> bool:
         """主线程把用户的输入送给等待中的请求。

@@ -171,6 +171,65 @@ class TestBrokerPath:
         t.join(timeout=3)
         assert result["ok"] is False
 
+    def test_request_registered_before_prompt_shown(self):
+        """竞态回归：确认提示打印时，请求必须**已经注册**。
+
+        否则用户看到提示就立刻敲答案 —— 答案早于注册到达主线程，
+        会被当成普通聊天消息丢掉，确认永远等不到（"敲了 Y 毫无反应"）。
+        """
+        import fr_cli.security.security as sec
+
+        BROKER.enable()
+        state = {"pending_at_first_print": None}
+        real_print = sec.print_styled
+
+        def spy(msg, *a, **kw):
+            if state["pending_at_first_print"] is None:
+                state["pending_at_first_print"] = BROKER.has_pending()
+            return real_print(msg, *a, **kw)
+
+        result = {}
+
+        def worker():
+            with patch.object(sec, "print_styled", spy):
+                ok, _s, _f = sec.ask("sec_read", "/tmp/x", "zh", {}, {}, {})
+            result["ok"] = ok
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        assert _wait_pending()
+        BROKER.deliver("y")
+        t.join(timeout=3)
+        assert result["ok"] is True
+        assert state["pending_at_first_print"] is True, (
+            "提示打印时请求还没注册 —— 存在竞态：用户敲的答案可能被丢掉"
+        )
+
+
+class TestBrokerRegisterWait:
+    """register + wait_for 拆分（先注册再打印，消除竞态）"""
+
+    def test_register_then_wait(self):
+        BROKER.enable()
+        pending = BROKER.register("sec_read", "/tmp/x")
+        assert pending is not None
+        assert BROKER.has_pending()          # 注册后立刻可见
+        result = {}
+
+        def worker():
+            result["answer"] = BROKER.wait_for(pending, timeout=5)
+
+        t = threading.Thread(target=worker, daemon=True)
+        t.start()
+        time.sleep(0.05)
+        assert BROKER.deliver("a") is True
+        t.join(timeout=3)
+        assert result["answer"] == "a"
+
+    def test_register_returns_none_when_disabled(self):
+        BROKER.disable()
+        assert BROKER.register("sec_read", "/tmp/x") is None
+
 
 class TestBrokerApi:
     """中转站自身的边界行为"""
