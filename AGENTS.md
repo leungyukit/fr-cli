@@ -437,10 +437,31 @@ prompt_toolkit 占着（raw 模式）。安全确认若在后台线程直接 `in
   不让后台线程死等把进程拖住。
 - **不误判授权** —— 只有 `VALID_ANSWERS`（y/yes/a/f/n/no）算确认答案，其余输入
   一律当普通对话消息处理。
-- 状态栏（`ui/prompt/status.py`）把待确认项排在**右栏首位**（末尾会被宽度裁掉），
-  显示 `⚠ 待确认 <工具名> (Y/A/F/N)`。
 
 回归测试：`tests/test_confirm_broker.py`。
+
+### 确认的选择器交互（v2.8.9：方向键 + Enter）
+
+高危操作的确认此前要用户**敲字母**（Y/A/F/N）。v2.8.9 改为**方向键选择 + Enter 确认**：
+
+| 位置 | 职责 |
+|---|---|
+| `ui/prompt/selector.py` | `Choice` / `Selector` —— 循环移动、单行渲染、选项排最左、CJK 宽度感知 |
+| `security/interactive.py` | `PendingConfirm` 增 `choices` / `index` / `move()` / `current_value()`；broker 增 `move_selection()` / `deliver_current()` |
+| `security/security.py::ask` | 注册确认时传入四阶选项（Y 仅此 / A 本轮 / F 永世 / N 拒绝） |
+| `ui/prompt/tui.py` | 绑定 `↑↓←→` / `Enter` / `Esc`；无待确认项时方向键回退为默认光标移动 |
+
+关键边界：
+
+- **Esc = 拒绝**；**Enter = 确认当前选中项**（不是提交输入框内容）
+- 选择行显示在状态栏（`bottom_toolbar` 是**单行**窗口），选项必须**排最左**
+- **同一 key 的多个绑定中最后注册的优先** —— Enter 绑定**不能**加 filter
+  （filter 不满足时会导致"什么都不发生"），改为单绑定内分支处理
+- **非 TTY（批处理 / HTTP 服务 / bot）没有方向键可按** —— 保留文本输入路径，
+  行为不变
+
+回归测试：`tests/test_confirm_broker.py::TestSelector` / `::TestBrokerSelection` /
+`::TestTuiKeyHandlers`。
 
 ### 显示层与交互（v2.8.7 重构）
 
@@ -457,6 +478,9 @@ prompt_toolkit 占着（raw 模式）。安全确认若在后台线程直接 `in
 | 首次上手卡片 | `repl/bootstrap.py::print_onboarding_card` | 只出现一次（`onboarding_card_shown` 标志）；框线按显示宽度对齐并随终端宽度自适应；含一条可抄的示例 |
 | 多行粘贴降级 | `repl/paste.py` + `main.py` | `/paste` 读到 EOF（Ctrl+D）或单独一行 `.` 为止，整段作为**一条消息**提交；现代终端靠 bracketed paste 自动生效，本命令是不支持该协议时的出路 |
 | token 显示口径 | `core/usage.py::format_token_usage` | **唯一真相源**：状态栏与回答末尾同一格式（`↓in ↑out Σtotal`）、同一占比分母 |
+| **语义色分层（v2.8.9）** | `ui/markdown_stream.py` + `core/stream.py` | 答案=绿、思考=暗色、**问句=青**（启发式：以问号结尾的行）；降级渲染路径（`markdown=False`）只做思考/答案色，**问句青色未覆盖**（chunk 级无行边界） |
+| **工具结果回显（v2.8.9）** | `command/executor_dispatch.py::_echo_tool_result` | `✓ 工具名`（绿）/ `✗ 工具名: 原因`（红）；headless 与 `FR_CLI_NON_INTERACTIVE` 静默。此前工具结果**只回给模型不回显给用户** |
+| **等待/失败状态色（v2.8.9）** | `ui/prompt/status.py` | 等待=黄、失败=红 —— spinner 不再占用红色 |
 
 **颜色常量是"活引用"**（`ui/ui.py::_LiveColor`）：`from fr_cli.ui.ui import RED` 拿到的是
 str 子类实例，取值时实时回读 `_COLOR_STATE`。所以运行时 `set_no_color(True)` 对
@@ -619,6 +643,57 @@ plugin:myplugin            # 自定义插件
 ```
 【调用：swarm_run({"mode": "council", "names": ["planner", "coder"], "user_input": "设计登录模块"})】
 ```
+
+### Agent Team 协作小组（v2.8.9）
+
+蜂群是**用户手动点名** Agent 跑**同一个**任务；Agent Team 是**自动拆解**用户请求
+→ 自动指派成员 → 自动聚合。三段式流水线：
+
+| 阶段 | 实现 | 做什么 |
+|---|---|---|
+| 规划 Planner | `agent/team.py::TeamPlanner` | LLM 读用户请求 + 成员清单 → 输出子任务 JSON |
+| 执行 Runner | `agent/team.py::AgentTeam._execute` | 子任务并行（`ThreadPoolExecutor` + 真实整体 deadline） |
+| 聚合 Aggregator | `agent/team.py::AgentTeam._aggregate` | LLM 综合各成员产出，去重 / 补全 / 解决冲突 |
+
+**成员模型**
+
+- `main` —— **通用成员**：用全局 LLM 直接完成子任务，**零配置可用**
+  （没有自建 Agent 也能开团队）。它是**纯文本**调用，**不调用工具**
+  （不读写文件、不执行命令）—— 要干活的子任务得指派给具备工具的 Agent
+- 具体 Agent 名 —— 本地分身 / 远程 Agent / 内置 Agent
+  （`local` / `remote` / `spider` / `db` / `RAG` / `stock`），
+  统一走 `agent/client.py::call_agent` 分发
+
+**开关**
+
+```bash
+>>> /agent_team on        # 开启：普通对话自动走团队流程
+>>> /agent_team off       # 关闭：恢复普通单模型对话
+>>> /agent_team           # 查看状态 + 可用成员清单
+>>> /agent_team run 任务   # 一次性跑一轮，不改变开关状态
+```
+
+开关写在 `config.json` 的 `agent_team_enabled`。**路由优先级**：团队模式
+> 计划模式 > MasterAgent 主控 —— 团队是显式开关，不该被静默接管；
+`/agent_team off` 即恢复原有顺序（`core/chat/pipeline.py::_route_mode`）。
+
+大模型调用方式：
+
+```
+【调用：agent_team_run({"user_input": "评估这个产品的可行性"})】
+```
+
+**诚实边界**
+
+- 拆解与聚合各额外消耗 1 次 LLM 调用；只有 1 个子任务时跳过聚合
+- Python 无法强杀线程：超时的子任务线程会继续跑完，但不再阻塞返回
+- 规划失败 → **如实降级**为"单成员 `main` 直接做整件事"，不返回空列表
+- 规划器指派了不存在的成员 → 退回 `main`，**不编造成员名**
+
+> 蜂群议会（council）汇总历史上一直失败：`_summarize_with_llm` 调的是
+> `client.chat.completions.create`（OpenAI SDK **内部**对象），不是 fr-cli
+> 客户端的公开接口。现在统一走 `core/llm/completion.py::complete_text`
+> （内部用公开的 `stream_chat` + 韧性模块的重试/降级/思考-答案分离）。
 
 ### 动态构建（Dynamic Builder）
 

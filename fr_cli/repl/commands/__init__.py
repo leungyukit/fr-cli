@@ -23,6 +23,7 @@ from fr_cli.repl.commands.agent import (
     _cmd_agent_show, _cmd_agent_run, _cmd_agent_edit,
     _cmd_agent_forge, _cmd_agent_model,
 )
+from fr_cli.repl.commands.agent_team import _cmd_agent_team
 from fr_cli.repl.commands.remote_agent import (
     _cmd_remote_agent_add, _cmd_remote_agent_list,
     _cmd_remote_agent_del, _cmd_agent_publish,

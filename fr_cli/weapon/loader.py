@@ -19,7 +19,7 @@ _LEGACY_CATEGORIES = {
     "session_management": (["save_session", "list_sessions", "export_session"], "fr_cli/memory/history.py"),
     "configuration": (["set_model", "set_key", "set_limit", "set_lang"], "fr_cli/conf/config.py"),
     "launcher_system": (["open_file", "launch_app", "list_apps"], "fr_cli/weapon/launcher.py"),
-    "agent_system": (["agent_create", "agent_run"], "fr_cli/agent/"),
+    "agent_system": (["agent_create", "agent_run", "agent_team_run"], "fr_cli/agent/"),
     "swarm": (["swarm_run"], "fr_cli/agent/swarm.py"),
     "data_scroll": (["read_excel", "read_csv"], "fr_cli/weapon/dataframe.py"),
     "charts": (["generate_chart"], "fr_cli/weapon/charts.py"),

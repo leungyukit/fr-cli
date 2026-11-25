@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import contextlib
 import contextvars
+import os
 from types import SimpleNamespace
 from typing import Any, Dict, Optional
 
@@ -148,6 +149,32 @@ def _report_tool_end(prompt, error: str = "", tool_name: str = "") -> None:
         pass
 
 
+def _echo_tool_result(state, tool_name: str, ok: bool, error: str = "", source: str = "") -> None:
+    """把工具执行结果**回显**一行（成功绿 / 失败红）。
+
+    v2.8.7 第四阶段：此前工具结果**只回给模型**、不回显给用户 ——
+    状态栏是失败现场唯一可见的地方，但状态栏会被下一次刷新覆盖，
+    用户往往事后才发现工具其实失败了。这里补一行摘要：
+    成功打勾、失败带原因，颜色即语义（绿=成功 / 红=失败）。
+
+    静默场景（headless / 批处理 / 服务端）不打扰输出。
+    """
+    try:
+        if state is not None and getattr(state, "headless", False):
+            return
+        if os.environ.get("FR_CLI_NON_INTERACTIVE"):
+            return
+    except Exception:
+        pass
+
+    from fr_cli.ui.ui import GREEN, RED, DIM, RESET, print_styled
+    head = f"{DIM}[{source}]{RESET} " if source else ""
+    if ok:
+        print_styled(f"{head}{GREEN}✓ {tool_name}{RESET}")
+    else:
+        print_styled(f"{head}{RED}✗ {tool_name}: {_short_error(error)}{RESET}")
+
+
 def _short_error(error: Any, max_len: int = 48) -> str:
     """把错误压成状态栏能塞下的一行（换行压平 + 截断）。"""
     if error is None:
@@ -245,10 +272,15 @@ class CommandDispatchMixin:
                                                 client=client, model_name=model_name)
             except Exception as e:
                 _report_tool_end(status_ctx, error=str(e), tool_name=tool_name)
+                _echo_tool_result(self.state, tool_name, ok=False, error=str(e), source=src)
                 raise
             _report_tool_end(status_ctx,
                              error=result.error if not result.is_ok() else "",
                              tool_name=tool_name)
+            _echo_tool_result(self.state, tool_name,
+                              ok=result.is_ok(),
+                              error=result.error if not result.is_ok() else "",
+                              source=src)
             if result.is_ok():
                 span.set_attribute("success", True)
             else:

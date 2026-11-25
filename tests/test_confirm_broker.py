@@ -320,43 +320,168 @@ class TestDeliverIfConfirm:
         assert result["answer"] == "y"
 
 
-class TestStatusIndicator:
-    """状态栏要能看见「待确认」—— 看不见就永远等下去"""
+class TestSelector:
+    """方向键选择器（UI 组件）"""
 
-    def test_status_shows_pending_confirm(self):
-        from fr_cli.ui.prompt.status import StatusState
-        st = StatusState()
-        st.confirm_pending = "generate_image"
-        rendered = "".join(text for _style, text in st.render(0))
-        assert "待确认" in rendered
-        assert "generate_image" in rendered
-        assert "Y/A/F/N" in rendered
+    def _sel(self, n=4):
+        from fr_cli.ui.prompt.selector import Choice, Selector
+        return Selector("写入法宝", "/tmp/x.txt",
+                        [Choice("y", "仅此"), Choice("a", "本轮"),
+                         Choice("f", "永世"), Choice("n", "拒绝")])
 
-    def test_status_prefers_tool_name(self):
-        """工具名比路径好读 —— 优先显示工具名"""
-        from fr_cli.ui.prompt.status import StatusState
-        st = StatusState()
-        st.tool_name = "write_file"
-        st.confirm_pending = "/Users/someone/very/long/path/to/file.txt"
-        rendered = "".join(text for _style, text in st.render(0))
-        assert "待确认 write_file" in rendered
-        assert "/Users/someone" not in rendered
+    def test_move_wraps_around(self):
+        sel = self._sel()
+        assert sel.current_value == "y"
+        sel.move(1)
+        assert sel.current_value == "a"
+        sel.move(-1)
+        assert sel.current_value == "y"
+        sel.move(-1)          # 向前环绕
+        assert sel.current_value == "n"
+        sel.move(1)           # 向后环绕
+        assert sel.current_value == "y"
 
-    def test_status_keeps_confirm_visible_with_tool_item(self):
-        """工具状态与待确认同时存在时 —— 待确认排在右栏首位（不会被宽度裁掉）"""
-        from fr_cli.ui.prompt.status import StatusState
-        st = StatusState()
-        st.model = "step-5-preview"
-        st.provider = "stepfun"
-        st.tool_name = "write_file"
-        st.tool_source = "master"
-        st.confirm_pending = "/tmp/x.txt"
-        rendered = "".join(text for _style, text in st.render(120))
-        assert "待确认" in rendered
-        assert rendered.index("待确认") < rendered.index("[master] write_file")
+    def test_select_by_value(self):
+        sel = self._sel()
+        assert sel.select("f") is True
+        assert sel.current_value == "f"
+        assert sel.select("zzz") is False
 
-    def test_status_clean_when_no_pending(self):
-        from fr_cli.ui.prompt.status import StatusState
-        st = StatusState()
-        rendered = "".join(text for _style, text in st.render(0))
-        assert "待确认" not in rendered
+    def test_render_marks_selected(self):
+        sel = self._sel()
+        sel.select("a")
+        rendered = "".join(t for _s, t in sel.render_items(120))
+        assert "❯ A 本轮" in rendered
+        assert "仅此" in rendered and "永世" in rendered and "拒绝" in rendered
+        assert "Enter" in rendered      # 操作提示在
+
+    def test_render_keeps_options_leftmost(self):
+        """窄屏下选项不能被截掉 —— 它们必须排在最左"""
+        sel = self._sel()
+        rendered = "".join(t for _s, t in sel.render_items(40))
+        # 目标路径在窄屏下会被截掉，但四个选项与操作提示必须完整
+        for label in ("仅此", "本轮", "永世", "拒绝"):
+            assert label in rendered
+        assert rendered.index("仅此") < rendered.index("Enter")
+
+    def test_render_shows_target_when_wide(self):
+        """宽度够时目标路径要完整可见"""
+        sel = self._sel()
+        rendered = "".join(t for _s, t in sel.render_items(120))
+        assert "/tmp/x.txt" in rendered
+        assert "写入法宝" in rendered
+
+    def test_move_without_choices_is_noop(self):
+        from fr_cli.ui.prompt.selector import Selector
+        sel = Selector("t", "d", [])
+        assert sel.move(1) is False
+        assert sel.current_value is None
+
+
+class TestBrokerSelection:
+    """broker 侧的选项导航"""
+
+    def _start(self):
+        BROKER.enable()
+        pending = BROKER.register("sec_write", "/tmp/x.txt",
+                                   [("y", "仅此"), ("a", "本轮"),
+                                    ("f", "永世"), ("n", "拒绝")])
+        assert pending is not None
+        return pending
+
+    def test_move_selection_changes_index(self):
+        self._start()
+        assert BROKER.pending_index() == 0
+        assert BROKER.move_selection(1) is True
+        assert BROKER.pending_index() == 1
+        assert BROKER.pending_choices()[1][0] == "a"
+
+    def test_move_selection_without_pending(self):
+        BROKER.disable()
+        assert BROKER.move_selection(1) is False
+
+    def test_deliver_current_uses_selected(self):
+        self._start()
+        BROKER.move_selection(2)          # 移到 F
+        assert BROKER.deliver_current() is True
+        assert not BROKER.has_pending()
+
+    def test_deliver_current_without_pending(self):
+        BROKER.disable()
+        assert BROKER.deliver_current() is False
+
+
+class TestTuiKeyHandlers:
+    """TUI 键位处理：方向键移动 / Enter 确认 / Esc 拒绝"""
+
+    def _prompt(self):
+        """造一个不建 PromptSession 的 FanRenPrompt（只需要那几个方法）"""
+        from fr_cli.ui.prompt.tui import FanRenPrompt
+        p = object.__new__(FanRenPrompt)
+        p.state = type("S", (), {"lang": "zh"})()
+        p.status = type("St", (), {})()
+        p._session = None      # _invalidate() 会检查它
+        return p
+
+    def test_arrow_moves_and_enter_confirms(self):
+        BROKER.enable()
+        BROKER.register("sec_write", "/tmp/x.txt",
+                        [("y", "仅此"), ("a", "本轮"),
+                         ("f", "永世"), ("n", "拒绝")])
+        p = self._prompt()
+        assert p._move_pending_choice(1) is True
+        assert BROKER.pending_index() == 1
+        assert p._confirm_pending_choice() is True
+        assert not BROKER.has_pending()
+
+    def test_esc_denies(self):
+        BROKER.enable()
+        BROKER.register("sec_write", "/tmp/x.txt",
+                        [("y", "仅此"), ("a", "本轮"),
+                         ("f", "永世"), ("n", "拒绝")])
+        p = self._prompt()
+        assert p._deny_pending_choice() is True
+        assert not BROKER.has_pending()
+
+    def test_handlers_noop_without_pending(self):
+        BROKER.disable()
+        p = self._prompt()
+        assert p._move_pending_choice(1) is False
+        assert p._confirm_pending_choice() is False
+        assert p._deny_pending_choice() is False
+
+    def test_typed_letter_wins_over_highlighted_choice(self):
+        """⚠️ 安全边界：输入框里敲了 ``n`` 时，Enter 必须**拒绝**。
+
+        否则"敲 n 再回车"会被当成"确认当前高亮项（默认 Y 仅此）"——
+        把用户的拒绝变成放行。
+        """
+        BROKER.enable()
+        BROKER.register("sec_write", "/tmp/x.txt",
+                        [("y", "仅此"), ("a", "本轮"),
+                         ("f", "永世"), ("n", "拒绝")])
+        p = self._prompt()
+        # 高亮项仍在第一项（Y 仅此），但用户敲了 n
+        assert p._confirm_pending_choice("n") is True
+        assert not BROKER.has_pending()
+
+    def test_typed_letter_y_is_accepted(self):
+        """老习惯：直接敲 ``Y`` 回车就能放行。"""
+        BROKER.enable()
+        BROKER.register("sec_write", "/tmp/x.txt",
+                        [("y", "仅此"), ("a", "本轮"),
+                         ("f", "永世"), ("n", "拒绝")])
+        p = self._prompt()
+        assert p._confirm_pending_choice("Y") is True
+        assert not BROKER.has_pending()
+
+    def test_unrelated_text_falls_back_to_selection(self):
+        """输入框里是无关文字 → 仍按高亮项确认。"""
+        BROKER.enable()
+        BROKER.register("sec_write", "/tmp/x.txt",
+                        [("y", "仅此"), ("a", "本轮"),
+                         ("f", "永世"), ("n", "拒绝")])
+        p = self._prompt()
+        assert p._move_pending_choice(1) is True      # 高亮移到 A
+        assert p._confirm_pending_choice("随便写点什么") is True
+        assert not BROKER.has_pending()

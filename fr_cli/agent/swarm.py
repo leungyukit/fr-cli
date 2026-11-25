@@ -291,15 +291,23 @@ class SwarmEngine:
             "不要提及“Agent”、“工具”或“汇总”等内部概念，直接给出用户可用的最终答案。"
         )
 
-        try:
-            resp = client.chat.completions.create(
-                model=model,
-                messages=[{"role": "user", "content": prompt}],
-                temperature=0.5,
-            )
-            return resp.choices[0].message.content
-        except Exception as e:
-            return f"[汇总失败: {e}]"
+        # v2.8.9：此前直接调 client.chat.completions.create —— 那是 OpenAI SDK
+        # **内部**对象（openai_compat.py 里是 self._client.chat.completions），
+        # 不是 fr_cli 客户端的公开属性。结果：所有 OpenAI 兼容厂商
+        # （DeepSeek/Kimi/Qwen/StepFun/MiniMax/讯飞/MiMo）的议会汇总**一直失败**，
+        # 只会吐一句 "[汇总失败: ... has no attribute 'chat']"。
+        # 现统一走公开接口 stream_chat（core/llm/completion.py::complete_text）。
+        from fr_cli.core.llm.completion import complete_text
+
+        text, err = complete_text(
+            client, model,
+            [{"role": "user", "content": prompt}],
+            lang=getattr(self.state, "lang", "zh"),
+            provider=getattr(self.state, "provider", None),
+        )
+        if err:
+            return f"[汇总失败: {err}]"
+        return text
 
 
 def run_swarm(mode, names, state, user_input, max_workers=5, **kwargs):

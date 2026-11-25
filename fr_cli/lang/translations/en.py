@@ -62,6 +62,11 @@ EN_DICT = {
   "sec_opt_a": "[A]Session",
   "sec_opt_f": "[F]Forever",
   "sec_opt_n": "[N]Deny",
+  # Short labels for the arrow-key selector (no "[N]" prefix - the selector renders it)
+  "sec_choice_y": "Once",
+  "sec_choice_a": "Session",
+  "sec_choice_f": "Forever",
+  "sec_choice_n": "Deny",
   "sec_denied": "[STOP] Abort.",
   "sec_read": "Read file",
   "sec_write": "Write plugin",

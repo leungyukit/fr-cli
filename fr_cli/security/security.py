@@ -83,17 +83,23 @@ def ask(k, d, l, fconfirm, sconfirm, config):
         # 会早于请求注册，答案被当成普通聊天消息丢掉，确认永远等不到
         # （终端表现为"敲了 Y 毫无反应"，比假死更难查）。
         use_broker = _use_confirm_broker()
-        pending = _register_confirm(k, d) if use_broker else None
+        pending = _register_confirm(k, d, _confirm_choices(l)) if use_broker else None
         if pending is None:
             # 中转站此刻不可用（未启用 / 注册失败）→ 落回裸 input() 路径
             use_broker = False
 
         print_styled(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
         print_styled(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
-        print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
+        if not use_broker:
+            # 非交互（批处理 / HTTP 服务 / bot）：没有方向键可按 ——
+            # 这一行是**唯一**的选项说明，必须打印。
+            print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
+        # broker 模式（TUI）：选项由**输入区下方的选择器**渲染（带 ❯ 当前项标记
+        # 与「↑↓ 选择 · Enter 确认」提示）。这里再打印一份旧的 "[Y]仅此 [A]本轮…"
+        # 只会让人分不清哪份才是能操作的 —— 所以不再重复打印选项，只留一行指路。
 
         if use_broker:
-            print_styled(f"  {DIM}↳ 请在下方输入框输入 Y / A / F / N 回答{RESET}")
+            print_styled(f"  {DIM}↳ 选项见输入框下方：↑↓ 选择，Enter 确认{RESET}")
             while True:
                 c = _wait_confirm(pending)
                 if c is None:
@@ -138,18 +144,31 @@ def _use_confirm_broker() -> bool:
         return False
 
 
-def _register_confirm(k, d):
+def _confirm_choices(l):
+    """四阶确认的可选项 [(value, label), ...] —— 供方向键选择器渲染。"""
+    return [
+        ("y", T("sec_choice_y", l)),
+        ("a", T("sec_choice_a", l)),
+        ("f", T("sec_choice_f", l)),
+        ("n", T("sec_choice_n", l)),
+    ]
+
+
+def _register_confirm(k, d, choices=None):
     """向中转站**注册**一次确认请求（不等待）。
 
-    必须在打印确认提示**之前**调用 —— 否则用户可能在我们注册之前就把答案
-    敲了进来（答案被当成聊天消息丢掉，确认永远等不到）。
+    必须在打印确认提示**之前**调用 —— 否则用户可能在我们注册之前就做了
+    选择（选择会早于注册到达 → 被当成聊天消息丢掉，确认永远等不到）。
+
+    Args:
+        choices: 可选项 [(value, label), ...]；给了就走方向键选择模式
 
     Returns:
         PendingConfirm | None: None 表示中转站不可用（调用方回落裸 input()）
     """
     try:
         from fr_cli.security.interactive import BROKER
-        return BROKER.register(k, d)
+        return BROKER.register(k, d, choices)
     except Exception:
         return None
 

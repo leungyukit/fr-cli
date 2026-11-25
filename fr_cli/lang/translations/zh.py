@@ -62,6 +62,11 @@ ZH_DICT = {
   "sec_opt_a": "[A]本轮",
   "sec_opt_f": "[F]永世",
   "sec_opt_n": "[N]拒绝",
+  # 方向键选择器用的短标签（不带 "[Y]" 这样的前缀，选择器自己渲染）
+  "sec_choice_y": "仅此",
+  "sec_choice_a": "本轮",
+  "sec_choice_f": "永世",
+  "sec_choice_n": "拒绝",
   "sec_denied": "[STOP] 终止。",
   "sec_read": "读取卷轴",
   "sec_write": "写入法宝",

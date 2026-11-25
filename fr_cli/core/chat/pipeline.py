@@ -65,6 +65,15 @@ def handle_ai_chat(state, u):
 
 def _route_mode(state, u):
     """根据 thinking_mode / master_agent 状态路由到不同模式"""
+    # Agent Team 协作模式（/agent_team on）—— 显式开关，优先级最高。
+    # 用户主动开的团队协作（拆解 → 多成员并行 → 汇总）不该被计划模式或
+    # MasterAgent 主控静默接管；关掉 /agent_team 即恢复原有路由顺序。
+    from fr_cli.agent.team import is_team_enabled
+
+    if is_team_enabled(state):
+        from fr_cli.agent.team import handle_team_chat
+        return handle_team_chat(state, u)
+
     # 计划模式:LLM 先制定结构化计划,用户确认后逐步执行
     if getattr(state, "thinking_mode", "direct") == "plan":
         from fr_cli.core.chat.plan_mode import handle_plan_mode

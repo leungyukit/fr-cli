@@ -27,6 +27,7 @@ except ImportError:
     HAS_PT = False
 
 from fr_cli.ui.prompt.completer import FanRenCompleter
+from fr_cli.ui.prompt.selector import Choice, Selector
 from fr_cli.ui.prompt.status import StatusState
 from fr_cli.ui.ui import CYAN, DIM, YELLOW, RESET
 from fr_cli.conf.paths import ROOT
@@ -115,7 +116,12 @@ class FanRenPrompt:
             result = []
             if self._prefix_hint:
                 result.append(("class:hint", f"{self._prefix_hint}  "))
-            result.extend(self.status.render(self._terminal_width()))
+            # 待确认选择器：状态栏让位给它（选项排最左，窄屏也不会被截掉）
+            sel = self._pending_selector()
+            if sel:
+                result.extend(sel.render_items(self._terminal_width()))
+            else:
+                result.extend(self.status.render(self._terminal_width()))
             return result
 
         self._session = PromptSession(
@@ -154,8 +160,44 @@ class FanRenPrompt:
 
         @kb.add("enter")
         def _(event):
-            """Enter = 提交（默认单行模式）"""
+            """Enter = 提交；有**待确认选项**时 = 确认当前选中项
+
+            v2.8.7 第四阶段：安全确认改成方向键选择后，Enter 有了两个语义。
+            有待确认请求时先确认选择（不提交输入行），否则照常提交消息。
+            """
+            if self._confirm_pending_choice(event.current_buffer.text):
+                # 答案已投递 —— 清掉输入框里残留的字符（否则会留在那儿）
+                try:
+                    event.current_buffer.reset()
+                except Exception:
+                    pass
+                return
             event.current_buffer.validate_and_handle()
+
+        # 方向键：有待确认选项时在选项间移动；否则维持默认的光标移动
+        @kb.add("up")
+        @kb.add("down")
+        @kb.add("left")
+        @kb.add("right")
+        def _(event):
+            """↑↓（或 ←→）在待确认选项间移动
+
+            v2.8.7 第四阶段：把「敲 Y/A/F/N」换成「方向键选 + Enter 确认」。
+            没有待确认请求时，保持默认的光标移动行为（单行输入时上下无效果）。
+            """
+            key = event.key_sequence
+            delta = -1 if key in ("up", "left") else 1
+            if self._move_pending_choice(delta):
+                return
+            b = event.current_buffer
+            if key == "up":
+                b.cursor_up()
+            elif key == "down":
+                b.cursor_down()
+            elif key == "left":
+                b.cursor_left()
+            else:
+                b.cursor_right()
 
         @kb.add("escape", "enter")
         def _(event):
@@ -270,11 +312,95 @@ class FanRenPrompt:
         # Esc：流式输出中按下立即中断（让 stream_cnt 检测到）
         @kb.add("escape")
         def _(event):
-            """Esc = 立即中断当前流式输出"""
+            """Esc = 立即中断当前流式输出；有待确认选项时 = 拒绝该操作"""
+            if self._deny_pending_choice():
+                return
             self._request_interrupt()
             # 不退出 prompt（用户可能还要再发）
 
         return kb
+
+    # ---------- 待确认选择（方向键） ----------
+
+    def _pending_selector(self):
+        """构造当前待确认请求的选择器（没有则 None）。
+
+        选择器状态住在确认中转站里（后台线程注册、主线程操作），
+        这里只是把它的状态**投影**成可渲染的选择器。
+        """
+        try:
+            from fr_cli.security.interactive import BROKER
+            from fr_cli.ui.prompt.selector import Choice, Selector
+            choices = BROKER.pending_choices()
+            if not choices:
+                return None
+            from fr_cli.lang.i18n import T
+            lang = getattr(self.state, "lang", "zh")
+            key = BROKER.pending_key()
+            title = T(key, lang) if key else "待确认"
+            sel = Selector(title, BROKER.pending_desc(),
+                           [Choice(v, label) for v, label in choices])
+            sel.index = BROKER.pending_index()
+            return sel
+        except Exception:
+            return None
+
+    def _move_pending_choice(self, delta: int) -> bool:
+        """方向键：移动待确认选项（没有待确认请求时返回 False）"""
+        try:
+            from fr_cli.security.interactive import BROKER
+            moved = BROKER.move_selection(delta)
+            if moved:
+                self._invalidate()
+            return moved
+        except Exception:
+            return False
+
+    def _confirm_pending_choice(self, typed: str = "") -> bool:
+        """Enter：确认当前选中的选项（没有待确认请求时返回 False）
+
+        ⚠️ **安全边界**：用户在输入框里敲了明确的字母答案（y/a/f/n）时，
+        以**输入框**为准，而不是高亮项。否则"敲 n 再回车"会被当成
+        "确认当前高亮项（默认 Y 仅此）"—— 把用户的**拒绝变成放行**。
+
+        保留这条路径也是为了兼容老习惯：直接敲 ``Y`` 回车就能放行。
+
+        Args:
+            typed: 输入框当前内容（用于识别明确的字母答案）
+        """
+        try:
+            from fr_cli.security.interactive import BROKER, VALID_ANSWERS
+            if not BROKER.pending_choices():
+                return False
+            ans = (typed or "").strip().lower()
+            if ans in VALID_ANSWERS:
+                delivered = BROKER.deliver(ans)
+                if delivered:
+                    self._invalidate()
+                return delivered
+            delivered = BROKER.deliver_current()
+            if delivered:
+                self._invalidate()
+            return delivered
+        except Exception:
+            return False
+
+    def _deny_pending_choice(self) -> bool:
+        """Esc：拒绝当前待确认操作（fail-closed）"""
+        try:
+            from fr_cli.security.interactive import BROKER
+            choices = BROKER.pending_choices()
+            if not choices:
+                return False
+            deny = next((v for v, _label in choices if v in ("n", "no")), None)
+            if deny is None:
+                return False
+            delivered = BROKER.deliver(deny)
+            if delivered:
+                self._invalidate()
+            return delivered
+        except Exception:
+            return False
 
     def _get_command_completions(self) -> List[tuple]:
         """获取所有 / 命令的 (name, description) 列表（优先使用别名，方便用户按实际输入过滤）"""
@@ -454,12 +580,6 @@ class FanRenPrompt:
             self.status.steer_pending = steer_count(self.state)
         except Exception:
             self.status.steer_pending = 0
-        try:
-            # v2.8.7：待确认的高危操作（后台线程在等主线程代读输入）
-            from fr_cli.security.interactive import BROKER
-            self.status.confirm_pending = BROKER.pending_desc() if BROKER.has_pending() else ""
-        except Exception:
-            self.status.confirm_pending = ""
 
     def update_last_stats(self, response_time: float = 0, input_tokens: int = 0,
                           output_tokens: int = 0, total_tokens: int = 0):
@@ -574,15 +694,16 @@ class FanRenPrompt:
             self._prefix_hint = ""
 
     def confirm(self, prompt_text: str, default: bool = True) -> bool:
-        """Y/n 确认提示
+        """确认提示（v2.8.7 第四阶段：**方向键选择 + Enter 确认**）
 
         Args:
             prompt_text: 提示文字
-            default: 默认值（True=Enter 接受，False=Enter 拒绝）
+            default: 默认选中项（True=默认选中"是"，False=默认选中"否"）
         """
-        suffix = " [Y/n]: " if default else " [y/N]: "
         if self._session is None:
+            # 无 TTY（批处理 / HTTP / CI）—— 没有方向键可按，保持文本输入
             try:
+                suffix = " [Y/n]: " if default else " [y/N]: "
                 ans = input(prompt_text + suffix).strip().lower()
                 if not ans:
                     return default
@@ -590,15 +711,49 @@ class FanRenPrompt:
             except (EOFError, KeyboardInterrupt):
                 return False
 
-        # TTY 模式：用 prompt_toolkit 直接读
+        lang = getattr(self.state, "lang", "zh")
+        yes_label = "是" if lang == "zh" else "Yes"
+        no_label = "否" if lang == "zh" else "No"
+        sel = Selector(prompt_text, "", [Choice("y", yes_label), Choice("n", no_label)])
+        if not default:
+            sel.index = 1
+
+        def _prompt_text():
+            parts = []
+            for i, c in enumerate(sel.choices):
+                style = "class:status-cyan" if i == sel.index else "class:status-gray"
+                mark = "❯ " if i == sel.index else "  "
+                parts.append((style, f"{mark}{c.value} {c.label}"))
+            parts.append(("class:status-gray", "   ↑↓ 选择 · Enter 确认"))
+            return FormattedText(parts)
+
+        kb = KeyBindings()
+
+        @kb.add("up")
+        @kb.add("down")
+        @kb.add("left")
+        @kb.add("right")
+        def _(event):
+            key = event.key_sequence
+            sel.move(-1 if key in ("up", "left") else 1)
+            event.app.invalidate()
+
+        @kb.add("enter")
+        def _(event):
+            event.current_buffer.validate_and_handle()
+
+        @kb.add("escape")
+        def _(event):
+            """Esc = 拒绝（fail-closed）"""
+            event.app.exit(result="__deny__")
+
         try:
-            result = self._session.prompt(prompt_text + suffix)
-            ans = result.strip().lower()
-            if not ans:
-                return default
-            return ans in ("y", "yes")
+            result = self._session.prompt(_prompt_text, key_bindings=kb)
         except (EOFError, KeyboardInterrupt):
             return False
+        if result == "__deny__":
+            return False
+        return sel.current_value == "y"
 
     def update_status(self, **kwargs):
         """更新状态条信息"""

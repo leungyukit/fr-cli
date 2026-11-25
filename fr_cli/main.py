@@ -281,14 +281,13 @@ def main():
         # 输入态结束: 浅灰分隔线打印在已提交输入的下方, 表示当前不在输入态
         print_input_separator(active=False)
 
-        # v2.8.7：待确认的操作 —— Y/A/F/N 优先当作确认答案（不当对话消息）
-        if BROKER.has_pending():
+        # v2.8.7：待确认的操作 —— TUI 下由**方向键选择 + Enter 确认**处理
+        # （见 ui/prompt/tui.py 的键位绑定）；这里只兜底"没有选项的确认"
+        # （那种确认仍按文本答案投递）。
+        if BROKER.has_pending() and not BROKER.pending_choices():
             from fr_cli.security.interactive import deliver_if_confirm
             if deliver_if_confirm(u):
                 continue
-            if u.strip():
-                # 不是确认答案 → 照常当对话消息处理，但提醒确认还在等
-                print(f"{YELLOW}[!] 还有操作待确认，请在输入框输入 Y / A / F / N{RESET}")
 
         if not u:
             continue

@@ -84,6 +84,9 @@ def _default_config():
         # v3.1 新增：蜂群（swarm）整体超时秒数（0/None → 用默认 60）
         # 到达 deadline 后立即返回，未完成任务以超时条目返回（部分失败语义）
         "swarm_timeout": 60,
+        # v2.8.9 新增：Agent Team 协作模式开关（/agent_team on|off）
+        # 开启后普通对话自动走「拆解 → 多成员并行 → 聚合」流程
+        "agent_team_enabled": False,
         # v3 新增：是否跳过首次启动向导（手动配置后置位）
         "model_wizard_skipped": False,
         # v3.1 新增:/start 5 步向导完成标志(避免重复弹)

@@ -53,15 +53,23 @@ VALID_ANSWERS = ("y", "yes", "a", "f", "n", "no")
 
 
 class PendingConfirm:
-    """一次待确认的请求（后台线程等待，主线程投递答案）。"""
+    """一次待确认的请求（后台线程等待，主线程投递答案）。
 
-    __slots__ = ("key", "desc", "answer", "_event")
+    v2.8.7 第四阶段：可选地带**选项列表**（``choices``）—— 此时主线程用
+    方向键移动、Enter 确认，选中项的值即答案（见 ``ui/prompt/selector.py``）。
+    """
 
-    def __init__(self, key: str, desc: str):
+    __slots__ = ("key", "desc", "answer", "choices", "index", "_event")
+
+    def __init__(self, key: str, desc: str, choices=None):
         self.key = key
         self.desc = desc
         #: 答案（'y'/'a'/'f'/'n'）；超时或取消时为 None（按拒绝处理）
         self.answer = None
+        #: 可选项 [(value, label), ...]；为空表示纯文本输入模式
+        self.choices = list(choices or [])
+        #: 当前选中项下标
+        self.index = 0
         self._event = threading.Event()
 
     def resolve(self, answer) -> None:
@@ -76,6 +84,22 @@ class PendingConfirm:
     @property
     def resolved(self) -> bool:
         return self._event.is_set()
+
+    # ---------- 选项导航（方向键） ----------
+
+    def move(self, delta: int) -> bool:
+        """移动选中项（循环）。返回是否真的移动了。"""
+        if not self.choices or len(self.choices) == 1:
+            return False
+        self.index = (self.index + delta) % len(self.choices)
+        return True
+
+    @property
+    def current_value(self):
+        """当前选中项的值（没有选项时返回 None）"""
+        if not self.choices:
+            return None
+        return self.choices[self.index % len(self.choices)][0]
 
 
 class ConfirmBroker:
@@ -126,20 +150,25 @@ class ConfirmBroker:
 
     # ---------- 请求 / 投递 ----------
 
-    def register(self, key: str, desc: str):
+    def register(self, key: str, desc: str, choices=None):
         """挂上一个待确认请求（**不等待**）。
 
         为什么要把"注册"和"等待"拆开：
 
-        用户看到确认提示就可能**立刻**敲答案。若"先打印提示、后注册请求"，
-        主线程读到的答案会早于请求注册 —— 答案被当成普通聊天消息丢掉，
-        确认永远等不到（终端表现为"敲了 Y 毫无反应"，比假死更难查）。
+        用户看到确认提示就可能**立刻**做选择。若"先打印提示、后注册请求"，
+        主线程读到的选择会早于请求注册 —— 被当成普通聊天消息丢掉，
+        确认永远等不到（终端表现为"敲了没反应"，比假死更难查）。
         先注册再打印，用户看到提示时请求必然已就绪。
+
+        Args:
+            key:     安全类别（sec_read / sec_write / ...）
+            desc:   展示给用户的目标描述
+            choices: 可选项 [(value, label), ...]；给了就走方向键选择模式
 
         Returns:
             PendingConfirm | None: None 表示中转站未启用（调用方应回落裸 input()）
         """
-        pending = PendingConfirm(key, desc)
+        pending = PendingConfirm(key, desc, choices)
         with self._lock:
             if not self._enabled:
                 return None
@@ -189,6 +218,43 @@ class ConfirmBroker:
             self._pending = None
         pending.resolve(answer)
         return True
+
+    def move_selection(self, delta: int) -> bool:
+        """方向键：移动待确认请求的选中项。
+
+        Returns:
+            bool: 是否真的移动了（没有待确认请求 / 没有可选项 → False）
+        """
+        with self._lock:
+            pending = self._pending
+            if pending is None:
+                return False
+            return pending.move(delta)
+
+    def deliver_current(self) -> bool:
+        """Enter：投递**当前选中项**的值（方向键选择模式）。
+
+        Returns:
+            bool: 是否成功投递（没有待确认请求 → False）
+        """
+        with self._lock:
+            pending = self._pending
+            if pending is None:
+                return False
+            value = pending.current_value
+        if value is None:
+            return False
+        return self.deliver(value)
+
+    def pending_choices(self):
+        """待确认请求的可选项 [(value, label), ...]（没有则空列表）"""
+        with self._lock:
+            return list(self._pending.choices) if self._pending else []
+
+    def pending_index(self) -> int:
+        """待确认请求当前选中项的下标"""
+        with self._lock:
+            return self._pending.index if self._pending else 0
 
     def cancel_all(self) -> int:
         """取消所有待确认请求（按拒绝处理）—— 退出 / 中断时调用。

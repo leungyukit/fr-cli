@@ -60,8 +60,6 @@ class StatusState:
         # v2.8.7(UX)：流式期间可交互 —— 队列深度 + 待生效转向指令
         self.queue_depth = 0       # 待处理队列条数（对话队列）
         self.steer_pending = 0     # 已提交但尚未注入本轮的转向指令条数
-        # v2.8.7(UX)：待确认的高危操作（后台线程等主线程代读输入）
-        self.confirm_pending = ""  # 待确认操作的目标描述（空 = 没有待确认）
         # v2.8.7(UX)：上下文占用（接近压缩阈值时预警）
         self.context_tokens = 0    # 当前上下文估算 token 数
         self.context_limit = 0     # 上下文压缩阈值（分母）
@@ -101,7 +99,8 @@ class StatusState:
         if self.is_busy:
             frames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
             spinner = frames[self.spinner_frame % len(frames)]
-            return (0, "class:status-red", f"{spinner} 思考中", _RIGHT)
+            # 等待状态用**黄**（红色留给失败）—— v2.8.7 第四阶段语义色分层
+            return (0, "class:status-yellow", f"{spinner} 思考中", _RIGHT)
         return (0, "class:status-green", "就绪", _RIGHT)
 
     def _context_item(self) -> Optional[_Item]:
@@ -117,21 +116,6 @@ class StatusState:
             style = "class:status-gray"
         return (3, style, f"上下文 {pct:.0f}%", _RIGHT)
 
-    def _confirm_item(self) -> Optional[_Item]:
-        """待确认的高危操作 —— 优先级最高，且排在右栏**首位**。
-
-        为什么排首位：右栏整体是按显示宽度裁剪的，排在末尾的长文本会被
-        终端截断 —— 恰好把最该让人看见的「待确认」截没了（表现为"没提示，
-        用户干等"）。放在首位后它一定落在可见范围内。
-        """
-        if not self.confirm_pending:
-            return None
-        # 工具名比路径更可读 —— 优先用它
-        label = self.tool_name or self.confirm_pending
-        if len(label) > 20:
-            label = label[:17] + "..."
-        return (0, "class:status-red", f"⚠ 待确认 {label} (Y/A/F/N)", _RIGHT)
-
     def _collect(self) -> List[_Item]:
         """收集全部状态项（按展示顺序）"""
         items: List[_Item] = [self._model_item()]
@@ -142,11 +126,6 @@ class StatusState:
             if len(short_dir) > 20:
                 short_dir = "..." + short_dir[-17:]
             items.append((8, "class:status-green", short_dir, _LEFT))
-
-        # 待确认的高危操作 —— 必须在忙碌状态**之前**（右栏首位，不会被裁掉）
-        confirm = self._confirm_item()
-        if confirm:
-            items.append(confirm)
 
         busy = self._busy_item()
         if busy:

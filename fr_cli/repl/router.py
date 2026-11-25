@@ -53,6 +53,7 @@ from fr_cli.repl.commands import (
     _cmd_agent_edit,
     _cmd_agent_forge,
     _cmd_agent_model,
+    _cmd_agent_team,
     _cmd_remote_agent_add,
     _cmd_remote_agent_list,
     _cmd_remote_agent_del,
@@ -135,6 +136,7 @@ COMMAND_ROUTES = {
     "/agent_edit": _cmd_agent_edit,
     "/agent_forge": _cmd_agent_forge,
     "/agent_model": _cmd_agent_model,
+    "/agent_team": _cmd_agent_team,
     "/remote_agent_add": _cmd_remote_agent_add,
     "/remote_agent_list": _cmd_remote_agent_list,
     "/remote_agent_del": _cmd_remote_agent_del,
@@ -187,6 +189,7 @@ NAMESPACED_COMMANDS = {
     ("agent", "forge"): "/agent_forge",
     ("agent", "run"): "/agent_run",
     ("agent", "model"): "/agent_model",
+    ("agent", "team"): "/agent_team",
     ("agent", "server"): "/agent_server",
     ("agent", "publish"): "/agent_publish",
     ("agent", "cron"): {

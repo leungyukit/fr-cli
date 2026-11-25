@@ -62,8 +62,15 @@ class TestSwarmEngine:
         mock_call_agent.side_effect = lambda name, state, user_input="": (f"opinion-{name}", None)
 
         state = self._make_state()
-        state.client.chat.completions.create.return_value = MagicMock(
-            choices=[MagicMock(message=MagicMock(content="综合结论"))]
+        # v2.8.9:汇总必须走 fr-cli 客户端的**公开接口** ``stream_chat``。
+        # 此前调的是 ``client.chat.completions.create`` —— 那是 OpenAI SDK 的
+        # **内部**对象（openai_compat.py 里是 ``self._client.chat.completions``），
+        # 真实客户端上并不存在 → 议会汇总在所有 OpenAI 兼容厂商上一直失败，
+        # 只会吐一句 "[汇总失败: ... has no attribute 'chat']"。
+        # 本用例此前正是靠 mock 那个不存在的属性才"绿"的 —— 现改为断言公开接口。
+        state.client.api_key = "fake-key-1234567890"
+        state.client.stream_chat.side_effect = (
+            lambda *a, **k: iter([{"content": "综合结论"}])
         )
 
         engine = SwarmEngine(state)
@@ -73,7 +80,7 @@ class TestSwarmEngine:
         assert result["mode"] == "council"
         assert len(result["individual"]) == 2
         assert "综合结论" in result["summary"]
-        assert state.client.chat.completions.create.called
+        assert state.client.stream_chat.called
 
     @patch("fr_cli.agent.swarm_resolver.call_agent")
     def test_run_pipeline(self, mock_call_agent):

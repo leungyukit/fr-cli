@@ -67,6 +67,7 @@ class FanRenCompleter(Completer if HAS_PT else object):
         "agent_": "Agent", "remote_agent_": "Agent", "remote_setup": "Agent",
         "db_setup": "Agent",
         "swarm": "Agent", "swarm_run": "Agent",
+        "agent_team": "Agent", "agent_team_run": "Agent",
         # RAG/MCP
         "rag_": "RAG", "mcp_": "MCP", "mcp_call": "MCP", "mcp_list": "MCP",
         # 启动/退出
@@ -170,6 +171,7 @@ class FanRenCompleter(Completer if HAS_PT else object):
         "agent_forge": "/agent forge",
         "agent_run": "/agent run coder",
         "agent_model": "/agent_model coder deepseek:deepseek-chat",
+        "agent_team": "/agent_team on",
         "agent_server": "/agent_server start 8080",
         "agent_publish": "/agent_publish coder",
         "agent_call": "/agent_call my_agent 输入内容",

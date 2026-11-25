@@ -121,6 +121,12 @@ class StreamingMarkdownRenderer:
         self.line_count = 0       # 已输出行数
         self.block_count = 0      # block 数
 
+        # ---- 内容语义色（v2.8.7 第四阶段）----
+        # mode="answer"   → 最终答案（绿色）
+        # mode="reasoning"→ 思考过程（暗色，视觉上退到背景）
+        # 结构性元素（标题 / 代码块 / 表格）保持自己的配色，不受 mode 影响。
+        self.mode = "answer"
+
         # ---- 折叠状态 ----
         self.fold_threshold = fold_threshold   # 超过这么多行才开始折叠
         self.fold_tail = fold_tail             # 折叠段末尾保留几行
@@ -131,6 +137,45 @@ class StreamingMarkdownRenderer:
 
         # ---- 表格缓冲（对齐需要看到全部列宽）----
         self._table_rows: List[str] = []
+
+    # ------------------------------------------------------------------
+    # 语义色
+    # ------------------------------------------------------------------
+
+    def set_mode(self, mode: str) -> str:
+        """切换内容语义：``answer``（答案）/ ``reasoning``（思考过程）。
+
+        Returns:
+            str: 切换前需要先吐出的内容。思考与答案若挤在**同一行**，
+            颜色就分不开 —— 这里把没换行的残余按**旧模式**先输出，
+            两种内容自然各占一行。
+        """
+        if mode == self.mode:
+            return ""
+        pending = ""
+        if self.buffer:
+            pending = self.feed("\n")   # 残余按旧模式输出
+        self.mode = mode
+        return pending
+
+    @property
+    def text_color(self):
+        """当前模式下"正文"的颜色"""
+        if self.mode == "reasoning":
+            return _ui.DIM
+        return _ui.GREEN
+
+    @staticmethod
+    def _is_question(line: str) -> bool:
+        """启发式：这一行是不是模型在**向用户提问**。
+
+        判定口径（用户拍板）：回复里以问号结尾的行视为提问。
+        去掉行内 markdown 标记后再判，免得 ``**要哪个？**`` 里的粗体符号干扰。
+        """
+        t = re.sub(r"[*`_~]", "", line or "").strip()
+        if not t:
+            return False
+        return t.endswith("?") or t.endswith("？")
 
     # ------------------------------------------------------------------
     # 主入口
@@ -327,7 +372,9 @@ class StreamingMarkdownRenderer:
             content = list_match.group(3)
             bullet = "•" if marker in "-*+" else marker
             indent_str = "  " * (indent // 2)
-            return indent_str + _color(bullet, _ui.CYAN + _ui.BOLD, self.use_color) + " " + self._render_inline(content)
+            color = _ui.CYAN if self._is_question(content) else self.text_color
+            return (indent_str + _color(bullet, _ui.CYAN + _ui.BOLD, self.use_color)
+                    + " " + self._render_inline(content, color))
 
         # 引用
         if stripped.startswith(">"):
@@ -337,7 +384,10 @@ class StreamingMarkdownRenderer:
         # 普通段落:渲染行内格式
         if not stripped:
             return ""  # 空行
-        return self._render_inline(stripped)
+        # 语义色（v2.8.7 第四阶段）：模型向用户提问的行用青色，
+        # 思考过程用暗色，其余正文用答案色
+        color = _ui.CYAN if self._is_question(stripped) else self.text_color
+        return self._render_inline(stripped, color)
 
     def _process_code_line(self, line: str) -> Optional[str]:
         """处理代码块内的行"""
@@ -411,9 +461,17 @@ class StreamingMarkdownRenderer:
     # 行内格式
     # ------------------------------------------------------------------
 
-    def _render_inline(self, text: str) -> str:
-        """行内格式渲染(粗体 / 斜体 / 代码 / 链接)"""
+    def _render_inline(self, text: str, color=None) -> str:
+        """行内格式渲染(粗体 / 斜体 / 代码 / 链接)
+
+        Args:
+            color: 整段正文的基色（语义色）。行内元素仍用自己的颜色，
+                   嵌套时以行内元素的 RESET 为准 —— 视觉上是"彩色行内元素
+                   落在同色正文里"，可读性不受影响。
+        """
         result = text
+        if color:
+            result = _color(result, color, self.use_color)
         # 行内代码
         result = re.sub(
             r"`([^`]+)`",

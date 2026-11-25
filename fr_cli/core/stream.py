@@ -231,15 +231,23 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 buf += (f"{CODE_BG}{CODE_FG}{pending_ticks}" if in_code else f"{GREEN}{pending_ticks}")
                 pending_ticks = ""
 
-        def _emit(txt: str):
-            """输出一段新内容：优先走 Markdown 渲染器，降级走代码块高亮"""
+        def _emit(txt: str, mode: str = "answer"):
+            """输出一段新内容：优先走 Markdown 渲染器，降级走代码块高亮
+
+            Args:
+                mode: 语义色 —— ``answer``（最终答案，绿色）/ ``reasoning``
+                      （思考过程，暗色）。两者在终端上可区分。
+            """
             nonlocal buf
             if renderer is not None:
+                # 模式切换时先把没换行的残余按旧模式吐出 ——
+                # 否则思考与答案挤在同一行，颜色就分不开
+                buf += renderer.set_mode(mode)
                 buf += renderer.feed(txt)
             else:
-                _colorize(txt)
+                _colorize(txt, mode)
 
-        def _colorize(txt: str):
+        def _colorize(txt: str, mode: str = "answer"):
             """代码块高亮处理（带缓冲），支持跨 chunk 的语言标识检测
 
             状态: in_code(代码块内) + awaiting_lang(等待语言标识行的换行符)
@@ -249,6 +257,9 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
             (结尾 1~2 个反引号挂起到下一 chunk 再判定)。
             """
             nonlocal in_code, buf, current_lang, lang_detect_buf, awaiting_lang, pending_ticks
+
+            # 正文基色（v2.8.7 第四阶段）：答案=绿，思考=暗色（视觉上退到背景）
+            text_color = GREEN if mode != "reasoning" else DIM
 
             def _emit_lang_or_content(s: str):
                 """等待语言标识期间的内容:攒到第一行完整再决定 标签/原样输出"""
@@ -298,11 +309,11 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                         lang_detect_buf = ""
                         _emit_lang_or_content(part)
                     else:
-                        # 退出代码块：先 RESET 关闭代码块颜色，再切回普通文本绿色
+                        # 退出代码块：先 RESET 关闭代码块颜色，再切回正文色
                         current_lang = ""
                         lang_detect_buf = ""
                         awaiting_lang = False
-                        buf += f"{RESET}{GREEN}"
+                        buf += f"{RESET}{text_color}"
                     continue
                 if not part:
                     continue
@@ -311,7 +322,7 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 elif in_code:
                     buf += f"{CODE_BG}{CODE_FG}{part}"
                 else:
-                    buf += f"{GREEN}{part}"
+                    buf += f"{text_color}{part}"
 
         def _run_once(c=None, m=None):
             """跑一次流式调用，返回 (文本, usage)。
@@ -349,13 +360,14 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                         if ctext:
                             # v2.8.7(第四阶段):推理模型的思考内容单独收集，
                             # 不混入返回的答案正文（答案要进历史/记忆，思考不进）
-                            if chunk.get("reasoning"):
+                            is_reasoning = bool(chunk.get("reasoning"))
+                            if is_reasoning:
                                 reasoning_text += ctext
                             else:
                                 text += ctext
                             if not silent:
-                                # 显示路径不变 —— 思考照样可见，渲染体验与之前一致
-                                _emit(ctext)
+                                # 思考照样可见，但用**暗色**与答案区分开
+                                _emit(ctext, "reasoning" if is_reasoning else "answer")
                                 now = time.time()
                                 # 缓冲超过时间或超过大小都 flush
                                 if (now - last_flush) * 1000 >= _FLUSH_INTERVAL_MS or len(buf) >= _MAX_BUFFER_CHARS:

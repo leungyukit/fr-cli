@@ -4,7 +4,81 @@
 
 ## [Unreleased]
 
+## [2.8.9] - 2026-11-26
+
+### 新增功能
+
+#### Agent Team —— 多 Agent 协作小组（`/agent_team on|off`）
+
+此前 fr-cli 的多 Agent 能力只有**蜂群**（`/swarm`）：用户得**手动点名** Agent，
+让它们跑**同一个**任务。没有"把一个复杂请求自动拆开、交给不同角色分别完成、
+再汇总"这条链路。
+
+现在新增 Agent Team：
+
+- **三段式流水线**（`fr_cli/agent/team.py`）
+  - **规划 Planner**：LLM 读用户请求 + 可用成员清单，输出子任务 JSON
+  - **执行 Runner**：子任务并行执行（`ThreadPoolExecutor` + 真实整体 deadline）
+  - **聚合 Aggregator**：LLM 综合各成员产出，去重 / 补全 / 解决冲突
+- **成员模型**
+  - `main` —— **通用成员**：用全局 LLM 直接完成子任务，**零配置可用**
+    （没有自建 Agent 也能开团队）。它是**纯文本**调用，**不调用工具**
+  - 具体 Agent 名 —— 本地分身 / 远程 Agent / 内置 Agent
+    （`local` / `remote` / `spider` / `db` / `RAG` / `stock`），
+    统一走 `fr_cli/agent/client.py::call_agent` 分发
+- **开关**：`/agent_team on` / `/agent_team off`，写进 `config.json` 的
+  `agent_team_enabled`。开启后普通对话自动走团队流程（计划模式与 MasterAgent
+  主控被团队接管 —— 团队优先，关掉即恢复原有路由顺序）
+- **一次性执行**：`/agent_team run <任务>` —— 跑一轮协作但不改变开关状态
+- **注册表工具** `agent_team_run` —— 大模型自己也能触发团队协作
+- **诚实边界**（写进了模块文档）
+  - 拆解与聚合各额外消耗 1 次 LLM 调用；只有 1 个子任务时跳过聚合
+  - `main` 成员不调用工具 —— 要干活的子任务得指派给具备工具的 Agent
+  - Python 无法强杀线程：超时的子任务线程会继续跑完，但不再阻塞返回
+  - 规划失败时**如实降级**为"单成员 `main` 直接做整件事"，不返回空列表
+- **追问场景可用**：规划器的 prompt 会带上**最近几轮对话** —— "那第二点呢？"
+  这类追问能被正确拆解
+- **与普通对话链路对齐**：团队模式同样走会话存档、记忆摘要、token 用量统计
+  （`core/chat/pipeline_post.py::_post_process`）
+
+#### TUI 安全确认改为方向键选择（`↑↓` / `←→` + Enter）
+
+此前高危操作确认要让用户**敲字母**（Y/A/F/N）。现在改为**方向键选择 + Enter 确认**：
+
+- 新增 `fr_cli/ui/prompt/selector.py` —— `Choice` / `Selector`
+  （循环移动、单行渲染、选项排最左、CJK 宽度感知）
+- `security/interactive.py` 的 `PendingConfirm` 增 `choices` / `index` /
+  `move()` / `current_value()`；broker 增 `move_selection()` / `deliver_current()`
+- `ui/prompt/tui.py` 绑定 `↑↓←→` / `Enter` / `Esc`；无待确认项时方向键回退为
+  默认光标移动
+- **Esc = 拒绝**；非 TTY（批处理 / HTTP 服务 / bot）保留文本输入路径，行为不变
+- 选择行显示在状态栏，选项**排最左**（`bottom_toolbar` 是单行窗口）
+- **TUI 下不再重复打印旧式选项行**：此前输入框上方印 `[Y]仅此 [A]本轮…`、
+  状态栏又渲染一份带 `❯` 标记的选择器 —— 两份并存分不清哪份能操作。
+  现在 TUI 只留选择器；非交互场景（批处理 / HTTP / bot）仍打印那一行
+  （那里它是**唯一**的选项说明）
+
+#### TUI 语义色分层
+
+- **问句青色**：模型向用户提问的段落（启发式：以问号结尾的行）用青色区分
+- **答案绿 / 思考暗色**：推理模型的思考过程与最终答案分色显示
+- **等待状态黄、失败状态红**：spinner 不再占用红色（红色只留给失败）
+- **工具执行结果回显**：`✓ 工具名`（绿）/ `✗ 工具名: 原因`（红）——
+  此前工具结果**只回给模型、不回显给用户**，失败现场只有状态栏可见
+
+### 修复
+
+- **蜂群议会（council）汇总在所有 OpenAI 兼容厂商上一直失败**：
+  `swarm.py::_summarize_with_llm` 直接调 `client.chat.completions.create` ——
+  那是 OpenAI SDK 的**内部**对象（`openai_compat.py` 里是 `self._client.chat.completions`），
+  不是 fr-cli 客户端的公开属性。结果只会吐一句
+  `[汇总失败: 'OpenAICompatibleClient' object has no attribute 'chat']`。
+  现统一走公开接口 `stream_chat`（新增 `fr_cli/core/llm/completion.py::complete_text`，
+  顺带拿到重试 / 降级 / 思考-答案分离能力）
+
 ## [2.8.8] - 2026-11-26
+
+> ⚠️ 本版本**已打 tag 并推送，但未发布到 PyPI** —— 后续功能并入 2.8.9 一并发布。
 
 ### 修复
 
