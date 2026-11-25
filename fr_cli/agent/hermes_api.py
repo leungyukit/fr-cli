@@ -9,15 +9,22 @@ Hermes HTTP API —— 请求处理器与序列化
 
 HermesDaemon 与 main() 仍在 fr_cli.agent.hermes_daemon,本模块符号
 经其 re-export 保持旧导入路径可用。
+
+服务骨架(鉴权 / 响应包裹 / 异常处理)统一到 fr_cli.core.http_base:
+- 响应形状保持扁平(flat 包裹策略),与历史完全一致
+- 鉴权策略:默认所有方法都需要 Bearer Token;只读公开白名单
+  (默认仅 /health)可通过 daemon.public_paths 配置
 """
-import json
-import secrets
-from http.server import BaseHTTPRequestHandler
-
 from fr_cli import __version__
+from fr_cli.core.http_base import (
+    WRAP_FLAT,
+    AuthPolicy,
+    BaseHTTPHandler,
+)
 
-# 需要鉴权的写操作端点（POST/PUT/DELETE/PATCH）
-_PROTECTED_METHODS = {"POST", "PUT", "DELETE", "PATCH"}
+# 只读公开端点（免鉴权）—— 默认仅暴露健康检查
+# 可通过 HermesDaemon.public_paths 覆盖（写入 daemon 实例属性即可）
+HERMES_PUBLIC_PATHS = frozenset({"/health"})
 
 
 def _task_to_json(task) -> dict:
@@ -59,51 +66,52 @@ def _goal_to_json(goal) -> dict:
     }
 
 
-class HermesHandler(BaseHTTPRequestHandler):
-    """HTTP 请求处理器"""
+class HermesHandler(BaseHTTPHandler):
+    """HTTP 请求处理器 —— 扁平 JSON 响应"""
 
-    def log_message(self, format, *args):
-        pass
+    # 响应包裹策略：保持历史的扁平 JSON
+    wrap_mode = WRAP_FLAT
+    json_content_type = "application/json"
 
     def send_json(self, status, data):
-        body = json.dumps(data, ensure_ascii=False, default=str).encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
-        self.wfile.flush()
+        """发送 JSON 响应（保留旧方法名，内部走统一发送逻辑）"""
+        self._send_json(status, data)
 
-    def _check_auth(self) -> bool:
-        """校验 Bearer Token，写操作端点必须鉴权。"""
-        if self.command not in _PROTECTED_METHODS:
-            return True
-        expected = getattr(self.server.daemon, "token", "")
-        if not expected:
-            return False
-        auth = self.headers.get("Authorization", "")
-        if not auth.startswith("Bearer "):
-            self.send_json(401, {"error": "Missing Authorization: Bearer <token>"})
-            return False
-        provided = auth[len("Bearer "):].strip()
-        # 恒定时间比较，避免时序攻击
-        if not secrets.compare_digest(provided, expected):
-            self.send_json(403, {"error": "Invalid token"})
-            return False
-        return True
+    def auth_policy(self) -> AuthPolicy:
+        """鉴权策略 —— token 从 daemon 动态读取（启动后仍可替换）
+
+        - 默认**所有方法**（含 GET）都需要 Bearer Token
+        - 只读公开白名单：默认仅 /health，可用 daemon.public_paths 覆盖
+          （白名单只对 GET/HEAD/OPTIONS 生效，POST 到同一路径仍需鉴权）
+        - daemon 未配置 token 时一律拒绝（deny_without_token）
+        """
+        daemon = getattr(self.server, "daemon", None)
+        token = getattr(daemon, "token", "") or ""
+        public_paths = getattr(daemon, "public_paths", None)
+        if public_paths is None:
+            public_paths = HERMES_PUBLIC_PATHS
+        return AuthPolicy(
+            token=token,
+            protected_methods=None,  # 所有方法都要鉴权
+            public_paths=set(public_paths),
+            deny_without_token=True,
+            missing_status=401,
+            missing_message="Missing Authorization: Bearer <token>",
+            invalid_status=403,
+            invalid_message="Invalid token",
+        )
 
     def _read_body(self) -> dict:
-        length = int(self.headers.get("Content-Length", 0))
-        body = self.rfile.read(length).decode() if length > 0 else "{}"
-        try:
-            return json.loads(body) if body else {}
-        except Exception:
-            return {}
+        """读取 JSON 请求体（解析失败返回空 dict）"""
+        return self._read_json_body()
 
     def _engine(self):
         return getattr(self.server.daemon, "engine", None)
 
     def do_GET(self):
+        # 统一鉴权：GET 不再无条件免鉴权（只读公开白名单除外）
+        if not self._check_auth():
+            return
         engine = self._engine()
 
         if self.path == "/health":

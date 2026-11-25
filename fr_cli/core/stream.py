@@ -97,7 +97,50 @@ def request_interrupt():
     _current_interrupt.set()
 
 
-def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None, silent=False, markdown=True):
+def _looks_like_tools_rejection(exc: BaseException) -> bool:
+    """判断异常是否由"provider 不接受 tools 参数"引起。
+
+    v2.8.7(P0-3)：个别 OpenAI 兼容端点只支持部分模型的原生 tools，
+    传入后会直接 400。命中时自动去掉 tools 重试一次，退回文本标记路径。
+    """
+    msg = (str(exc) or "").lower()
+    if "tool" not in msg and "function" not in msg:
+        return False
+    return any(k in msg for k in (
+        "not support", "unsupported", "invalid", "unknown", "unrecognized",
+        "not allowed", "unexpected", "does not support", "extra inputs",
+        "not permitted", "not allowed",
+    ))
+
+
+def _dispatch_llm_event(event_attr: str, data: dict) -> None:
+    """派发 LLM 生命周期事件（永不抛异常）。
+
+    v2.8.7（P1-2）：把 ``llm.requested`` / ``llm.responded`` / ``llm.failed``
+    的派发**下沉到 stream_cnt** —— 它是全仓所有 LLM 调用的唯一漏斗
+    （20+ 个调用点，含 MasterAgent 的 ReAct 循环）。
+
+    此前事件只在 ``core/chat/pipeline_respond.py`` 里派发，而 MasterAgent
+    默认接管普通对话后那条路径根本不会走 → ``llm.*`` 指标恒为 0（假零）。
+    下沉后所有调用方自动被覆盖，且不会重复计数。
+
+    Args:
+        event_attr: ``V2Events`` 的属性名（如 "LLM_REQUESTED"）
+        data: 事件负载
+    """
+    try:
+        from fr_cli.core.events import V2Events, dispatch_event
+        name = getattr(V2Events, event_attr, None)
+        if not name:
+            return
+        dispatch_event(name, data=data, source="stream")
+    except Exception:
+        pass
+
+
+def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None,
+               silent=False, markdown=True, timeout=None, retry=None, fallback=None,
+               provider=None, tools=None, tool_choice=None, tool_accumulator=None):
     """
     流式调用 LLM 并实时打印，带有简易代码块高亮状态机
 
@@ -107,11 +150,41 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
     - markdown=True（默认）时用 StreamingMarkdownRenderer 实时渲染
       Markdown（标题/列表/代码块/表格），不再等结束后整篇重渲染
 
+    v2.8.7（P0-2）新增韧性能力：
+    - **重试**：瞬时错误（网络抖动 / 超时 / 限流 / 5xx）自动指数退避重试；
+      已产出内容后不再重试（避免重复输出）
+    - **降级**：主模型彻底失败时，可切到备用 provider 再试一次
+    - **timeout 可配**：默认取 client.DEFAULT_TIMEOUT（60s），不再写死
+    - **错误不再被吞**：失败时返回真实原因，而不是笼统的"请检查 API 密钥配置"
+
     :param client: LLM 客户端实例 (BaseLLMClient 子类)
     :param silent: 如果为 True，则不输出到终端，仅返回文本
     :param markdown: 是否对流式输出做实时 Markdown 渲染（silent 时无效）
+    :param timeout: 单次请求超时秒数；None → client.DEFAULT_TIMEOUT
+    :param retry: 重试次数（不含首次）；None → resilience.DEFAULT_RETRY
+    :param fallback: 降级来源 —— (client, model) 元组或返回它的可调用对象
+    :param provider: 提供商名（仅用于事件上报，可选）
+    :param tools: OpenAI 格式的 function schema 数组（原生 function calling）
+    :param tool_choice: "auto" / "none" / "required"
+    :param tool_accumulator: 可选的 :class:`ToolCallAccumulator` —— 收到
+        原生 tool_call 分片时累积进去（上层据此执行工具并回填结果）
     :return: tuple (完整回复文本 str, 使用情况 dict, 响应时间 float, 是否被中断 bool)
     """
+    from fr_cli.core.llm.resilience import (
+        DEFAULT_BACKOFF,
+        DEFAULT_RETRY,
+        call_with_retry,
+        describe_error,
+        is_transient,
+        resolve_fallback,
+    )
+
+    if timeout is None:
+        timeout = getattr(client, "DEFAULT_TIMEOUT", 60)
+    if retry is None:
+        retry = DEFAULT_RETRY
+    attempts = max(1, int(retry) + 1)
+
     with _ColorDisable():
         _current_interrupt.reset()
         interrupted = False
@@ -240,6 +313,88 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                 else:
                     buf += f"{GREEN}{part}"
 
+        def _run_once(c=None, m=None):
+            """跑一次流式调用，返回 (文本, usage)。
+
+            异常直接向上抛 —— 由外层的重试/降级逻辑处理。
+            已产出的部分内容保存在 ``partial``，避免异常时丢失。
+
+            v2.8.7(P0-3)：若 provider 不接受 tools 参数，去掉 tools 再试一次，
+            自动退回文本标记路径。注意 provider 客户端多是**生成器函数** ——
+            拒绝异常发生在**迭代期**而非调用期，所以兜底必须包住整个迭代。
+            """
+            nonlocal interrupted, last_flush, partial
+            text = ""
+            reasoning_text = ""   # 思考过程（与答案分离，不进历史/记忆）
+            usg = {}
+            attempt_tools = tools
+            while True:
+                try:
+                    extra = ({"tools": attempt_tools, "tool_choice": tool_choice or "auto"}
+                             if attempt_tools else {})
+                    response = (c or client).stream_chat(
+                        model=(m or model),
+                        messages=messages,
+                        max_tokens=max_tokens if max_tokens else 4096,
+                        timeout=timeout,
+                        **extra,
+                    )
+                    for chunk in response:
+                        # 中断检测
+                        if _current_interrupt.is_set():
+                            interrupted = True
+                            break
+
+                        ctext = chunk.get("content", "")
+                        if ctext:
+                            # v2.8.7(第四阶段):推理模型的思考内容单独收集，
+                            # 不混入返回的答案正文（答案要进历史/记忆，思考不进）
+                            if chunk.get("reasoning"):
+                                reasoning_text += ctext
+                            else:
+                                text += ctext
+                            if not silent:
+                                # 显示路径不变 —— 思考照样可见，渲染体验与之前一致
+                                _emit(ctext)
+                                now = time.time()
+                                # 缓冲超过时间或超过大小都 flush
+                                if (now - last_flush) * 1000 >= _FLUSH_INTERVAL_MS or len(buf) >= _MAX_BUFFER_CHARS:
+                                    _do_flush()
+                                    last_flush = now
+
+                        if chunk.get("usage"):
+                            usg = chunk["usage"]
+
+                        # 原生 function calling 的分片
+                        if tool_accumulator is not None and chunk.get("tool_calls"):
+                            tool_accumulator.add_delta(chunk["tool_calls"])
+
+                    if not text and reasoning_text:
+                        # 兜底：部分 provider（火山方舟 coding endpoint 等）
+                        # 只把答案放在 reasoning_content 里 —— 此时把思考内容
+                        # 当作答案返回，避免「答非所问」。
+                        text = reasoning_text
+                    return text, usg
+                except Exception as e:
+                    # provider 不接受 tools —— 去掉 tools 再试一次（只试一次）
+                    if attempt_tools and not text and _looks_like_tools_rejection(e):
+                        attempt_tools = None
+                        continue
+                    partial = text
+                    raise
+
+        def _on_retry(attempt_no, total, exc, delay):
+            """重试提示（仅瞬时错误才走到这里）"""
+            if not silent:
+                from fr_cli.ui.ui import YELLOW
+                sys.stdout.write(
+                    f"\n{YELLOW}[!] 调用失败（第 {attempt_no}/{total} 次）："
+                    f"{describe_error(exc)} —— {delay:.1f}s 后重试{RESET}\n"
+                )
+                sys.stdout.flush()
+
+        last_exc = None
+        partial = ""      # 异常时已产出的部分内容
         try:
             # 验证 API 密钥（Mock 客户端允许空 key）
             from fr_cli.core.llm import MockLLMClient
@@ -251,47 +406,85 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
                     print(f"\n{err.format()}\n")
                 return "[错误] 请先配置有效的 API 密钥", {}, 0.0, False
 
-            response = client.stream_chat(
-                model=model,
-                messages=messages,
-                max_tokens=max_tokens if max_tokens else 4096,
-                timeout=60,
-            )
-
-            for chunk in response:
-                # 中断检测
-                if _current_interrupt.is_set():
-                    interrupted = True
-                    break
-
-                txt = chunk.get("content", "")
-                if txt:
-                    full_text += txt
-                    if not silent:
-                        _emit(txt)
-                        now = time.time()
-                        # 缓冲超过时间或超过大小都 flush
-                        if (now - last_flush) * 1000 >= _FLUSH_INTERVAL_MS or len(buf) >= _MAX_BUFFER_CHARS:
-                            _do_flush()
-                            last_flush = now
-
-                if chunk.get("usage"):
-                    usage = chunk["usage"]
+            # ---- 重试（仅在尚未产出任何内容时）----
+            _dispatch_llm_event("LLM_REQUESTED", {
+                "provider": provider,
+                "model": model,
+                "messages_count": len(messages or []),
+            })
+            try:
+                full_text, usage = call_with_retry(
+                    lambda _n: _run_once(),
+                    attempts=attempts,
+                    backoff=DEFAULT_BACKOFF,
+                    on_retry=_on_retry,
+                    should_retry=lambda e: (not partial) and is_transient(e),
+                )
+            except Exception:
+                full_text = partial
+                raise
 
             # 循环结束 flush 剩余（含渲染器里未换行的残行）
             if not silent:
                 _flush_renderer()
                 _do_flush()
 
+            _dispatch_llm_event("LLM_RESPONDED", {
+                "provider": provider,
+                "model": model,
+                "usage": usage,
+                "response_time": time.time() - start_time,
+                "output_len": len(full_text) if full_text else 0,
+            })
+
         except Exception as e:
-            # 错误信息立即显示，不缓冲，走统一友好错误处理
-            if not silent:
-                _flush_renderer()
-                _do_flush()
-                from fr_cli.core.errors import friendly_print
-                err_msg = friendly_print(e)
-                sys.stdout.write(f"\n{err_msg}\n")
-                sys.stdout.flush()
+            last_exc = e
+            if partial and not full_text:
+                full_text = partial
+
+            # ---- 降级：主模型彻底失败且没产出任何内容 → 换备用 provider 再试 ----
+            fb = resolve_fallback(fallback) if not full_text else None
+            if fb is not None:
+                fb_client, fb_model = fb
+                if not silent:
+                    from fr_cli.ui.ui import YELLOW
+                    sys.stdout.write(
+                        f"\n{YELLOW}[!] 主模型不可用（{describe_error(e)}），"
+                        f"降级到 {fb_model}{RESET}\n"
+                    )
+                    sys.stdout.flush()
+                try:
+                    fb_text, fb_usage = call_with_retry(
+                        lambda _n: _run_once(fb_client, fb_model),
+                        attempts=attempts,
+                        backoff=DEFAULT_BACKOFF,
+                        on_retry=_on_retry,
+                    )
+                    full_text += fb_text
+                    if fb_usage:
+                        usage = fb_usage
+                    model = fb_model
+                    last_exc = None
+                    if not silent:
+                        _flush_renderer()
+                        _do_flush()
+                except Exception as e2:
+                    last_exc = e2
+
+            if last_exc is not None:
+                # 错误信息立即显示，不缓冲，走统一友好错误处理
+                if not silent:
+                    _flush_renderer()
+                    _do_flush()
+                    from fr_cli.core.errors import friendly_print
+                    err_msg = friendly_print(last_exc)
+                    sys.stdout.write(f"\n{err_msg}\n")
+                    sys.stdout.flush()
+                _dispatch_llm_event("LLM_FAILED", {
+                    "provider": provider,
+                    "model": model,
+                    "error": str(last_exc),
+                })
 
         if not silent:
             # 渲染器残行已在循环结束/异常两处 flush 过(幂等),这里只需冲终端缓冲
@@ -310,6 +503,10 @@ def stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=Non
         full_text = full_text + "\n[已中断]"
 
     if not full_text:
+        # v2.8.7(P0-2):失败原因如实带回,不再笼统报"请检查 API 密钥配置"
+        if last_exc is not None:
+            from fr_cli.core.errors import friendly_print
+            return f"[错误] {friendly_print(last_exc)}", usage, response_time, False
         return "[错误] 无法获取 AI 回复，请检查 API 密钥配置", usage, response_time, False
 
     return full_text, usage, response_time, interrupted

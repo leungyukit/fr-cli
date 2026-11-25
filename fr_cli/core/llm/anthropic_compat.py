@@ -24,6 +24,11 @@ class AnthropicCompatibleClient(BaseLLMClient):
     ANTHROPIC_VERSION = "2023-06-01"
     DEFAULT_BASE_URL = "https://api.anthropic.com"
 
+    #: Anthropic 的工具协议与 OpenAI 不同（tools 用 input_schema，
+    #: 响应走 content_block_start/input_json_delta），需要单独适配 ——
+    #: v2.8.7(P0-3) 先关闭，走既有的文本标记路径。
+    SUPPORTS_TOOLS = False
+
     def __init__(self, api_key: str, base_url: str = None, **kwargs):
         super().__init__(api_key, **kwargs)
         # 去掉末尾斜杠,避免拼接出 //v1/messages
@@ -102,7 +107,8 @@ class AnthropicCompatibleClient(BaseLLMClient):
                 msg = err.get("message", "Anthropic API error")
                 raise RuntimeError(f"Anthropic API error: {msg}")
 
-    def stream_chat(self, model, messages, max_tokens=4096, timeout=None):
+    def stream_chat(self, model, messages, max_tokens=4096, timeout=None,
+                    tools=None, tool_choice=None):
         import requests
         url = f"{self.base_url}/v1/messages"
         payload = self._build_payload(model, messages, max_tokens)

@@ -3,7 +3,6 @@ P3 工具集：语音输入 / 截屏 / 拖文件 / VSCode 集成
 
 所有功能都做了平台检测，不支持的平台会优雅降级或给出明确提示。
 """
-import os
 import sys
 import subprocess
 from pathlib import Path

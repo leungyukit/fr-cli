@@ -73,7 +73,7 @@ class TestAnalyze:
         with patch("fr_cli.core.stream.stream_cnt") as mock_stream:
             mock_stream.return_value = ("思考结果", {}, 0.1, False)
             try:
-                result = engine.analyze(mock_state, "复杂问题", "cot", "chat", lang="zh")
+                engine.analyze(mock_state, "复杂问题", "cot", "chat", lang="zh")
                 # 至少不应崩
             except Exception:
                 # analyze 可能依赖更多 state 属性
@@ -88,7 +88,7 @@ class TestAnalyze:
         with patch("fr_cli.core.stream.stream_cnt") as mock_stream:
             mock_stream.return_value = ("思维树分支", {}, 0.1, False)
             try:
-                result = engine.analyze(mock_state, "问题", "tot", "chat", lang="zh")
+                engine.analyze(mock_state, "问题", "tot", "chat", lang="zh")
             except Exception:
                 pass
 

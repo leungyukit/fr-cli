@@ -17,7 +17,10 @@ def _is_safe_key_path(key_path: str, allowed_dirs: list) -> bool:
         return False
 
     # 允许 ~/.ssh/ 下的密钥
-    home_ssh = Path.home() / ".ssh"
+    # 必须 resolve：key_path 已经 resolve 过，而 macOS 上 /var 是 /private/var
+    # 的符号链接，未 resolve 的 Path.home() 会和它错位，导致合法的 ~/.ssh
+    # 密钥被误拒（HOME 落在符号路径下时必现）。
+    home_ssh = (Path.home() / ".ssh").resolve()
     try:
         p.relative_to(home_ssh)
         return True

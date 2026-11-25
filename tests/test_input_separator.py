@@ -5,7 +5,6 @@
 2. 输入内容上方一条自适应屏宽的蓝色横线, 隔开 AI 之前的回答;
 3. 按 Enter 提交后, 横线变浅灰, 表示当前不在输入状态。
 """
-import pytest
 
 from fr_cli.ui.prompt.tui import INPUT_INDICATOR, _PROMPT_STYLE
 

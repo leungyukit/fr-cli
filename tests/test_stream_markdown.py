@@ -12,7 +12,6 @@ import io
 import sys
 from contextlib import redirect_stdout
 
-import pytest
 
 from fr_cli.core.stream import stream_cnt
 

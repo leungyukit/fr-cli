@@ -1,12 +1,15 @@
 """百度文心一言客户端(HTTP + Access Token)"""
 import json
-from typing import Iterator
+from typing import Iterator, Optional
 
 from fr_cli.core.llm.base import BaseLLMClient
 
 
 class WenxinLLMClient(BaseLLMClient):
     """百度文心一言客户端"""
+
+    #: 文心的自定义协议暂未适配原生 function calling
+    SUPPORTS_TOOLS = False
 
     def __init__(self, api_key: str, secret_key: str = None, **kwargs):
         super().__init__(api_key, **kwargs)
@@ -38,7 +41,9 @@ class WenxinLLMClient(BaseLLMClient):
             raise Exception(f"获取文心 Access Token 失败: {data}")
 
     def stream_chat(self, model: str, messages: list,
-                    max_tokens: int = 4096, timeout: int = None) -> Iterator[dict]:
+                    max_tokens: int = 4096, timeout: int = None,
+                    tools: Optional[list] = None,
+                    tool_choice: Optional[str] = None) -> Iterator[dict]:
         """文心流式对话"""
         import requests
 

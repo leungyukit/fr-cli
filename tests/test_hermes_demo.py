@@ -102,7 +102,9 @@ def test_hermes_research_demo():
         report_path = str(env.workspace / "report.md")
         report_content = "# AI Agent 调研报告\\n\\n这是自动生成的报告。"
 
-        def fake_stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=2048, silent=True):
+        # **kw 是必须的：v2.8.7 起 stream_cnt 支持 provider/timeout/retry/fallback/
+        # tools 等关键字参数，固定签名会把调用打成 TypeError
+        def fake_stream_cnt(client, model, messages, lang, custom_prefix="", max_tokens=2048, silent=True, **kw):
             user_msg = ""
             for m in reversed(messages):
                 if m.get("role") == "user":

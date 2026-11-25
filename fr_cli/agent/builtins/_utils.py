@@ -2,8 +2,6 @@
 内置 Agent 公共工具库
 提取各内置 Agent 中的重复逻辑：Markdown 清理、确认对话框、JSON 配置读写等。
 """
-import json
-from pathlib import Path
 
 
 def strip_code_blocks(text):

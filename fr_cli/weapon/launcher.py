@@ -1,7 +1,16 @@
 """
 本地应用启动器
 支持跨平台调用浏览器、办公软件、通讯工具等本机程序。
+
+安全说明（v2.8.7 加固）：
+  Windows 分支原先用 `subprocess.Popen([...], shell=True)` 拼接命令行，
+  而路径 / 应用名 / 目标均来自用户输入或 AI 生成 → 命令注入面。
+  现已全部改为 **shell=False**：
+    - 文件 / URL / URI 协议 → `os.startfile()`（ShellExecute，不经 shell）
+    - 普通可执行名           → `subprocess.Popen([app], shell=False)`
+  不再存在任何 `shell=True` 回退路径。
 """
+import os
 import platform
 import subprocess
 
@@ -75,8 +84,8 @@ _APP_ALIASES = {
         "googlechrome": "chrome",
         "edge": "msedge",
         "firefox": "firefox",
-        "browser": "start microsoft-edge:",
-        "浏览器": "start microsoft-edge:",
+        "browser": "microsoft-edge:",
+        "浏览器": "microsoft-edge:",
         # 办公
         "word": "winword",
         "msword": "winword",
@@ -173,6 +182,84 @@ def _resolve_app(name):
     return aliases.get(key, name)
 
 
+def _normalize_windows_app(app: str) -> str:
+    """去掉 Windows 应用标识里遗留的 cmd 内建命令前缀。
+
+    别名表里曾经写过 "start microsoft-edge:" —— `start` 是 cmd 内建命令，
+    只有经过 shell 才能工作。既然 Windows 分支已不再走 shell，就在这里
+    剥掉这类前缀，得到可交给 ShellExecute / CreateProcess 的纯应用标识。
+    """
+    cleaned = (app or "").strip()
+    lowered = cleaned.lower()
+    for prefix in ("start ", "cmd /c ", "cmd /k "):
+        if lowered.startswith(prefix):
+            cleaned = cleaned[len(prefix):].strip()
+            break
+    return cleaned
+
+
+def _startfile(path, *args):
+    """Windows 专用：用 os.startfile 打开文件 / URL / 应用（全程不经 shell）。
+
+    Args:
+        path: 文件路径、URL 或 URI 协议名（如 "ms-settings:"）
+        args: 可选的 ShellExecute 参数（operation / args）
+
+    Raises:
+        RuntimeError: 当前解释器没有 os.startfile（非 Windows 或过老的 Python），
+            此时**明确报错**而不是回退到 shell=True（回退即等于重新打开注入面）。
+    """
+    startfile = getattr(os, "startfile", None)
+    if startfile is None:
+        raise RuntimeError(
+            "当前 Python 环境不支持 os.startfile，无法安全启动应用"
+            "（为避免命令注入已禁用 shell 回退）"
+        )
+    startfile(path, *args)
+
+
+def _open_windows(path, app=None):
+    """在 Windows 上打开文件 / URL。
+
+    - 纯路径或 URL → os.startfile(path)（ShellExecute 交给系统默认程序）
+    - 指定应用     → 先试 os.startfile(app, "open", path)，
+                     失败则退回 shell=False 的 Popen([app, path])（等价于旧
+                     `start "" app path` 的语义，但不经 shell）
+    """
+    if app:
+        try:
+            _startfile(app, "open", path)
+            return
+        except OSError:
+            subprocess.Popen(
+                [app, path],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            return
+    _startfile(path)
+
+
+def _launch_windows_app(app: str) -> None:
+    """在 Windows 上启动一个应用标识（全程不经 shell，无命令注入面）。
+
+    - URI 协议（如 ms-settings:）→ os.startfile（ShellExecute 才能接管协议）
+    - 带空格的显示名（如 WeChat）→ 先 os.startfile（会查 App Paths 注册表），
+      失败再退回 shell=False 的 Popen
+    - 普通可执行名（如 notepad）→ Popen([app], shell=False)，CreateProcess 直连
+    """
+    if app.endswith(":"):
+        _startfile(app)
+        return
+    if " " in app:
+        try:
+            _startfile(app)
+            return
+        except OSError:
+            pass
+    subprocess.Popen([app], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+
+
 def open_file(path, lang="zh"):
     """用系统默认程序打开文件或 URL（跨平台），返回 (result, error)"""
     if not path:
@@ -181,7 +268,8 @@ def open_file(path, lang="zh"):
         if SYSTEM == "Darwin":
             subprocess.Popen(["open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif SYSTEM == "Windows":
-            subprocess.Popen(["start", "", path], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            # os.startfile 走 ShellExecute：文件与 URL 都能交给系统默认程序
+            _open_windows(path)
         else:
             subprocess.Popen(["xdg-open", path], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         return f"已打开: {path}" if lang == "zh" else f"Opened: {path}", None
@@ -203,19 +291,19 @@ def launch_app(name, target=None, lang="zh"):
                 cmd.append(target)
             subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         elif SYSTEM == "Windows":
-            # Windows 某些应用支持直接传目标，某些用 start
+            app = _normalize_windows_app(app)
             if target:
-                # 如果是 URL，直接用 start；如果是文件，用应用打开
+                # URL 交给系统默认浏览器；文件则用指定应用打开
                 if target.startswith("http"):
-                    subprocess.Popen(["start", "", target], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    _startfile(target)
                 else:
-                    subprocess.Popen(["start", "", "", app, target], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                    _open_windows(target, app=app)
+            elif app.endswith(":"):
+                # URI 协议（如 ms-settings:）—— 只能由 ShellExecute 接管
+                _startfile(app)
             else:
-                # 某些 Windows 命令本身就是 URI 协议或 shell 命令
-                if app.endswith(":") or " " in app:
-                    subprocess.Popen([app], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-                else:
-                    subprocess.Popen(["start", "", app], shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                # 普通可执行名 / 带空格显示名：不经 shell
+                _launch_windows_app(app)
         else:
             # Linux
             parts = app.split()

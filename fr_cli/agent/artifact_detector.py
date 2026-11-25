@@ -5,6 +5,7 @@ AI 回复产物检测器 —— 统一检测插件/Agent 代码结构
 消除重复代码，保证行为一致性。
 """
 
+from fr_cli.core.headless import is_headless
 from fr_cli.ui.ui import RED, GREEN, YELLOW, DIM, RESET
 from fr_cli.lang.i18n import T
 from fr_cli.addon.plugin import extract_code, PLUGIN_DIR
@@ -57,6 +58,12 @@ def detect_plugin_artifact(
     if not txt or "def run(args='')" not in txt or "```python" not in txt:
         return False
 
+    # v2.8.7+:无头模式(bot / 服务端进程)不检测产物。
+    # 交互式路径会 input() 索要名称 —— 在 bot 里必然挂死或吞掉消息;
+    # 后台队列路径又会往审核队列里灌垃圾(无人审批)。
+    if is_headless(state):
+        return False
+
     code = extract_code(txt)
     if not code or "def run" not in code or len(code) <= 50:
         return False
@@ -106,6 +113,10 @@ def detect_agent_artifact(
     :return: 是否检测到并处理了 Agent
     """
     if not txt or "def run(context," not in txt or "```python" not in txt:
+        return False
+
+    # v2.8.7+:无头模式(bot / 服务端进程)不检测产物(见 detect_plugin_artifact 同处说明)
+    if is_headless(state):
         return False
 
     code = extract_code(txt)

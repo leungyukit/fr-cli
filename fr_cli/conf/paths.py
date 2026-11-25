@@ -151,6 +151,22 @@ def __getattr__(name):
     if name == "RAG_WATCHER_LOG_FILE":
         return _root_holder.value / "rag" / "watcher.log"
 
+    # Bot（统一适配层）
+    if name == "BOT_DIR":
+        return _root_holder.value / "bot"
+    if name == "BOT_CONFIG_FILE":
+        return _root_holder.value / "bot" / "config.json"
+    if name == "BOT_SESSIONS_DIR":
+        return _root_holder.value / "bot" / "sessions"
+    if name == "BOT_PID_FILE":
+        return _root_holder.value / "bot" / "bot.pid"
+    if name == "BOT_STOP_FILE":
+        return _root_holder.value / "bot" / "bot.stop"
+    if name == "BOT_LOG_FILE":
+        return _root_holder.value / "bot" / "bot.log"
+    if name == "BOT_TOKEN_FILE":
+        return _root_holder.value / "bot" / "token"
+
     raise AttributeError(f"module 'fr_cli.conf.paths' has no attribute {name!r}")
 
 

@@ -30,6 +30,12 @@ Hooks 系统 —— 类似 Claude Code 的可扩展点
   - PreToolUse 返回 exit code 2 → 阻止工具执行
   - PreToolUse 修改 stdout → 注入到工具的 args
   - PostToolUse 修改 stdout → 替换工具返回值
+
+安全边界:
+  - hook.command **只来自用户配置**（用户级/项目级 hooks.json 或 config.json
+    的 hooks 命名空间），绝不来自 AI 输出或工具返回值 —— 详见
+    `_run_command_hook()` 的说明。
+  - hook payload 只经 stdin 传 JSON，不拼进命令行。
 """
 import json
 import re
@@ -272,11 +278,39 @@ class HookManager:
 
     def _run_command_hook(self, hook: Hook, payload: Dict[str, Any],
                           timeout: int = 5) -> "HookResult":
-        """执行一个 command 类型 hook"""
+        """执行一个 command 类型 hook
+
+        为什么这里必须用 `shell=True`：
+          hook.command 是**用户自己在配置里写的 shell 命令**（等价于
+          `.git/hooks` 的语义 —— 命令行本身就是用户想要执行的东西）。
+          改成 `shlex.split` + `shell=False` 会破坏 "命令 | 管道 | 重定向"
+          这类用户明确依赖的写法，属于功能回退，因此**保留 shell=True**。
+
+        为什么这不是注入漏洞：
+          - hook.command 的来源只有三处，全部是**用户配置**：
+              1) ~/.fr_cli/hooks.json（用户级）
+              2) <cwd>/.fr_cli/hooks.json（项目级）
+              3) cfg["hooks"]（~/.fr_cli/config.json 的命名空间）
+            全仓 grep 确认：没有任何 AI 输出、工具返回值或网络响应会流入
+            hook.command；`Hook` 对象只在 `_load()` / `_load_file()` 里由配置
+            反序列化产生，`add_hook()` 仅供程序内注册使用。
+          - payload（工具名 / 参数 / 结果）**只走 stdin**（JSON），
+            绝不拼进命令行 → 即使 payload 含 `;` / `&&` 也不会被 shell 解释。
+          - 命令本身要执行什么，完全由用户自己写在配置里，等价于用户亲手
+            在终端敲这条命令 —— 这是功能语义，不是提权。
+
+        若将来要支持"来自 AI 的 hook"（例如让模型生成一条 hook 命令），
+        必须先在源头加固，至少包括：
+          1. 独立的用户确认步骤（不能复用普通工具的 sec_* 确认）；
+          2. 命令白名单 / 签名校验，拒绝任意命令；
+          3. 独立沙箱执行（资源限额 + 超时 + 最小环境变量），
+             不与主进程共享凭据；
+          4. 明确区分"用户配置的 hook"与"AI 生成的 hook"，后者禁止默认开启。
+        """
         if hook.type != "command" or not hook.command:
             return HookResult(blocked=False)
 
-        # payload 作为 JSON 通过 stdin 传给 hook
+        # payload 作为 JSON 通过 stdin 传给 hook（不拼进命令行，避免注入）
         try:
             proc = subprocess.run(
                 hook.command,

@@ -42,6 +42,12 @@ def _default_config():
         "thinking_mode": "direct",
         "mcp": {"servers": []},
         "providers": {},
+        # v2.8.7(P1-6)：MasterAgent ReAct 循环的运行时预算
+        "master": {
+            "max_steps": 8,          # 单次任务最大工具调用步数
+            "max_repeat_calls": 3,  # 同一 tool+params 累计成功几次即判定死循环
+            "step_retries": 1,      # 单步工具失败后的重试次数
+        },
         # v3 新增：默认/备用模型（启动时优先用 default，default 不可用则降级到 backup）
         # 为空字符串表示"未设置"，启动时会进入向导引导配置
         "default_provider": "",
@@ -63,10 +69,21 @@ def _default_config():
         },
         "banner_enabled": True,
         "splash_enabled": True,
+        # v2.8.7(UX):首次启动的"快速上手"卡片是否已展示过
+        "onboarding_card_shown": False,
         "splash_cols": 50,
         "splash_bg_threshold": 30,
         "context_compress_threshold": 4000,
         "context_compress_keep_recent": 5,
+        # v2.8.7(P1-5):早期对话分层摘要的段数(1 = 退回单段合并的旧行为)
+        "context_compress_tiers": 3,
+        # v2.8.7(P0-2):LLM 单次请求超时秒数（0/None → 用客户端默认 60）
+        # 瞬时错误（网络抖动/限流/5xx）会自动指数退避重试，重试次数由
+        # fr_cli.core.llm.resilience.DEFAULT_RETRY 控制
+        "llm_timeout": 0,
+        # v3.1 新增：蜂群（swarm）整体超时秒数（0/None → 用默认 60）
+        # 到达 deadline 后立即返回，未完成任务以超时条目返回（部分失败语义）
+        "swarm_timeout": 60,
         # v3 新增：是否跳过首次启动向导（手动配置后置位）
         "model_wizard_skipped": False,
         # v3.1 新增:/start 5 步向导完成标志(避免重复弹)
@@ -191,6 +208,34 @@ def save_config(c):
 class ConfigError(Exception):
     """配置初始化异常（替代 exit，避免作为库导入时终止进程）"""
     pass
+
+
+def save_config_merge(c):
+    """合并式保存：读磁盘上的完整配置，用 ``c`` 的键覆盖后整份写回。
+
+    与 :func:`save_config` 的区别在于语义：
+
+    - ``save_config(c)`` 是**整文件替换** —— ``c`` 里没有的键，磁盘上那些键就没了。
+      传一个局部字典进去，等于把用户其余配置全部抹掉。
+    - ``save_config_merge(c)`` 先读磁盘上的现有配置，再逐键覆盖，
+      因此"只改一个字段"的场景不会误删其他字段。
+
+    典型用法：设置一次性标记（如 ``onboarding_card_shown``）。
+
+    Args:
+        c: 要合并进磁盘配置的字典，只需包含要改的字段
+
+    Returns:
+        bool: 是否保存成功
+    """
+    try:
+        # 文件不存在时不做"使用默认配置"的提示，直接以传入字典为准
+        disk = load_config() if _paths.CONFIG_FILE.exists() else {}
+        disk.update(c or {})
+        return save_config(disk)
+    except Exception as e:
+        print(f"{RED}[x] 合并保存配置失败: {e}{RESET}")
+        return False
 
 
 def load_namespace(key, default=None, old_path=None):

@@ -589,34 +589,38 @@ ruff check fr_cli tests
 
 ### 测试覆盖
 
-项目共有 **745+ 个测试用例**,覆盖核心模块:
+项目共有 **2563 个测试用例**(12 个按依赖跳过),覆盖核心模块:
 
 | 测试文件 | 数量 | 覆盖范围 |
 |---------|------|---------|
 | `test_remote.py` | 10 | SSH / SCP(本地 mock server) |
 | `test_rag.py` | 37 | RAG 知识库(文件读取/分块/入库/同步/query/守护) |
-| `test_spider.py` | 28 | @spider 智能爬虫(链接提取/反爬检测/自适应) |
-| `test_ocr.py` | 22 | OCR 文字识别(Vision/PDF/格式检测) |
-| `test_fs.py` | 26 | VFS 文件沙盒(路径解析/读写/../ 逃逸防护) |
+| `test_spider.py` | 21 | @spider 智能爬虫(链接提取/反爬检测/自适应) |
+| `test_ocr.py` | 44 | OCR 文字识别(Vision/PDF/格式检测) |
+| `test_fs.py` | 29 | VFS 文件沙盒(路径解析/读写/../ 逃逸防护) |
 | `test_security.py` | 17 | 4 阶安全确认(manual/sandbox_auto/full_auto) |
-| `test_cron.py` | 15 | CronManager(添加/删除/列表/shlex 安全) |
+| `test_cron.py` | 24 | CronManager(添加/删除/列表/shlex 安全) |
 | `test_charts.py` | 17 | 控制台图表(bar/pie/line) |
 | `test_network.py` | 13 | 网络探测(ping/port_scan/ip_scan) |
-| `test_web.py` | 16 | WebRaider 搜索 + SSRF 防护 |
+| `test_web.py` | 17 | WebRaider 搜索 + SSRF 防护 |
 | `test_history.py` | 12 | 会话历史(保存/加载/导出 Markdown) |
 | `test_context.py` | 13 | 上下文记忆(摘要/最近轮) |
-| `test_result.py` | 19 | Result 统一返回风格 |
-| `test_store.py` | 19 | JsonStore 原子持久化 |
-| `test_dataframe.py` | 9 | Excel/CSV 读取 |
-| `test_project_memory.py` | 18 | 项目记忆加载(.frcli.md/AGENTS.md/CLAUDE.md) |
-| `test_multi_edit.py` | 13 | 原子多文件编辑 |
+| `test_result.py` | 21 | Result 统一返回风格 |
+| `test_store.py` | 17 | JsonStore 原子持久化 |
+| `test_dataframe.py` | 11 | Excel/CSV 读取 |
+| `test_project_memory.py` | 19 | 项目记忆加载(.frcli.md/AGENTS.md/CLAUDE.md) |
+| `test_multi_edit.py` | 16 | 原子多文件编辑 |
 | `test_git_tools.py` | 31 | Git 集成(7 个工具,真实 git 仓库) |
-| `test_skills.py` | 21 | Skill 系统(解析/发现/触发词) |
-| `test_hooks.py` | 28 | Hooks 系统(Pre/Post/UserPromptSubmit) |
+| `test_skills.py` | 22 | Skill 系统(解析/发现/触发词) |
+| `test_hooks.py` | 30 | Hooks 系统(Pre/Post/UserPromptSubmit) |
 | `test_permissions.py` | 26 | Per-tool 权限 + path rules |
 | `test_plan_mode.py` | 15 | Plan mode(EnterPlanMode/edit/show) |
-| `test_voice.py` | 18 | Voice / TTS(matrix MCP 集成) |
-| 其他 | ~450 | 既有测试(MasterAgent/Hermes/Swarm/MCP 等) |
+| `test_voice.py` | 17 | Voice / TTS(matrix MCP 集成) |
+| `test_display_ux.py` | 39 | 显示层(颜色活引用/语法高亮/折叠/状态栏/@补全/上手卡片) |
+| `test_ux_backlog.py` | 26 | UX 欠账(token 口径/多行粘贴/模糊建议/并行工具/增量持久化) |
+| `test_dynamic_sandbox.py` | 84 | `/build` 动态工具子进程沙盒 |
+| `test_bot_core.py` | 48 | Bot 适配层(路由/去重/会话隔离/确认策略) |
+| 其他 | ~2000 | 既有测试(MasterAgent/Hermes/Swarm/MCP/事件/trace 等) |
 
 测试可在任何环境运行(RAG/OCR/SSH/SPIDER 等都用 mock 隔离外部依赖)。
 

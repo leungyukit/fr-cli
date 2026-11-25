@@ -21,6 +21,8 @@ from __future__ import annotations
 
 import copy
 
+from fr_cli.core.headless import is_headless
+from fr_cli.core.errors import report_error
 from fr_cli.lang.i18n import T
 from fr_cli.ui.ui import CYAN, RESET, YELLOW, print_styled
 
@@ -44,12 +46,18 @@ from fr_cli.core.chat.pipeline_post import _post_process  # noqa: F401 (re-expor
 
 
 def handle_ai_chat(state, u):
-    """处理 AI 正常对话流程"""
+    """处理 AI 正常对话流程
+
+    v2.8.7+:无头模式(bot / 服务端进程)下不向 stdout 输出,
+    回复正文通过 ``state.last_reply`` 回传。
+    """
+    headless = is_headless(state)
     # 模型未配置时阻止调用
     if not state.model_name:
-        print_styled(
-            f"{YELLOW}[!] 模型未配置,请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}"
-        )
+        if not headless:
+            print_styled(
+                f"{YELLOW}[!] 模型未配置,请使用 {CYAN}/model <模型名>{YELLOW} 或 {CYAN}/model config{YELLOW} 选择模型。{RESET}"
+            )
         return
 
     return _route_mode(state, u)
@@ -66,7 +74,15 @@ def _route_mode(state, u):
     if getattr(state, "master_agent", None) and state.master_agent.is_enabled():
         # 交互模式下 master_loop 已流式输出(markdown 实时渲染),这里不再重复打印;
         # Hermes 后台隔离运行走 silent,返回值由调用方存入任务结果
-        state.master_agent.handle(u)
+        result = state.master_agent.handle(u)
+        # v2.8.7+:捕获回复正文(无头模式下 master_loop 不打印,必须从这里取)
+        if isinstance(result, tuple) and result:
+            try:
+                state.last_reply = result[0] or ""
+            except Exception:
+                pass
+        elif isinstance(result, str):
+            state.last_reply = result
         return
 
     return _direct_chat(state, u)
@@ -88,7 +104,8 @@ def _direct_chat(state, u):
     system_content = _assemble_prompt(state, u, intent, tools, reasoning_text, lang)
 
     # 更新系统提示词
-    updated_messages = copy.deepcopy(state.messages)
+    # v2.8.7+:走加锁访问器,避免与后台 worker 线程竞态
+    updated_messages = copy.deepcopy(state.get_messages())
     if not updated_messages or updated_messages[0]["role"] != "system":
         updated_messages.insert(0, {"role": "system", "content": system_content})
     else:
@@ -106,7 +123,15 @@ def _direct_chat(state, u):
     # 流式调用 + 命令执行 + 多源汇总
     txt, usage, response_time = _stream_and_respond(state, updated_messages, u, lang)
     if txt is None:
+        # 流式调用失败:pipeline_respond 已广播 llm.failed,
+        # 这里再补一条 error.occurred,让错误账本(ErrorLedger)也能收单
+        report_error(RuntimeError("LLM 流式调用失败"), source="chat", stage="stream")
         return  # 流式调用失败
 
     # 收尾:统计 / 推荐 / 产物检测 / 记忆 / 存档
-    return _post_process(state, updated_messages, txt, usage, response_time, u, lang)
+    try:
+        return _post_process(state, updated_messages, txt, usage, response_time, u, lang)
+    except Exception as exc:
+        # v3.0+:错误集中上报(error.occurred)—— 异常照旧向上抛,只多一条事件
+        report_error(exc, source="chat", stage="post_process")
+        raise

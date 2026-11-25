@@ -22,12 +22,14 @@ from typing import Any, Optional, Tuple
 class Result:
     """统一结果容器"""
 
-    __slots__ = ("_ok", "_data", "_error")
+    __slots__ = ("_ok", "_data", "_error", "_error_type")
 
-    def __init__(self, ok: bool, data: Any = None, error: Optional[str] = None):
+    def __init__(self, ok: bool, data: Any = None, error: Optional[str] = None,
+                 error_type: Optional[str] = None):
         self._ok = ok
         self._data = data
         self._error = error
+        self._error_type = error_type
 
     @staticmethod
     def ok(data: Any = None) -> "Result":
@@ -35,9 +37,19 @@ class Result:
         return Result(True, data, None)
 
     @staticmethod
-    def fail(error: str) -> "Result":
-        """构造失败结果"""
-        return Result(False, None, error)
+    def fail(error: str, data: Any = None, error_type: Optional[str] = None) -> "Result":
+        """构造失败结果
+
+        Args:
+            error: 错误描述
+            data:  可选的**部分结果** —— 用于"整体失败但已成功部分要保留"的
+                   场景（如 workflow 某步失败，前面步骤的结果不能丢）。
+                   默认 None，与旧行为一致。
+            error_type: 可选的**异常类型名**（如 "FileNotFoundError"）。
+                   v2.8.7(P2-6)：此前异常被吞成 str(e)，错误账本只能靠事后
+                   字符串匹配来分类；带上类型名才能做真正的分类统计。
+        """
+        return Result(False, data, error, error_type)
 
     @property
     def data(self) -> Any:
@@ -46,6 +58,11 @@ class Result:
     @property
     def error(self) -> Optional[str]:
         return self._error
+
+    @property
+    def error_type(self) -> Optional[str]:
+        """失败时的异常类型名（成功时为 None）"""
+        return self._error_type
 
     def is_ok(self) -> bool:
         return self._ok
@@ -81,4 +98,6 @@ class Result:
     def __repr__(self) -> str:
         if self._ok:
             return f"Result.ok({self._data!r})"
+        if self._error_type:
+            return f"Result.fail({self._error!r}, error_type={self._error_type!r})"
         return f"Result.fail({self._error!r})"

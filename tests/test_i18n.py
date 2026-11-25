@@ -96,7 +96,7 @@ class TestEdgeCases:
     def test_none_key(self):
         """None key 应不崩"""
         try:
-            result = T(None, "zh")
+            T(None, "zh")
             # 不崩即可
         except (TypeError, AttributeError):
             pass  # 抛异常也可

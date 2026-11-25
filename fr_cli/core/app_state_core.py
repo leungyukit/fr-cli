@@ -38,6 +38,8 @@ class AppStateCoreMixin:
         self.ui_mode = cfg.get("ui_mode", "dev")
         self.context_compress_threshold = cfg.get("context_compress_threshold", 4000)
         self.context_compress_keep_recent = cfg.get("context_compress_keep_recent", 5)
+        # v2.8.7(P1-5):早期对话分层摘要段数(1 = 单段合并的旧行为)
+        self.context_compress_tiers = cfg.get("context_compress_tiers", 3)
 
         # 计划模式运行时状态
         self.active_plan = None
@@ -56,6 +58,13 @@ class AppStateCoreMixin:
         # 运行时消息 / 上下文
         self.messages = []
         self.context_summary = ""
+        # v2.8.7+:无头模式 —— bot / 服务端进程场景。
+        # 开启后:对话流水线不再向 stdout 输出(流式/统计/推荐/工具结果),
+        # 跳过交互式产物检测(它会 input() 索要名称,必然挂死),
+        # 且不把上下文摘要写进全局 config.json(那是多用户串台源头)。
+        # 回复正文通过 state.last_reply 回传。
+        self.headless = bool(cfg.get("headless", False))
+        self.last_reply = ""
         from fr_cli.weapon.loader import load_weapon_md
         self.weapon_tools, self.weapon_triggers = load_weapon_md()
         self.mcp_tools = []
@@ -99,11 +108,38 @@ class AppStateCoreMixin:
         self.hermes = HermesEngine(state_provider=lambda: self)
 
         self._lock = threading.RLock()
+        # v2.8.7+:消息列表专用锁。
+        # 原先 state.messages 的读-改-写完全无锁保护,却有 4 个写点
+        # (pipeline_post 整体替换 / master_loop append / base.py append / bang.py append),
+        # 而 repl/queue.py 的 worker 线程会并发操作同一份 messages ——
+        # 多用户 bot 场景下必然交错(A 的 user 消息混进 B 的 assistant 列表)。
+        self._messages_lock = threading.RLock()
 
         # 启动钩子
         self._warmup_client_async()
         self._bootstrap_dynamic_tools()
         self._restore_cron_jobs()
+
+    # ---------- 消息列表的受控访问（线程安全）----------
+
+    def get_messages(self):
+        """取消息列表快照（加锁）。"""
+        with self._messages_lock:
+            return list(self.messages)
+
+    def set_messages(self, messages):
+        """整体替换消息列表（加锁）。"""
+        with self._messages_lock:
+            self.messages = messages
+
+    def append_message(self, message):
+        """追加一条消息（加锁）。"""
+        with self._messages_lock:
+            self.messages.append(message)
+
+    def message_lock(self):
+        """返回消息锁，供需要多步原子操作的调用方使用。"""
+        return self._messages_lock
 
     def _init_llm_client(self, cfg):
         """初始化 LLM 客户端(由 client mixin 覆盖)"""
@@ -150,6 +186,23 @@ class AppStateCoreMixin:
         self.disk_c = CloudDisk(cfg.get("disk", {}))
         self.security = SecurityManager(self.lang, cfg)
         self.mcp = MCPManager(cfg=cfg)
+        # v2.8.7+:把 MCP 工具接入统一注册表 —— AI 可直接用
+        # 【调用：mcp_<server>_<tool>({...})】调用外部神通,
+        # 不再只能走 mcp:server/tool 前缀(蜂群)或 mcp_call 通用入口。
+        #
+        # **在后台线程里做**:MCP server 可能不可达,实时发现每个 server 最多
+        # 阻塞 tool_fetch_timeout 秒。同步做会拖慢启动(bot 守护进程尤其致命),
+        # 也会让每轮对话的 prompt 组装等待网络。
+        # 后台预热同时填充 manager 的工具缓存,system prompt 组装只读缓存。
+        try:
+            import threading as _threading
+            from fr_cli.command.registered.mcp_tools import register_mcp_tools
+            _threading.Thread(
+                target=register_mcp_tools, args=(self.mcp,),
+                daemon=True, name="fr-cli-mcp-discovery",
+            ).start()
+        except Exception:
+            pass
 
     # ---------------- 显示属性 ----------------
 
@@ -176,11 +229,16 @@ class AppStateCoreMixin:
     # ---------------- 启动钩子 ----------------
 
     def _restore_cron_jobs(self):
-        """从 ~/.fr_cli/cron.json 恢复定时任务"""
+        """从 ~/.fr_cli/config.json 的 cron 命名空间恢复定时任务
+
+        必须恢复进**全局默认管理器** —— /cron_list、/status、gatekeeper
+        同步读的都是它。恢复进临时实例的话任务虽然还在跑，却谁都看不见
+        （历史行为：新建 CronManager() 恢复 → 任务成了"孤儿"）。
+        """
         try:
-            from fr_cli.weapon.cron import CronManager
+            from fr_cli.weapon.cron import _default_manager
             state_provider = lambda: self
-            CronManager().load_persistent_jobs(lang=self.lang, state_provider=state_provider)
+            _default_manager.load_persistent_jobs(lang=self.lang, state_provider=state_provider)
         except Exception:
             pass
 

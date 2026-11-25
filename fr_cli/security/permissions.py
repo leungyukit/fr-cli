@@ -76,6 +76,24 @@ class PermissionManager:
         # 5. fallthrough 到 sec_*
         return "fallthrough"
 
+    def check_tool_permission(self, tool_name: str, tool_args: Optional[Dict[str, Any]] = None) -> Optional[bool]:
+        """tool 级权限判定（注册表接入点）。
+
+        与 :meth:`check_tool` 的四态输出对应, 但只暴露"是否直接放行":
+
+        Returns:
+            True  = 允许(无需确认)
+            False = 拒绝
+            None  = 未命中 tool 级规则(走 sec_* 正常流程)
+                    —— "ask" 也归入此类: 仍然要问, 只是问题由调用方决定用哪个 sec_* 类别。
+        """
+        decision = self.check_tool(tool_name, tool_args or {})
+        if decision == "allow":
+            return True
+        if decision == "deny":
+            return False
+        return None
+
     def _check_path_rules(self, tool_name: str, tool_args: Dict[str, Any]) -> str:
         """检查路径规则
 

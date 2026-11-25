@@ -4,6 +4,7 @@ MasterAgent 存储层：配置文件路径、默认值、文件 I/O、错误分�
 将 master.py 中的工具方法抽出来，让主类 MasterAgent 只关注 ReAct 循环。
 """
 import json
+import os
 import threading
 from datetime import datetime
 from pathlib import Path
@@ -128,6 +129,41 @@ def _ensure_master_dir():
     MASTER_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _atomic_write(path: Path, content: str) -> None:
+    """原子写文本文件：写同目录临时文件 → os.replace() 原子替换 → 清理临时文件。
+
+    v3.1 变更：旧实现直接 ``open(path, "w")`` 覆写，写到一半崩溃会留下半个 JSON，
+    下次读取直接抛错，MasterAgent 初始化失败。
+
+    实现要点：
+    1) 临时文件与目标文件**同目录**（同一文件系统，rename 才是原子的）；
+    2) 临时文件名用 ``path.name + ".tmp"``（追加后缀而非 ``with_suffix`` 替换后缀），
+       不会与真实文件冲突，不同目标文件各用各的临时名，不会互相踩；
+    3) ``os.replace()`` 在同一文件系统上是原子操作；
+    4) fsync 尽力而为：部分文件系统不支持，失败不影响原子性保证。
+    """
+    tmp_path = path.with_name(path.name + ".tmp")
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(tmp_path, "w", encoding="utf-8") as f:
+            f.write(content)
+            f.flush()
+            try:
+                os.fsync(f.fileno())
+            except (OSError, ValueError, AttributeError):
+                # 某些文件系统/句柄不支持 fsync —— 原子性由 os.replace 保证，忽略
+                pass
+        os.replace(tmp_path, path)
+    except Exception:
+        # 失败时清掉临时文件，原文件保持不变（未被动过）
+        try:
+            if tmp_path.exists():
+                tmp_path.unlink()
+        except OSError:
+            pass
+        raise
+
+
 def _load_json(path: Path, default=None):
     with _master_io_lock:
         if path.exists():
@@ -142,30 +178,38 @@ def _load_json(path: Path, default=None):
 def _save_json(path: Path, data):
     with _master_io_lock:
         _ensure_master_dir()
+        # 先序列化再落盘：序列化失败时原文件完全不受影响
         try:
-            with open(path, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False, indent=2)
+            payload = json.dumps(data, ensure_ascii=False, indent=2)
+        except Exception as e:
+            raise RuntimeError(f"写入 {path} 失败: {e}") from e
+        try:
+            _atomic_write(path, payload)
         except Exception as e:
             raise RuntimeError(f"写入 {path} 失败: {e}") from e
 
 
 def _load_text(path: Path, default: str = ""):
-    if path.exists():
-        try:
-            with open(path, "r", encoding="utf-8") as f:
-                return f.read()
-        except Exception:
-            pass
-    return default
+    # v3.1：与 JSON 读写共用同一把锁，避免读写交叉
+    with _master_io_lock:
+        if path.exists():
+            try:
+                with open(path, "r", encoding="utf-8") as f:
+                    return f.read()
+            except Exception:
+                pass
+        return default
 
 
 def _save_text(path: Path, content: str):
-    _ensure_master_dir()
-    try:
-        with open(path, "w", encoding="utf-8") as f:
-            f.write(content)
-    except Exception:
-        pass
+    # v3.1：改为原子写（只修原子性，不改"异常静默"这一既有行为：
+    # 人设/技能文件写失败时保持静默，不打断 MasterAgent 启动）
+    with _master_io_lock:
+        _ensure_master_dir()
+        try:
+            _atomic_write(path, content)
+        except Exception:
+            pass
 
 
 def _ensure_all_master_files():

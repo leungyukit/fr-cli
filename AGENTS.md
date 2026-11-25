@@ -95,6 +95,7 @@ fr-cli/
 │   │   ├── queue.py            # 对话队列与连续输入
 │   │   ├── bootstrap.py        # 启动引导
 │   │   ├── actions.py          # e/r/u 快捷键处理
+│   │   ├── paste.py            # 多行粘贴降级（/paste：读到 EOF 整段作为一条消息）
 │   │   └── commands/           # REPL 命令处理器（从 main.py 拆分，架构解耦）
 │   │       ├── _common.py      #   公共工具与基类
 │   │       ├── base.py / agent.py / cron.py / fs.py ...  # 各分类命令处理器
@@ -104,7 +105,7 @@ fr-cli/
 │   │   └── plugin.py           # 插件进化引擎：扫描、落盘、子进程隔离执行（runpy+json.dumps）
 │   ├── breakthrough/
 │   │   └── update.py           # 自动更新：查询远程版本、下载 ZIP、备份替换、重启
-│   ├── dynamic_builder/        # 动态构建系统（按需安装依赖并生成工具）
+│   ├── dynamic_builder/        # 动态构建系统（按需安装依赖并生成工具）+ 子进程沙箱
 │   └── gatekeeper/             # Gatekeeper 守护
 │   ├── command/
 │   │   ├── executor.py         # 命令执行引擎：解析 AI 调用标记并调度到注册表
@@ -122,8 +123,15 @@ fr-cli/
 │   │   ├── intent.py           # 用户意图判定
 │   │   ├── thinking.py         # 思维模式引擎（CoT/ToT/ReAct/Plan）
 │   │   ├── plan.py             # 计划模式
-│   │   ├── stream.py           # 流式输出与代码块高亮
+│   │   ├── stream.py           # 流式输出与代码块高亮（LLM 调用的唯一漏斗：重试/降级/事件派发/function calling 都在这里）
+│   │   ├── steering.py         # 流式期间交互：转向指令的暂存与取走（Ctrl+S）
+│   │   ├── collapse.py         # 折叠内容登记表：被折叠的长内容可按 Ctrl+O 找回
+│   │   ├── trace.py            # trace/span：一次调用链的关联 ID 与埋点
 │   │   ├── llm.py              # 多模型客户端抽象
+│   │   ├── llm/                # 多模型客户端实现（base / zhipu / openai_compat / mock ...）
+│   │   │   ├── base.py           #   客户端基类（SUPPORTS_TOOLS、stream_chat 的 tools/tool_choice）
+│   │   │   ├── resilience.py     #   错误分类 + 指数退避重试 + 备用模型降级
+│   │   │   └── function_calling.py # 原生 tools 协议：分片归并、schema 导出、tool 消息回填
 │   │   ├── model_factory.py    # 模型工厂
 │   │   ├── result.py           # 统一返回风格容器
 │   │   ├── store.py            # JsonStore 持久化抽象
@@ -137,7 +145,8 @@ fr-cli/
 │   │       └── en.py           # 英文翻译字典
 │   ├── memory/
 │   │   ├── history.py          # 会话历史保存、加载、删除、导出 Markdown
-│   │   ├── session.py          # 按日期自动存档会话
+│   │   ├── session.py          # 按日期自动存档会话（增量写：snapshot + delta）
+│   │   ├── incremental.py      # 会话增量持久化：增量写 + 周期全量快照 + 合并读取
 │   │   └── context.py          # 上下文记忆：最近 5 轮摘要注入 system prompt
 │   ├── security/
 │   │   └── security.py         # 四阶安全确认引擎（Y/A/F/N）
@@ -145,10 +154,11 @@ fr-cli/
 │   │   ├── ui.py               # 终端颜色常量、清屏、显示宽度计算、启动动画
 │   │   ├── prompt/             # prompt_toolkit TUI 输入（拆包：status/completer/tui/fallback）
 │   │   ├── banner.py           # 启动 banner
-│   │   ├── buddha.py           # ASCII 佛像启动画面（禅定印，25 行纯字符构图）
-│   │   └── markdown.py         # 轻量级 Markdown → ANSI 终端渲染器
+│   │   ├── hanli.py            # 韩立角色 ASCII 字符画启动画面（半块真彩色）
+│   │   ├── syntax.py           # 轻量代码语法高亮（零依赖，代码块着色）
+│   │   └── markdown_stream.py   # 流式 Markdown → ANSI 终端渲染器
 │   └── weapon/                 # 武器库/扩展子系统
-│       ├── cron.py             # 定时任务（CronManager 类，threading.Timer）
+│       ├── cron.py             # 定时任务（CronManager 类，threading.Timer；默认管理器是唯一真相源，stop()/stop_all() 收计时器）
 │       ├── disk.py             # 云盘适配器
 │       ├── fs.py               # 虚拟文件系统 VFS（路径沙盒、防 ../ 逃逸）
 │       ├── loader.py           # 工具加载器（从注册表动态生成，兼容旧 WEAPON.MD 格式）
@@ -226,11 +236,13 @@ python fr_cli/breakthrough/update.py run
 
 ### Docker 部署
 
-项目已内置 `Dockerfile` 与 `docker-compose.yml`，支持在容器环境中运行。
+项目已内置 `docker/Dockerfile` 与 `docker/docker-compose.yml`，支持在容器环境中运行。
+（注意这两个文件在 **`docker/` 目录下**，构建上下文必须是仓库根目录 —— Dockerfile 里的
+`COPY pyproject.toml / fr_cli/` 是按根目录布局写的。）
 
 ```bash
-# 构建镜像
-docker build -t fr-cli .
+# 构建镜像（-f 指定 Dockerfile，末尾的 "." 是构建上下文 = 仓库根）
+docker build -t fr-cli -f docker/Dockerfile .
 
 # 运行（交互式终端，需挂载配置卷以持久化数据）
 docker run -it \
@@ -238,8 +250,8 @@ docker run -it \
   -v $(pwd):/app/workspace \
   fr-cli
 
-# 或使用 Docker Compose（推荐）
-docker compose up fr-cli
+# 或使用 Docker Compose（推荐，compose 文件里的 context 已指向仓库根）
+docker compose -f docker/docker-compose.yml up fr-cli
 ```
 
 > 注意：首次运行需在交互中输入 Zhipu API Key，配置会自动写入挂载的配置文件。
@@ -296,6 +308,9 @@ docker compose up fr-cli
 - **`core/result.py`**：`Result` —— 统一错误返回风格容器
   - 替代 `(result, error)` / `(success, message)` / 抛异常 / 静默返回 等多种风格
   - 新增代码优先使用 `Result.ok(data)` / `Result.fail(error)`，旧接口可用 `to_tuple()` / `from_tuple()` 兼容
+  - `Result.fail(error, data=None, error_type=None)`：`data` 用于"整体失败但已成功部分要保留"
+    （如 workflow 某步失败）；`error_type` 保留**异常类型名**（如 `FileNotFoundError`）——
+    此前异常被压成纯字符串，错误账本只能靠事后字符串匹配分类，等于没有分类
   - `command/registry.py`、`command/executor.py`、VFS、网络/邮件/云盘/远程、Agent 执行链路（client/executor/workflow/dispatch）、更新模块（breakthrough/update.py）、Agent HTTP 服务（agent/server.py）等已迁移为 `Result` 风格
   - 自动记录 provider/model/tokens/cost
   - 持久化到 `~/.fr_cli/usage.json`，支持 `/usage [days]` 汇总查询
@@ -336,7 +351,7 @@ main.py
    - 若禁用 → 继续传统流式对话流程
 3. 组装 `messages`（system prompt + 工具清单 + 上下文摘要 + 历史）。
 4. 通过 `should_inject_tools()` 判定是否需要注入工具信息。
-5. 调用 `stream_cnt()`→ 逐 token 输出到 stdout。
+5. 调用 `stream_cnt()`→ 逐 token 输出到 stdout（思考与答案分离，见下节）。
 6. 收到完整回复后，`executor.process_ai_commands()` 解析调用标记：
    - `【调用：tool_name({"参数": "值"})】`→ `registry.dispatch()`→ 执行 handler
    - `【命令：/command args】`→ `registry.dispatch_cmd()`→ 执行同一 handler
@@ -345,6 +360,112 @@ main.py
 9. 显示 token 统计，并将用量（provider/model/tokens/cost）持久化到 `~/.fr_cli/usage.json`；显示功能推荐；若检测到代码块则提示"是否祭炼为法宝"。
 10. 提取最近 5 轮对话，生成摘要，持久化到 `~/.fr_cli/context.json`。
 11. 自动存档：若首次输入则创建 `~/.fr_cli/sessions/auto/YYYY-MM-DD_NN.json`，否则增量更新。
+
+### 推理模型：思考与答案分离
+
+推理模型（stepfun step-5 / GLM thinking 系 / 火山方舟 thinking 系）在 OpenAI 兼容协议里
+把**思考过程**下发到 `delta.reasoning_content`，把**最终答案**下发到 `delta.content`。
+两者一旦被拼成同一段文本，思考就会：
+
+- 被当成答案写进历史 / 记忆 / `context.json` 摘要 → 污染后续每一轮的上下文；
+- 混进 `/build` 的代码抽取 → 散文被喂给 `exec()`。
+
+当前实现（v2.8.7 第四阶段）：
+
+| 位置 | 职责 |
+|---|---|
+| `core/llm/base.py::_yield_chunks` | `content` 语义**完全不变**（既有调用方与测试零影响）；仅当正文实际取自 `reasoning_content` 时追加 `reasoning: True` 标记。同包并存时以 `content` 为准（`content` 才是答案） |
+| `core/stream.py::stream_cnt` | `reasoning=True` 的分片计入独立的 `reasoning_text`，**不计入返回的 `text`**（答案才进历史/记忆）；终端显示路径不变 —— 思考照常可见 |
+| 同上，兜底 | 返回时若 `text` 为空而 `reasoning_text` 非空 → `text = reasoning_text`。保留「答案只在 `reasoning_content`」（火山方舟 coding endpoint）的行为，避免答非所问 |
+
+> ⚠️ **诚实边界**：思考内容**仍在终端显示**，只是不再进入返回文本与历史/记忆。
+> 想彻底不显示思考，需要 provider 侧支持关闭推理，或在上层过滤 `_emit`。
+>
+> 回归测试：`tests/test_reasoning_separation.py`。
+
+### 流式期间可交互（steering）
+
+主循环是"输入 → 交给后台线程 → 立刻回到输入框"，所以**AI 生成期间输入框一直可用**。
+在这个基础上区分三种"用户想说的话"：
+
+| 用户动作 | 语义 | 落地 |
+|---|---|---|
+| Enter | **下一轮**独立对话 | 排进 `repl/queue.py` 的对话队列，当前轮结束后才开始 |
+| **Ctrl+S** | **当前轮**的追加指令 | `core/steering.py` 暂存 → 本轮内注入历史 → 模型带着新指令再答一次 |
+| Ctrl+C（生成中） | 只打断流式输出，**保留草稿** | `core/stream.py::request_interrupt()` |
+| Ctrl+C（空闲） | 清空输入行 | `event.current_buffer.reset()` |
+
+**为什么 Ctrl+S 不打断当前生成**：kimi-cli 的 steering 语义是"把新指令插进正在跑的这一轮"，
+模型下一次思考时能看到它 —— 打断会丢掉已经生成的内容，对"补充一条约束"是净损失。
+
+**注入点覆盖两条执行路径**：
+- 传统对话流水线：`core/chat/pipeline_respond.py::_run_steer_rounds`（首轮流结束后 drain，
+  有则追加 user 消息并**在本轮内再跑一次 LLM**，最多 3 轮）
+- MasterAgent ReAct 循环：`agent/master_loop.py::handle`（每轮 LLM 调用后 drain，
+  有则把 assistant 回复与转向指令一起追加进历史并 `continue` —— **优先于工具执行**，
+  新指令的优先级高于模型刚给出的行动方案）
+
+**状态栏**（`ui/prompt/status.py`）实时显示 `队列 N` 与 `↯ 转向 N`，
+由 `FanRenPrompt._sync_dynamic_status()` 从 `state._queue_mgr` 与 `core/steering.py` 读取，
+底部状态栏的 toolbar 回调驱动（生成期间 spinner 每 0.1s 触发一次 invalidate）。
+
+> ⚠️ **诚实边界**：steering 只在**当前轮**生效，不会打断已经开始的长时间工具执行
+> （如正在跑的 shell 命令）；`MAX_STEER_ROUNDS` 封顶 3 轮，防止连续按 Ctrl+S 造成无限循环。
+
+### 安全确认的输入通道（v2.8.7 修假死）
+
+工具执行跑在**后台线程**（`repl/queue.py` 的 worker），而 stdin 被**主线程**的
+prompt_toolkit 占着（raw 模式）。安全确认若在后台线程直接 `input()`，两个读者抢
+同一个 fd —— prompt_toolkit 的读取器先拿到按键，用户敲的 Y/A/F/N 全被吞进输入框，
+`input()` 永远等不到 → 终端**完全没反应**（每按一次回车只是把一条空消息塞进队列）。
+
+修法是「确认中转站」（`fr_cli/security/interactive.py`）：
+
+| 角色 | 动作 |
+|---|---|
+| 后台线程（发起确认） | `BROKER.request(key, desc)` 阻塞等答案；超时（300s）→ 按拒绝 |
+| 主线程（拥有 stdin） | 拿到用户输入后 `deliver_if_confirm(text)` 把 Y/A/F/N 送回去 |
+
+关键边界：
+
+- **只有非主线程发起的请求才走中转站** —— 主线程自己发起确认时（斜杠命令触发的高危
+  操作）此刻没有 prompt_toolkit 在读 stdin，裸 `input()` 才是对的；走中转站会自己
+  等自己（死锁）。
+- **中转站默认关闭** —— 只有 `main.py` 检测到 prompt_toolkit 会话才 `enable()`；
+  非 TTY / 批处理 / HTTP 服务 / bot 场景保持裸 `input()`，**零行为变化**。
+- **fail-closed** —— 超时、退出（`/exit`）、Ctrl+D 一律 `cancel_all()` 按拒绝处理，
+  不让后台线程死等把进程拖住。
+- **不误判授权** —— 只有 `VALID_ANSWERS`（y/yes/a/f/n/no）算确认答案，其余输入
+  一律当普通对话消息处理。
+- 状态栏（`ui/prompt/status.py`）把待确认项排在**右栏首位**（末尾会被宽度裁掉），
+  显示 `⚠ 待确认 <工具名> (Y/A/F/N)`。
+
+回归测试：`tests/test_confirm_broker.py`。
+
+### 显示层与交互（v2.8.7 重构）
+
+| 能力 | 实现位置 | 要点 |
+|---|---|---|
+| 代码块语法高亮 | `ui/syntax.py` | 零依赖（不用 pygments）；关键字/字符串/注释/数字分色；关色时**原样返回** |
+| 长回答折叠 | `ui/markdown_stream.py` | 阈值 60 行 → 「头部 + 折叠提示 + 尾部」；正常长度回答**流式体验零损失** |
+| Ctrl+O 展开 | `core/collapse.py` + `ui/prompt/tui.py` | 折叠内容进登记表（最多 5 条），Ctrl+O 原样打印回来 |
+| `@` 文件补全 | `ui/prompt/completer.py` | Agent 命中优先；否则补全单层文件/目录路径 |
+| 状态栏分栏 | `ui/prompt/status.py` | 左右分栏 + **全局优先级**裁剪（模型/忙碌状态永不丢） |
+| 上下文占用预警 | `ui/prompt/status.py` | ≥80% 黄、≥100% 红；分母是 `context_compress_threshold` |
+| 工具参数展示 | `command/executor_dispatch.py` | `_report_tool_start/_report_tool_end` 上报工具名 + 关键参数摘要 |
+| 工具来源与失败原因 | `command/executor_dispatch.py` + `ui/prompt/status.py` | 来源用 ContextVar 传递（`tool_source_scope`）；失败原因红色显示，保留到本轮结束 |
+| 首次上手卡片 | `repl/bootstrap.py::print_onboarding_card` | 只出现一次（`onboarding_card_shown` 标志）；框线按显示宽度对齐并随终端宽度自适应；含一条可抄的示例 |
+| 多行粘贴降级 | `repl/paste.py` + `main.py` | `/paste` 读到 EOF（Ctrl+D）或单独一行 `.` 为止，整段作为**一条消息**提交；现代终端靠 bracketed paste 自动生效，本命令是不支持该协议时的出路 |
+| token 显示口径 | `core/usage.py::format_token_usage` | **唯一真相源**：状态栏与回答末尾同一格式（`↓in ↑out Σtotal`）、同一占比分母 |
+
+**颜色常量是"活引用"**（`ui/ui.py::_LiveColor`）：`from fr_cli.ui.ui import RED` 拿到的是
+str 子类实例，取值时实时回读 `_COLOR_STATE`。所以运行时 `set_no_color(True)` 对
+**所有**模块生效 —— 这在旧实现里做不到（按值 import 拿到的是 import 期的副本，
+全局关色对 95 个模块无效）。`CYAN + BOLD` 这类组合返回的也是活引用。
+
+> ⚠️ **不要**在别处再写 `from fr_cli.ui.ui import RED` 然后指望运行时改色 ——
+> 现在虽然能工作，但正确姿势是 `from fr_cli.ui import ui as _ui` + `_ui.RED`
+> （PEP 562 动态代理，见 `ui/markdown_stream.py`）。
 
 ---
 
@@ -531,10 +652,43 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 4. **持久化与注册**：代码保存到 `~/.fr_cli/dynamic_tools/<name>.py`，元数据写入 `registry.json`，并立即注册到 `ToolRegistry`。
 5. **自动加载**：fr-cli 启动时自动加载所有已构建的工具。
 
+**沙箱隔离（v2.8.7 / P0-1）：**
+
+动态工具是 **LLM 生成的代码**。v2.8.6 及以前它直接在 fr-cli **主进程**里 `exec()` ——
+无沙箱、无超时、无资源限制，bot 场景下构成完整的 RCE 链（平台消息 → prompt injection → 模型调 `/build` → 任意代码在主进程执行）。
+
+v2.8.7 起改为 **父进程授权 + 子进程执行 + 能力 RPC 回代理**：
+
+```
+┌─ 父进程（fr-cli）────────────────┐        ┌─ 子进程（受限）───────────┐
+│ 静态 AST 校验                    │  stdin │ 受限 builtins（无 open）  │
+│ 安全确认 sec_exec（Y/A/F/N）       │ ─────→ │ 受限 import 守卫           │
+│ 派生子进程 + 最小环境 + rlimit    │        │  ├ vfs   真实 VFS（路径沙盒）│
+│ 宿主线程收 RPC → 用真实 deps 执行  │ ←rpc── │  ├ cfg   脱敏副本          │
+│   并按 sec_* 再走一次确认         │ stdout │  ├ security 拒绝一切       │
+└──────────────────────────────────┘        │  └ web_c/mail_c/…  ←代理───┘
+                                            │      执行 run(deps, **kw)   │
+                                            └────────────────────────────┘
+```
+
+- **静态校验**（`validate_dynamic_code`）：禁导入 `os`/`sys`/`subprocess`/`socket`/`requests`/`pathlib`/`pickle`/`fr_cli` 等；禁内置 `open`/`eval`/`exec`/`compile`/`input`；禁 `__class__`/`__globals__`/`__subclasses__` 等 dunder
+- **运行时兜底**：子进程内置 `__import__` 守卫 + 受限 builtins 字典（`open` 直接不存在）；放行模块里夹带的黑名单模块属性会被清洗（如 `logging.os`）
+- **凭证不出主进程**：`deps.cfg` 传的是脱敏副本（api key / secret / token / password 全部替换为 `***`）
+- **网络与文件只走 deps**：`deps.web_c` / `deps.mail_c` / `deps.disk_c` / `deps.client` / `deps.mcp` 是 RPC 代理，实际调用回到父进程执行，并按 `sec_fetch_web` / `sec_send_mail` / `sec_write` / `sec_exec` / `sec_mcp_call` 走**真实**确认
+- **超时与资源限额**：默认 30s（`meta["timeout"]` 可调），超时后杀掉整个进程组；子进程内设 `RLIMIT_CPU` / `RLIMIT_AS` / `RLIMIT_FSIZE` / `RLIMIT_NPROC`
+- **每次调用都要确认**：动态工具注册时 `security="sec_exec"`，走正常 Y/A/F/N 流程
+
+> ⚠️ **诚实边界**：子进程**不是**操作系统级沙箱。它仍能用自己的 Python 能力访问真实文件系统与网络（只要不写 `open()`），第三方 pip 依赖也能读写本机文件。本层提供的是 **崩溃隔离 + 超时 + 资源限额 + 凭证隔离 + 静态白名单 + import 守卫**。真正的内核级隔离需要 Landlock（Linux）/ Seatbelt（macOS），属独立议题。
+
 **代码约定：**
 
-- 动态工具必须包含 `def run(deps, **kwargs)` 函数
+- 动态工具必须包含 `def run(deps, **kwargs)` 函数（`run` 至少要能接收一个位置参数 `deps`）
 - `deps` 包含：`vfs`, `mail_c`, `web_c`, `disk_c`, `plugins`, `lang`, `security`, `cfg`, `client`, `model_name`, `mcp`
+- **沙箱内 `deps.security` 是一律拒绝的桩** —— 授权永远在父进程做，不要在工具里调用它
+- **沙箱内 `deps.client.stream_chat(...)` 返回列表**（不是生成器），遍历取 `chunk["content"]`
+- **沙箱内 `deps.cfg` 是脱敏副本**，凭证字段恒为 `***`
+- 文件操作走 `deps.vfs`（`read`/`write`/`append`/`ls`/`cd`/`exists`/`list_dirs`/`grep_text`/`delete`，语言参数传 `deps.lang`）
+- 网络访问走 `deps.web_c`（`search`/`fetch`），邮件走 `deps.mail_c`（`inbox`/`read`/`send`），云盘走 `deps.disk_c`（`ls`/`cd`/`up`/`down`）
 - 返回 `Result`，其中 `Result.error` 为 `None` 或错误字符串（仍兼容 `(result, error)` 解包）
 - `breakthrough/update.py` 与 `agent/server.py` 已加入 Result 化，HTTP 接口统一返回 `{"result": ..., "error": ...}`
 - 第三方依赖缺失时，应在函数内部捕获 `ImportError` 并返回安装提示
@@ -543,8 +697,10 @@ fr-cli 支持根据用户需求**自主安装依赖并动态生成工具**，生
 
 - `fr_cli/dynamic_builder/planner.py` — 需求规划
 - `fr_cli/dynamic_builder/dependency_manager.py` — 依赖检查/安装
-- `fr_cli/dynamic_builder/code_generator.py` — 代码生成
-- `fr_cli/dynamic_builder/registry_manager.py` — 持久化与注册
+- `fr_cli/dynamic_builder/code_generator.py` — 代码生成（prompt 含沙箱限制说明）
+- `fr_cli/dynamic_builder/registry_manager.py` — 持久化与注册（注册时静态校验，调用时进沙箱）
+- `fr_cli/dynamic_builder/sandbox.py` — 父进程侧沙箱（静态校验 / 协议编解码 / RPC 宿主 / 超时 / rlimit / 凭证脱敏）
+- `fr_cli/dynamic_builder/sandbox_worker.py` — 子进程侧执行器（受限 builtins / import 守卫 / RPC 客户端）
 - `fr_cli/dynamic_builder/runner.py` — 主流程编排
 - `fr_cli/repl/commands/build.py` — `/build` 命令
 - `fr_cli/command/registered/dynamic_build.py` — `dynamic_build` AI 工具
@@ -811,13 +967,21 @@ for step in range(8):
 
 **存储位置**：`~/.fr_cli/sessions/auto/YYYY-MM-DD_NN.json`
 
-**核心模块**：`memory/session.py`
+**核心模块**：`memory/session.py` + `memory/incremental.py`
 
 | 函数 | 说明 |
 |------|------|
 | `create_session(msgs)` | 生成 `YYYY-MM-DD_NN.json`，NN 自动递增 |
-| `update_session(path, msgs)` | 增量写入完整对话 |
+| `update_session(path, msgs)` | **增量**写入：只追加新增消息到 `.delta`，累计到阈值做一次全量 snapshot |
 | `list_sessions()` / `load_session(idx)` / `delete_session(idx)` | 管理接口 |
+
+> **存储格式 v2（增量）**：`YYYY-MM-DD_NN.json`（snapshot，标 `"version": 2`）
+> + `YYYY-MM-DD_NN.delta`（增量，每行一条消息）+ `YYYY-MM-DD_NN.meta`
+> （增量计数 / 已持久化总数）。读时合并 snapshot + delta。
+>
+> 存量 v1 文件（messages 直接躺在 json 里）首次写入时**自动迁移**；
+> `/undo` 截断历史后增量语义不成立 → **全量重写**。
+> `update_session` 内部异常时退回旧的全量写路径，**保证不丢数据**。
 
 **命令**：`/session_list`, `/session_load <idx>`, `/session_del <idx>`
 
@@ -1060,6 +1224,17 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
         "deepseek": {
             "deepseek-chat": {"prompt": 1.5, "completion": 6.0}
         }
+    },
+    # ---- v2.8.7 新增 ----
+    "llm_timeout": 0,           # LLM 单次请求超时秒数（0 → 用客户端默认 60）
+    "swarm_timeout": 60,        # 蜂群整体超时秒数（到 deadline 立即返回，未完成任务按部分失败语义上报）
+    "context_compress_threshold": 4000,  # 自动压缩阈值（0 = 关闭）
+    "context_compress_keep_recent": 5,   # 压缩时保留最近几轮
+    "context_compress_tiers": 3,         # 早期对话分层摘要的段数（1 = 单段合并的旧行为）
+    "master": {                 # MasterAgent ReAct 循环的运行时预算
+        "max_steps": 8,         # 单次任务最大工具调用步数
+        "max_repeat_calls": 3, # 同一 tool+params 累计成功几次即判定死循环
+        "step_retries": 1       # 单步工具失败后的重试次数（0 = 不重试）
     }
 }
 ```
@@ -1174,9 +1349,11 @@ pip install paddleocr paddlepaddle
 - 因历史风格保留部分忽略项：`E401`（多导入一行）、`E701/E702`（单行 if/return）、`E402`（可选依赖延迟导入）、`E501`（行长度）、`E741`（单字母变量）、`E731`（lambda 赋值）、`F403/F405`（star import）。
 - 提交前运行：
   ```bash
-  ruff check fr_cli tests
+  ruff check fr_cli tests        # 2026-11-25 起 tests/ 也纳入门禁（此前长期有 19 处报错）
   .venv/bin/python -m pytest tests/ -q
   ```
+- ⚠️ **CI 目前只门禁 `ruff check fr_cli/`**（`.github/workflows/tests.yml`）——
+  `tests/` 的 lint 靠人自觉。新增测试文件请自己跑一遍上面的命令。
 
 ---
 
@@ -1195,9 +1372,244 @@ pip install paddleocr paddlepaddle
 - `tests/test_swarm.py` — 蜂群多 Agent 协作测试
 - `tests/test_plan.py` — 计划模式测试
 - `tests/test_dynamic_builder.py` — 动态构建系统测试
-- 总计 **473 个测试全部通过**
+- `tests/test_dynamic_sandbox.py` — 动态工具子进程沙箱回归测试（隔离 / 超时 / 参数传递 / import 守卫 / 凭证脱敏 / 进程回收）
+- `tests/test_function_calling.py` — 原生 function calling（tools 透传 / 流式分片归并 / 拒绝回退 / tool 消息回填）
+- `tests/test_steering.py` — 流式期间可交互（Ctrl+S 注入 / Ctrl+C 语义拆分 / 队列深度 / 状态栏）
+- `tests/test_display_ux.py` — 显示层（颜色活引用 / 代码高亮 / 长回答折叠 + Ctrl+O / 状态栏分栏与裁剪 / @ 文件补全 / 首次上手卡片含框线对齐与"不丢配置"回归）
+- `tests/test_ux_backlog.py` — UX 欠账（token 统一口径 / `/paste` 多行粘贴 / 模糊命令建议 / 原生 FC 并行 / 安全确认互斥 / 会话增量持久化）
+- `tests/test_master_loop_limits.py` — MasterAgent ReAct 运行时预算（死循环检测 / 单步重试 / MAX_STEPS 可配）
+- `tests/test_parallel_isolation.py` — 并行工具 msgs 隔离 + Result 异常类型保留
+- `tests/test_token_estimate.py` — 中英混排 token 估算
+- `tests/test_trace.py` — trace / span 埋点
+- `tests/test_metrics_command.py` — `/metrics` 命令与事件名清单自检
+- `tests/test_cron_lifecycle.py` — 定时任务计时器停止（`stop()` / `stop_all()`）、默认管理器单一真相源、恢复幂等
+- 总计 **2300+ 个测试**（`python -m pytest tests/ -q`）
 
 测试覆盖：VFS、Security、Config、History、Plugin、Cron、Web、WeaponLoader、Recommender、CommandExecutor、ContextMemory、AIToolCallingIntegration、StructuredToolInvocation、MasterAgent、AutoSession、ThinkingModes、PlanMode、Gatekeeper
+
+### 离线评测（eval）
+
+单元测试之外还有一层**离线 eval** —— 回答"改了 prompt / 模型 / 工具描述之后，agent 是变好还是变坏"：
+
+```bash
+python tests/evals/run_evals.py
+```
+
+不需要 API key、不联网。四个指标：工具选择正确率 / 参数正确率 / 多步完成率 / 越权拦截率。
+
+---
+
+## Bot 统一适配层（v2.8.7 新增）
+
+fr-cli 此前只有**出站**通知（`weapon/notifier.py`：飞书/钉钉/企微/Slack/Discord/Telegram 的 webhook 推送），**没有任何入站通道** —— 机器人在 IM 里说话，没人听得见。
+
+本节描述「统一适配层」：上层只面向统一消息编程，平台差异全部收敛在通道实现里。
+
+### 目录结构
+
+```
+fr_cli/bot/
+├── core/                       与平台无关的核心
+│   ├── message.py              BotMessage / BotReply —— 跨平台统一消息模型
+│   ├── channel.py              Channel 抽象基类 + 通道注册表
+│   ├── router.py               路由：群里要不要理（@ 判定 / 群白名单）
+│   ├── idempotency.py          去重：平台会重投 webhook
+│   ├── session_store.py        会话隔离：按 session_key 隔离消息与摘要
+│   ├── confirm.py              安全确认：把 Y/A/F/N 搬到聊天窗口
+│   ├── confirm_broker.py       确认请求的跨线程配对
+│   ├── state_pool.py           状态池：多个会话安全共享运行时
+│   └── dispatcher.py           调度器：入站消息 → 执行 → 回复
+├── runtime/                    运行时
+│   ├── gateway.py              HTTP 网关（统一接收平台 webhook）
+│   ├── engine.py               从配置装配出全部组件
+│   ├── daemon.py               守护进程（脱离 REPL 独立运行）
+│   └── manager.py              进程启停
+└── channels/                   各平台实现
+    ├── generic.py              通用 webhook（基准实现）
+    ├── lark.py                 飞书
+    └── telegram.py             Telegram
+```
+
+### 新增一个平台
+
+只需三步，**不做任何平台特判**：
+
+1. 在 `fr_cli/bot/channels/<平台>.py` 继承 `Channel`，实现 `parse()` 与 `send()`（可选 `verify()` / `challenge_response()`）
+2. 加 `@register_channel` 装饰器登记
+3. 在 `~/.fr_cli/bot/config.json` 的 `channels` 里加一段配置
+
+```python
+@register_channel
+class MyChannel(Channel):
+    name = "myplatform"
+
+    def verify(self, headers, payload) -> bool:
+        return headers.get("x-signature") == self._expected()
+
+    def parse(self, headers, payload) -> Optional[BotMessage]:
+        return BotMessage(channel=self.name, chat_id=payload["chat"], text=payload["text"])
+
+    def send(self, reply: BotReply) -> BotReply:
+        requests.post(self.config["url"], json={"chat": reply.chat_id, "text": reply.text}, timeout=10)
+        return reply
+```
+
+### 执行链路
+
+```
+平台 webhook ──► BotGateway (POST /bot/<channel>)
+                  │ verify() → challenge_response() → parse()
+                  ▼
+               BotMessage
+                  │
+                  ▼
+               BotDispatcher
+                  │ route()        要不要理（群里是否 @ 我）
+                  │ idempotency    是不是重投
+                  │ StatePool      借一个隔离的 AppState
+                  │ handle_ai_chat 无头模式（不写 stdout）
+                  ▼
+               SessionStore      按 session_key 存回消息与摘要
+                  │
+                  ▼
+               Channel.send()     发回平台
+```
+
+### 关键设计决策
+
+| 决策 | 理由 |
+|---|---|
+| 通道接口**保持同步** | fr-cli 现有三套 HTTP 服务（`agent/server.py`、`agent/hermes_api.py`、`web/console/handler.py`）都基于标准库 `http.server` 同步模型。改成 async 要连三套一起重写 |
+| 网关用 `ThreadingHTTPServer` | `agent/server.py` 是单线程 `HTTPServer`，并发请求直接排队 |
+| **立即 ack，异步处理** | 平台 webhook 通常 3~5 秒超时，LLM 调用可能几十秒 |
+| 会话摘要**不写全局 config** | `context.summaries` 以全局 `session_name` 为 key —— 多用户场景 A 的摘要会喂给 B。bot 用自己的 `SessionStore` 按 `session_key` 隔离 |
+| 状态池而非每会话一个 AppState | 每个 AppState 构造都会 `_restore_cron_jobs()` + `_bootstrap_dynamic_tools()`，几十个会话就是几十倍开销 |
+| 确认**超时按拒绝** | fail-closed —— 没人应答时绝不放行高危操作 |
+
+### 无头模式（headless）
+
+`state.headless = True` 时，`core/chat/pipeline*.py` 会：
+
+- `stream_cnt(..., silent=True)` —— 不写 stdout
+- 不打印统计行 / 功能推荐 / 工具执行结果
+- **跳过交互式产物检测**（`agent/artifact_detector.py` 会 `input()` 索要名称，必然挂死）
+- **不写全局 `config.json` 的 `context.summaries`**
+- 回复正文通过 `state.last_reply` 回传
+
+判定统一走 `fr_cli/core/headless.py::is_headless(state)`（严格 `is True` 比较，避免测试里的 MagicMock 被当成真）。
+
+### 配置
+
+`~/.fr_cli/bot/config.json`：
+
+```json
+{
+  "host": "127.0.0.1",
+  "port": 8790,
+  "pool_size": 2,
+  "bot_names": ["凡人"],
+  "group_whitelist": [],
+  "require_mention_in_group": true,
+  "confirm_timeout": 120,
+  "dedup_ttl": 3600,
+  "channels": {
+    "lark": {"app_id": "", "app_secret": "", "verification_token": ""},
+    "telegram": {"bot_token": ""}
+  }
+}
+```
+
+### REPL 命令
+
+```
+/bot_start            启动 Bot 守护进程（别名 /bot）
+/bot_stop             停止
+/bot_status           查看状态与统计
+/bot_config           查看 / 修改配置
+/bot_channels         列出已实现的通道与配置状态
+```
+
+### 运行时文件
+
+| 文件 | 说明 |
+|---|---|
+| `~/.fr_cli/bot/config.json` | Bot 配置 |
+| `~/.fr_cli/bot/sessions/` | 会话持久化（按 session_key 隔离） |
+| `~/.fr_cli/bot/bot.pid` | 守护进程 PID |
+| `~/.fr_cli/bot/bot.stop` | 停止标记 |
+| `~/.fr_cli/bot/bot.log` | 运行日志 |
+
+---
+
+## Harness 改造（v2.8.7 新增）
+
+### 统一工具调用协议层（`core/tool_protocol.py`）
+
+**问题**：历史上 AI 工具调用有**两套独立实现**，容错强度不一致 ——
+
+| 路径 | 实现 | 容错 |
+|---|---|---|
+| 传统流式对话 | `command/executor_parse.py` | JSON → `ast.literal_eval` → 正则宽松解析（三级） |
+| ReAct / MasterAgent | `agent/master_loop.py` | 【调用：…】**只走 `json.loads`** |
+
+后果（live 实测）：同一段 AI 文本在传统路径能被兜底救回，在 ReAct 路径被**静默丢弃** —— 用户看到"AI 好像想调工具但什么都没发生"。
+
+**改造**：`core/tool_protocol.py` 成为唯一真相源，两条旧路径都改为委托。
+
+```python
+from fr_cli.core.tool_protocol import extract_calls, parse_tool_args
+
+calls = extract_calls(ai_text)      # ToolCall 列表，覆盖全部格式
+params = parse_tool_args(arg_str)    # 三级回退的参数解析
+```
+
+支持的格式：【调用：tool({...})】/ ```tool 围栏 / 裸 JSON / `<tool_call>` XML / 对象数组。
+参数解析失败会返回带 `error` 的 `ToolCall`（不静默丢弃），让上层有机会把错误反馈给模型自纠正。
+
+### 可注入的确认策略（`security/strategy.py`）
+
+原 `security/security.py::ask()` 把确认硬编码为终端 `input()` —— 无超时、无重试上限、非 TTY 下抛 EOFError。这让 fr-cli 无法作为 bot / 服务端进程运行。
+
+四种策略：
+
+| 策略 | 行为 |
+|---|---|
+| `TerminalStrategy` | 终端交互 Y/A/F/N（默认，行为与 v2.8.6 一致） |
+| `AutoDenyStrategy` | 非交互默认拒绝（fail-closed） |
+| `AutoAllowStrategy` | 全部放行（脚本 / CI） |
+| `CallbackStrategy` | 外部回调决策（bot：把问题发回聊天窗口） |
+
+`SecurityManager` 持有策略并委托，新增 `set_strategy()` 供运行时替换：
+
+```python
+state.security.set_strategy(BotConfirmStrategy(ask_user, timeout=120))
+```
+
+`ask_user(question, timeout) -> str` 由 bot 运行时注入（发消息 + 等回复）。
+
+### 并发安全
+
+| 位置 | 改动 |
+|---|---|
+| `state.messages` | 新增 `get_messages()` / `set_messages()` / `append_message()` / `message_lock()`（`core/app_state_core.py`）。原先读-改-写完全无锁却有 4 个写点 |
+| `core/usage.py` | `UsageTracker` 真正线程安全（原先自称线程安全但全文件无 `import threading`）；落盘改为**批量延迟写**（原先每次调用全量重写 10 万条 JSON） |
+| `command/registry.py` | 注册表加锁 + 遍历前取快照（动态工具运行时注册与并发 dispatch 竞态） |
+
+### MCP 全面接入
+
+- **schema 注入**：`core/chat/helpers.py::fetch_mcp_desc` 现在输出完整参数 schema（原先只列名字，模型拿不到参数定义就无法正确构造调用）
+- **修掉一处隐藏死代码**：原实现读 `srv.tools`，但 `MCPServer` dataclass 根本没有该字段 —— 真实 manager 恒返回空
+- **调用超时**：`manager_invocation.py` 用 `asyncio.wait_for` 包裹（原先完全依赖服务端自己返回）
+- **跨线程安全**：`call_tool_sync` 在已有 running event loop 的线程里不再抛 RuntimeError（改在新线程里跑）
+- **工具缓存**：`manager_tools.py` 按 server 缓存工具列表（TTL 300s），`invalidate_cache()` 手动刷新
+- **接入统一注册表**：`mcp_<server>_<tool>` 作为普通工具注册，AI 可直接调用：
+
+```
+【调用：mcp_filesystem_read_file({"path": "/tmp/a.txt"})】
+【调用：mcp_tool({"server": "fs", "tool": "read_file", "arguments": {...}})]
+```
+
+工具发现放在**后台线程**做（`app_state_core.py`）—— MCP server 可能不可达，同步发现会拖慢启动与每轮对话的 prompt 组装。
 
 ---
 
@@ -1269,6 +1681,10 @@ Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务�
   - `tempfile.mkstemp(dir=CONFIG_FILE.parent)` 创建临时文件
   - `os.chmod(fd, 0o600)` 设置仅所有者可读写
   - `os.replace(tmp, CONFIG_FILE)` 原子替换，防竞态条件和截断写入
+- ⚠️ **`save_config(c)` 是整文件替换**：`c` 里没有的键，磁盘上那些键就没了。
+  - 只改一两个字段时（如置一次性标志）必须用 **`save_config_merge(c)`**（读磁盘 → 逐键覆盖 → 整份写回），
+    否则一次局部更新就会抹掉用户其余配置（provider / API Key / 定时任务全丢）。
+  - 需要**真正删键**的流程（如 `/providers del`）继续用 `save_config`。
 
 ### 10. Agent HTTP 安全
 
@@ -1301,7 +1717,7 @@ Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务�
 | 添加 Agent HTTP 端点 | 修改 `agent/server.py` 的 `_AgentHTTPHandler`，新增路由和处理逻辑 |
 | 启动 Gatekeeper 守护进程 | 在 CLI 中输入 `/gatekeeper start`，持久化 Agent HTTP 服务 + 定时任务 + Agent 定时任务 |
 | 添加 Agent 定时任务 | 在 CLI 中输入 `/agent_cron_add <agent名称> <秒> [输入]`，Gatekeeper 后台自动执行 |
-| 修改定时任务执行逻辑 | 修改 `weapon/cron.py` 的 `CronManager._job_runner()`，支持 shell/agent 两种类型 |
+| 修改定时任务执行逻辑 | 修改 `weapon/cron.py` 的 `CronManager._execute_job()`，支持 shell/agent 两种类型。**注意**：全局默认管理器 `_default_manager` 是唯一真相源（`/cron_list`、`/status`、gatekeeper 同步都读它），不要再 `CronManager()` 新建实例 |
 | 使用蜂群调度任意任务 | `/swarm parallel agent:a,@local,tool:search_web,cmd:/ls,mcp:fs/read_file,plugin:myplugin 任务描述` |
 | 动态构建新工具 | `/build <需求描述>` 或 AI 调用 `dynamic_build({"requirement": "..."})` |
 | 上下文 Token 压缩 | `/context compress` 手动压缩；自动阈值 `/context threshold 8000`；保留轮数 `/context keep 5` |
@@ -1311,11 +1727,11 @@ Hermes 后台任务默认使用 `execution_mode="sandbox"`，等价于在任务�
 | 切换思维模式 | 在 CLI 中输入 `/mode cot|tot|react|plan`，启用 CoT/ToT/ReAct/Plan 深度推理 |
 | 修改思维引擎 | 修改 `core/thinking.py` 的 prompt 模板或 `ThinkingEngine.analyze()` 逻辑；计划模式逻辑在 `core/plan.py` |
 | 修改插件机制 | 修改 `addon/plugin.py`，保持 `def run(args='')` 的约定和子进程超时 15 秒的限制 |
-| 修改流式输出 | 修改 `core/stream.py` 的 `stream_cnt()`，注意代码块高亮状态机 |
+| 修改流式输出 | 修改 `core/stream.py` 的 `stream_cnt()`，注意代码块高亮状态机；推理模型的思考内容由 `_yield_chunks` 打 `reasoning` 标记、在此与答案分离（见「推理模型：思考与答案分离」） |
 | 修改国际化文本 | 修改 `lang/i18n.py` 的 `I18N` 字典，确保 `zh` 与 `en` 键同时存在 |
 | 添加测试 | 在 `tests/` 目录中新增或修改，运行 `python -m pytest tests/ -v` 验证 |
 | 发布新版本 | 修改 `pyproject.toml` 的 `version`，运行 `python -m build && twine upload dist/*` |
-| Docker 部署 | 使用 `docker build -t fr-cli .` 构建，`docker compose up fr-cli` 运行；配置通过卷挂载持久化 |
+| Docker 部署 | 使用 `docker build -t fr-cli -f docker/Dockerfile .` 构建，`docker compose -f docker/docker-compose.yml up fr-cli` 运行；配置通过卷挂载持久化 |
 
 ---
 

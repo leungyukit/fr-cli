@@ -6,6 +6,27 @@
 import os
 from unittest.mock import MagicMock, patch
 
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _restore_non_interactive():
+    """``run_batch`` 会把 ``FR_CLI_NON_INTERACTIVE=1`` 写进**进程环境**且不还原。
+
+    这是被既有测试固化的语义（``test_run_batch_sets_non_interactive_env`` 断言
+    调用返回后该变量仍在），所以生产代码不能改 —— 但测试里必须还原：
+    否则这个变量会永久留在进程环境里，把后续所有用例的安全确认变成
+    "一律拒绝"，表现为别的测试文件莫名失败（与 ``tests/test_security.py``
+    当初的 ``FR_CLI_BATCH_CONFIRM`` 泄漏是同一类问题）。
+    """
+    old = os.environ.pop("FR_CLI_NON_INTERACTIVE", None)
+    try:
+        yield
+    finally:
+        os.environ.pop("FR_CLI_NON_INTERACTIVE", None)
+        if old is not None:
+            os.environ["FR_CLI_NON_INTERACTIVE"] = old
+
 
 
 class TestBatchArgumentParser:

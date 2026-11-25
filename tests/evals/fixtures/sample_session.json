@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "kind": "fr_cli.llm.fixture",
+  "name": "scripted-session",
+  "calls": [
+    {
+      "model": "mock-script",
+      "messages": [
+        {
+          "role": "user",
+          "content": "第 1 轮输入"
+        }
+      ],
+      "response": "好的，我来把内容写进 a.txt。\n【调用：write_file({\"path\": \"a.txt\", \"content\": \"hello world\"})】"
+    },
+    {
+      "model": "mock-script",
+      "messages": [
+        {
+          "role": "user",
+          "content": "第 2 轮输入"
+        }
+      ],
+      "response": "已经写好了，a.txt 里现在是 hello world。"
+    }
+  ]
+}

@@ -18,7 +18,7 @@ class AppStateServicesMixin:
         """把当前 Agent HTTP / Cron 等配置同步到 Gatekeeper 配置文件"""
         try:
             from fr_cli.gatekeeper.manager import read_daemon_config
-            from fr_cli.weapon.cron import CronManager
+            from fr_cli.weapon.cron import _default_manager
 
             existing_cfg = read_daemon_config()
             agent_port = None
@@ -27,7 +27,7 @@ class AppStateServicesMixin:
 
             daemon_cfg = {
                 "agent_server_port": agent_port,
-                "cron_jobs": CronManager().export_jobs(),
+                "cron_jobs": _default_manager.export_jobs(),
                 "agent_crons": existing_cfg.get("agent_crons", []),
                 "lang": self.lang,
             }
@@ -94,8 +94,8 @@ class AppStateServicesMixin:
 
         # 5. Cron 任务数量
         try:
-            from fr_cli.weapon.cron import CronManager
-            results["cron"] = Result.ok(f"定时任务: {len(CronManager().jobs)} 个")
+            from fr_cli.weapon.cron import _default_manager
+            results["cron"] = Result.ok(f"定时任务: {len(_default_manager.jobs)} 个")
         except Exception as e:
             results["cron"] = Result.fail(f"统计失败: {e}")
 

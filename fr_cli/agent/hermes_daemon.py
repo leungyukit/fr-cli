@@ -18,9 +18,9 @@ HermesHandler 与本类零静态耦合:处理器经 self.server.daemon
 
 import os
 import secrets
-from http.server import HTTPServer
 
 from fr_cli.conf.paths import DAEMON_TOKEN_FILE
+from fr_cli.core.http_base import BaseHTTPServer
 
 from fr_cli.agent.hermes_api import (  # noqa: F401 (re-export,旧导入路径兼容)
     HermesHandler,
@@ -37,6 +37,7 @@ class HermesDaemon:
         self.host = host
         self.engine = engine
         self.running = True
+        self._server = None
         # 启动时生成 Bearer Token，持久化到 ~/.fr_cli/daemon/token
         self.token = self._load_or_create_token()
 
@@ -65,9 +66,23 @@ class HermesDaemon:
         self.running = False
 
     def start(self):
-        """启动守护进程"""
-        server = HTTPServer((self.host, self.port), HermesHandler)
+        """启动守护进程
+
+        v2.8.7(P2-4)：改用 ``BaseHTTPServer``（继承 ``ThreadingHTTPServer``）——
+        原先的 ``HTTPServer`` 是**单线程**的，一个长连接（比如 SSE）会把
+        整个服务卡住，其它请求全部排队。
+
+        轮询间隔：``server.timeout = 0.5`` 让 ``handle_request()`` 在没有
+        请求时 0.5 秒就返回，于是 ``stop()`` 能在半秒内生效 ——
+        原先没有超时，``handle_request()`` 会一直阻塞到下一个请求到达。
+
+        诚实边界：线程化只解决"并发排队"，**不解决**任务级隔离 ——
+        处理请求的线程如果跑死，Python 无法强杀它。
+        """
+        server = BaseHTTPServer((self.host, self.port), HermesHandler)
         server.daemon = self
+        server.timeout = 0.5
+        self._server = server
         print(f"Hermes 守护进程已启动: http://{self.host}:{self.port}")
         print(f"Bearer Token: {self.token}")
         print("   (已保存到 ~/.fr_cli/daemon/token，权限 600)")
@@ -78,6 +93,11 @@ class HermesDaemon:
                 server.handle_request()
             except Exception:
                 pass
+
+        try:
+            server.server_close()
+        except Exception:
+            pass
 
 
 def main():

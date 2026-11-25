@@ -77,7 +77,7 @@ class TestPersistentTaskManager:
         store = tmp_hermes_dir / "tasks.json"
         mgr = PersistentTaskManager(store)
         t1 = mgr.create("one")
-        t2 = mgr.create("two")
+        mgr.create("two")
         t1.status = TaskStatus.COMPLETED
         mgr.update(t1)
         counts = mgr.counts()

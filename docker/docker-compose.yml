@@ -4,7 +4,11 @@
 
 services:
   fr-cli:
-    build: .
+    # 构建上下文必须是**仓库根目录** —— docker/Dockerfile 里的
+    # COPY pyproject.toml / fr_cli/ 是按根目录布局写的
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
     container_name: fr-cli
     # 交互式终端必须加上 stdin_open + tty
     stdin_open: true

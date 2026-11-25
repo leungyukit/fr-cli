@@ -2,8 +2,13 @@
 动态构建 —— 注册表管理
 
 负责动态工具的持久化、加载和注册到 ToolRegistry。
+
+v2.8.7 行为变更（P0-1 安全加固）：
+- 动态工具**不再**在主进程 ``exec()`` —— 改为子进程沙箱执行
+  （见 ``fr_cli.dynamic_builder.sandbox``）
+- 注册前做静态校验（禁导入 / 禁内置 / 禁 dunder）
+- 运行期受 ``sec_exec`` 确认保护（Y/A/F/N）
 """
-import importlib.util
 import re
 from typing import Any, Dict, List, Optional, Tuple
 
@@ -11,6 +16,11 @@ from fr_cli.conf.paths import ROOT
 from fr_cli.core.result import Result
 from fr_cli.core.store import JsonStore
 from fr_cli.command.registry import register, get_registry
+from fr_cli.dynamic_builder.sandbox import (
+    DEFAULT_TIMEOUT,
+    run_in_sandbox,
+    validate_dynamic_code,
+)
 
 
 DYNAMIC_TOOLS_DIR = ROOT / "dynamic_tools"
@@ -155,7 +165,13 @@ def default_kwargs_for_params(params: Optional[Dict[str, type]]) -> Dict[str, An
 
 def register_dynamic_tool(name: str, code: str, meta: Optional[Dict[str, Any]] = None) -> Result:
     """
-    将动态工具代码加载并注册到 ToolRegistry，返回 Result。
+    将动态工具代码注册到 ToolRegistry，返回 Result。
+
+    v2.8.7 行为变更（P0-1）：
+      - **不再**在主进程 ``exec()`` LLM 生成的代码
+      - 注册前做静态校验（禁导入被禁模块 / 禁内置函数 / 禁危险 dunder）
+      - 调用时在子进程沙箱里执行 —— 超时、rlimit、凭证脱敏、能力 RPC 代理
+      - 安全类别设为 ``sec_exec`` —— 每次调用走 Y/A/F/N 确认
 
     Args:
         name: 工具名
@@ -171,33 +187,33 @@ def register_dynamic_tool(name: str, code: str, meta: Optional[Dict[str, Any]] =
     params = {k: _type_from_name(v) for k, v in meta.get("params", {}).items()}
     aliases = meta.get("aliases", [])
     triggers = meta.get("triggers", [])
-
-    # 动态加载模块
     try:
-        spec = importlib.util.spec_from_loader(name, loader=None)
-        module = importlib.util.module_from_spec(spec)
-        exec(code, module.__dict__)
-        run_fn = getattr(module, "run", None)
-        if run_fn is None:
-            return Result.fail("生成的代码缺少 run(deps, **kwargs) 入口函数")
-    except Exception as e:
-        return Result.fail(f"加载动态工具失败: {e}")
+        timeout = int(meta.get("timeout") or DEFAULT_TIMEOUT)
+    except (TypeError, ValueError):
+        timeout = DEFAULT_TIMEOUT
+
+    # 静态校验 —— 纵深防御的第一层（沙箱隔离/超时/限额是后续各层）
+    check = validate_dynamic_code(code)
+    if check.is_fail():
+        return Result.fail(f"动态工具 [{name}] 未通过安全校验: {check.error}")
 
     # 包装函数，适配 ToolRegistry 的 handler 签名
+    # v2.8.7：真正执行交给子进程沙箱，父进程只负责传参与收回结果
     # 注意: 此函数经 @register 装饰器注册进全局 ToolRegistry,
     # 由注册表分发器调用, 不是死代码(勿按引用计数删除)
     @register(
         name=name,
         description=description,
         params=params,
+        security="sec_exec",
         aliases=aliases,
         triggers=triggers,
     )
     def _dynamic_tool_handler(deps, **kwargs):
-        try:
-            return run_fn(deps, **kwargs)
-        except Exception as e:
-            return None, f"动态工具执行失败: {e}"
+        result = run_in_sandbox(name, code, kwargs, deps, timeout=timeout)
+        if result.is_fail():
+            return None, result.error
+        return result.data
 
     return Result.ok(f"工具 [{name}] 已注册")
 

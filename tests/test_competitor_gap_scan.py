@@ -21,10 +21,27 @@ def _isolate(monkeypatch, tmp_path):
         monkeypatch.setattr(_paths_mod._root_holder, "value", fake_fr_cli)
     yield
     # 清空模块缓存,避免后测影响前测
+    #
+    # ⚠️ 只删 sys.modules 会造成**模块脑裂**（v2.8.7 修）：
+    #   父包 `fr_cli.dynamic_builder` 上的属性 `competitor_gap_scan` 仍指向**旧**模块对象，
+    #   而按路径 import（`importlib.import_module` / `from ... import X`）会因为
+    #   sys.modules 里没有而**重新导入出一个新对象**。
+    #   于是后测里的 `monkeypatch.setattr("...competitor_gap_scan.CompetitorGapScanner", ...)`
+    #   打在旧对象上，而被测代码 import 到的是新对象 —— **补丁形同虚设**，
+    #   表现为 test_error_messages.py 的 "friendly_print" 用例在
+    #   单独跑通过、跟着本文件跑就失败。
+    #   所以必须**同时摘掉父包上的属性引用**，让两边指向同一个（重新导入的）模块。
     import sys
     for mod in list(sys.modules):
-        if mod.startswith("fr_cli.dynamic_builder.competitor_gap_scan"):
+        if mod == "fr_cli.dynamic_builder.competitor_gap_scan" or mod.startswith(
+            "fr_cli.dynamic_builder.competitor_gap_scan."
+        ):
             del sys.modules[mod]
+    try:
+        import fr_cli.dynamic_builder as _pkg
+        _pkg.__dict__.pop("competitor_gap_scan", None)
+    except Exception:
+        pass
 
 
 # ---------- load_model ----------

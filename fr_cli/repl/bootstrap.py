@@ -159,6 +159,96 @@ def print_simple_banner(state, version: str):
     print()
 
 
+def print_onboarding_card(state, cfg):
+    """首次启动的"快速上手"卡片（v2.8.7 UX）
+
+    只在**第一次**进入交互式 REPL 时打印一次，之后不再打扰。
+    卡片内容是"怎么用"而不是"有什么命令" —— 命令清单交给 /help。
+
+    Args:
+        state: AppState
+        cfg: 配置字典（用于读取/写入"是否已看过"标志）
+
+    Returns:
+        bool: 是否打印了卡片
+    """
+    if cfg.get("onboarding_card_shown"):
+        return False
+
+    from fr_cli.ui.ui import CYAN, BOLD, DIM, GREEN, RESET, get_display_width
+
+    rows = [
+        ("/help", "全部命令清单"),
+        ("/start", "5 步快速开始向导"),
+        ("@local", "召唤本地 Agent（@也能补全文件路径）"),
+        ("!ls -la", "直接执行 shell 命令"),
+        ("Ctrl+S", "生成途中追加指令（转向本轮）"),
+        ("Ctrl+O", "展开被折叠的长内容"),
+        ("Ctrl+E / R / U", "编辑 / 重试 / 撤销上一轮"),
+        ("示例", "@local 帮我总结 README.md"),
+    ]
+
+    def _pad(text: str, width: int) -> str:
+        return text + " " * max(width - get_display_width(text), 0)
+
+    def _trunc(text: str, width: int) -> str:
+        """按显示宽度截断（超长时以 … 结尾），保证框线不被撑破"""
+        if get_display_width(text) <= width:
+            return text
+        out = ""
+        used = 0
+        for ch in text:
+            w = get_display_width(ch)
+            if used + w > width - 1:
+                break
+            out += ch
+            used += w
+        return out + "…"
+
+    # 框线总宽 = 终端宽 - 2（留 1 列边距），夹在 [44, 72]
+    try:
+        import shutil
+        term_w = shutil.get_terminal_size(fallback=(80, 24)).columns
+    except Exception:
+        term_w = 80
+    max_total = max(44, min(term_w - 2, 72))
+
+    key_w = max(get_display_width(k) for k, _ in rows) + 2
+    desc_w = max(get_display_width(d) for _, d in rows) + 2
+    # 内部宽度 = 2(左边距) + key 列 + desc 列；总宽 = 内部宽度 + 2(左右框线)
+    inner_w = 2 + key_w + desc_w
+    if inner_w + 2 > max_total:
+        desc_w = max(14, desc_w - (inner_w + 2 - max_total))
+        inner_w = 2 + key_w + desc_w
+
+    # 顶边：╭ + 标题头 + 补齐的 ─ ；底边：╰ + 等宽 ─ ；两者与内容行等宽
+    head = "─ 快速上手 "
+    top = "╭" + head + "─" * max(0, inner_w - get_display_width(head)) + "╮"
+    bot = "╰" + "─" * inner_w + "╯"
+
+    print()
+    print(f"{CYAN}{top}{RESET}")
+    for key, desc in rows:
+        line = (
+            f"│  {GREEN}{BOLD}{_pad(_trunc(key, key_w), key_w)}{RESET}"
+            f"{DIM}{_pad(_trunc(desc, desc_w), desc_w)}{RESET}│"
+        )
+        print(line)
+    print(f"{CYAN}{bot}{RESET}")
+    print(f"{DIM}  随时输入 /help 查看更多{RESET}")
+    print()
+
+    # 标记已看过（失败不影响使用）
+    # 用合并式保存：绝不能因为"只想置一个标志"就整份覆盖用户配置
+    try:
+        cfg["onboarding_card_shown"] = True
+        from fr_cli.conf.config import save_config_merge
+        save_config_merge({"onboarding_card_shown": True})
+    except Exception:
+        pass
+    return True
+
+
 def print_startup_banner(state, cfg, show_logo: bool = False, show_art: bool = True):
     """打印启动画面
 
@@ -176,6 +266,12 @@ def print_startup_banner(state, cfg, show_logo: bool = False, show_art: bool = T
 
     # 信息框(模型 / 目录 / 会话)
     print_simple_banner(state, __version__)
+
+    # v2.8.7(UX)：首次启动的快速上手卡片（只出现一次）
+    try:
+        print_onboarding_card(state, cfg)
+    except Exception:
+        pass
 
 
 def _autostart_background_services(state, cfg):

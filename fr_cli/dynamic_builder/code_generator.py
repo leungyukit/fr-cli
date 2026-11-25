@@ -19,6 +19,33 @@ CODE_GENERATION_PROMPT_ZH = """你是一位 fr-cli 工具开发专家。请根�
 5. 不要写 main 块、测试代码或示例调用。
 6. 代码要简洁、健壮，处理好边界情况。
 7. 工具名称（用于注册）必须是合法的 Python 标识符，且尽量反映功能。
+8. **只输出一个完整实现**：不要给多个候选版本，不要写实现思路、对比说明或
+   “方案一/方案二”这类草稿；直接给出一份可以保存成 .py 的最终代码。
+
+【沙箱限制 —— 必须遵守，违反的工具会被拒绝注册】
+工具代码运行在**受限子进程**里，以下写法一律不可用：
+- 禁止 import：os, sys, subprocess, socket, ssl, select, asyncio, urllib, requests, httpx,
+  http, ftplib, smtplib, imaplib, pathlib, glob, tempfile, shutil, importlib, imp, runpy,
+  pickle, ctypes, inspect, threading, multiprocessing, signal, resource, fr_cli
+- 禁止调用内置函数：open, eval, exec, compile, input, __import__, globals, locals, vars
+- 禁止访问 __class__ / __globals__ / __subclasses__ 等 dunder 属性
+- 可安全 import 的常用模块：json, re, math, datetime, hashlib, base64, collections,
+  itertools, functools, string, statistics, random, textwrap, unicodedata, decimal, uuid
+
+替代方案（务必使用 deps 提供的能力）：
+- **读写文件** → `deps.vfs`：read(fn, lang) / write(fn, content, lang, mode='w') /
+  append(fn, content, lang) / ls(lang) / cd(path, lang) / exists(fn) /
+  list_dirs(lang) / grep_text(fn, pattern, use_regex, lang) / delete(fn, lang)。
+  这些方法返回 Result 对象，用 `.is_ok()` / `.data` / `.error` 判断，语言参数传 `deps.lang`。
+- **联网搜索 / 抓网页** → `deps.web_c.search(query, lang)` / `deps.web_c.fetch(url, lang)`
+- **收发邮件** → `deps.mail_c.inbox(lang)` / `deps.mail_c.read(mail_id, lang)` /
+  `deps.mail_c.send(to, subject, body, lang)`
+- **云盘** → `deps.disk_c.ls(lang)` / `deps.disk_c.cd(path, lang)` /
+  `deps.disk_c.up(local_path, cloud_name, lang)` / `deps.disk_c.down(cloud_name, local_path, lang)`
+- **调用大模型** → `deps.client.stream_chat(model, messages)`；注意沙箱里它返回的是
+  **列表**（不是生成器），遍历取 `chunk["content"]`
+- `deps.security` 在沙箱里是「一律拒绝」的安全桩，不要调用它
+- `deps.cfg` 是脱敏后的配置副本，凭证字段一律是 "***"，不要依赖其中的密钥
 
 用户需求：{requirement}
 
@@ -37,6 +64,33 @@ Requirements:
 5. Do not write main blocks, test code, or example calls.
 6. Keep the code concise and robust, handling edge cases.
 7. The tool name (used for registration) must be a valid Python identifier and should reflect the function.
+8. **Output exactly ONE complete implementation**: no alternative drafts, no design
+   notes, no "option A / option B" sections — just the final code ready to save as .py.
+
+[SANDBOX RESTRICTIONS - you MUST follow them, violating tools are rejected at registration]
+The tool runs inside a **restricted child process**. The following are forbidden:
+- Forbidden imports: os, sys, subprocess, socket, ssl, select, asyncio, urllib, requests, httpx,
+  http, ftplib, smtplib, imaplib, pathlib, glob, tempfile, shutil, importlib, imp, runpy,
+  pickle, ctypes, inspect, threading, multiprocessing, signal, resource, fr_cli
+- Forbidden builtins: open, eval, exec, compile, input, __import__, globals, locals, vars
+- Forbidden dunder access: __class__ / __globals__ / __subclasses__ etc.
+- Safe to import: json, re, math, datetime, hashlib, base64, collections, itertools, functools,
+  string, statistics, random, textwrap, unicodedata, decimal, uuid
+
+Use the capabilities provided by deps instead:
+- **Read/write files** -> `deps.vfs`: read(fn, lang) / write(fn, content, lang, mode='w') /
+  append(fn, content, lang) / ls(lang) / cd(path, lang) / exists(fn) / list_dirs(lang) /
+  grep_text(fn, pattern, use_regex, lang) / delete(fn, lang).
+  These return Result objects - check `.is_ok()` / `.data` / `.error`, and pass `deps.lang`.
+- **Web search / fetch** -> `deps.web_c.search(query, lang)` / `deps.web_c.fetch(url, lang)`
+- **Mail** -> `deps.mail_c.inbox(lang)` / `deps.mail_c.read(mail_id, lang)` /
+  `deps.mail_c.send(to, subject, body, lang)`
+- **Cloud disk** -> `deps.disk_c.ls(lang)` / `deps.disk_c.cd(path, lang)` /
+  `deps.disk_c.up(local_path, cloud_name, lang)` / `deps.disk_c.down(cloud_name, local_path, lang)`
+- **Call the LLM** -> `deps.client.stream_chat(model, messages)`; inside the sandbox it
+  returns a **list** (not a generator) - iterate and take `chunk["content"]`
+- `deps.security` is a deny-all stub inside the sandbox - do not call it
+- `deps.cfg` is a scrubbed copy - credential fields are always "***"
 
 User requirement: {requirement}
 
@@ -72,7 +126,7 @@ def generate_tool_code(requirement: str, state, lang: str = "zh") -> str:
         messages,
         lang,
         custom_prefix="",
-        max_tokens=2048,
+        max_tokens=4096,
         silent=False,
     )
 
@@ -80,10 +134,34 @@ def generate_tool_code(requirement: str, state, lang: str = "zh") -> str:
 
 
 def _clean_code_markers(text: str) -> str:
-    """清理 LLM 返回的 Markdown 代码块标记"""
+    """清理 LLM 返回的 Markdown 代码块标记。
+
+    v2.8.7：推理模型（stepfun / glm 等）的 ``reasoning_content`` 会被
+    ``core/llm/base.py`` 在 ``content`` 为空时回退拼进正文。
+
+    v2.8.7(第四阶段)：思考与答案已在 ``core/stream.py`` 分离 —— 思考不进返回文本，
+    所以正常情况下这里拿到的已经只有答案。本函数保留为**兜底**：
+    若 provider 把答案也塞进了 ``reasoning_content``（答案只在思考通道里），
+    文本里仍可能夹带散文，这里优先抽取真正的代码块；没有围栏时从
+    ``def run(`` 处切开，避免把散文喂给 ``exec()``。
+    """
     text = text.strip()
+    if not text:
+        return text
+
+    # 1) 有围栏代码块 —— 取包含 run 入口且最完整的那一段
+    blocks = re.findall(r"```(?:python|py)?[ \t]*\r?\n(.*?)```", text, re.DOTALL)
+    if blocks:
+        candidates = [b for b in blocks if "def run(" in b] or blocks
+        # 推理模型常给出多个草稿版本 —— 取最长的（信息量最大、最可能完整）
+        return max(candidates, key=lambda b: len(b)).strip()
+
+    # 2) 无围栏 —— 丢掉正文/思考，从 run 入口开始截
+    if "def run(" in text:
+        return text[text.index("def run("):].strip()
+
+    # 3) 兜底：原有逻辑
     if text.startswith("```"):
-        # 去掉第一行 ```python
         text = text[text.find("\n") + 1:]
     if text.endswith("```"):
         text = text[:text.rfind("```")]

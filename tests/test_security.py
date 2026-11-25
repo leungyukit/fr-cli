@@ -24,28 +24,35 @@ def clean_env(monkeypatch):
 
 class TestBatchMode:
 
-    def test_batch_confirm_always_allow(self):
-        """FR_CLI_BATCH_CONFIRM=1:直接放行"""
-        os.environ["FR_CLI_BATCH_CONFIRM"] = "1"
+    def test_batch_confirm_always_allow(self, monkeypatch):
+        """FR_CLI_BATCH_CONFIRM=1:直接放行
+
+        用 monkeypatch.setenv 而不是 os.environ[...] = "1" ——
+        直接赋值**不会被回滚**：autouse fixture 里的
+        ``monkeypatch.delenv(..., raising=False)`` 对"本来就不存在的变量"
+        是空操作、不会登记 undo，于是这个变量会永久留在进程环境里，
+        污染后续所有用例（曾经把别的测试的确认流程变成"一律放行"）。
+        """
+        monkeypatch.setenv("FR_CLI_BATCH_CONFIRM", "1")
         ok, s, f = ask("sec_read", "/etc/test", "zh", {}, {}, {})
         assert ok is True
 
-    def test_batch_confirm_works_for_exec(self):
-        os.environ["FR_CLI_BATCH_CONFIRM"] = "1"
+    def test_batch_confirm_works_for_exec(self, monkeypatch):
+        monkeypatch.setenv("FR_CLI_BATCH_CONFIRM", "1")
         ok, s, f = ask("sec_exec", "rm -rf /", "zh", {}, {}, {})
         assert ok is True
 
 
 class TestNonInteractiveMode:
 
-    def test_non_interactive_denies_by_default(self):
+    def test_non_interactive_denies_by_default(self, monkeypatch):
         """FR_CLI_NON_INTERACTIVE=1:默认拒绝"""
-        os.environ["FR_CLI_NON_INTERACTIVE"] = "1"
+        monkeypatch.setenv("FR_CLI_NON_INTERACTIVE", "1")
         ok, s, f = ask("sec_read", "/etc/passwd", "zh", {}, {}, {})
         assert ok is False
 
-    def test_non_interactive_denies_exec(self):
-        os.environ["FR_CLI_NON_INTERACTIVE"] = "1"
+    def test_non_interactive_denies_exec(self, monkeypatch):
+        monkeypatch.setenv("FR_CLI_NON_INTERACTIVE", "1")
         ok, s, f = ask("sec_exec", "dangerous command", "zh", {}, {}, {})
         assert ok is False
 

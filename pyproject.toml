@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fr-cli"
-version = "2.8.6"
+version = "2.8.7"
 description = "凡人打字机 - 自进化多模型终端 Agent：支持 Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo，含蜂群/MCP/梦境整理/消息推送"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -76,7 +76,7 @@ where = ["."]
 include = ["fr_cli*"]
 
 [tool.setuptools.package-data]
-fr_cli = ["conf/default_models.yaml", "assets/*.jpeg", "assets/*.png", "assets/*.jpg", "assets/*.ansi", "assets/*.txt", "WEAPON.MD", "README.md"]
+fr_cli = ["conf/default_models.yaml", "assets/*.jpeg", "assets/*.png", "assets/*.jpg", "assets/*.ansi", "assets/*.txt", "WEAPON.MD", "README.md", "web/static/*"]
 
 [tool.ruff]
 target-version = "py313"

@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 import threading
-from typing import Any, Callable, Dict, Optional
+from typing import Any, Callable, Dict, List, Optional, Set
 
 log = logging.getLogger(__name__)
 
@@ -98,6 +98,77 @@ HOOK_EVENTS = [
 ]
 
 
+# ---------------- 事件名清单(对账基准) ----------------
+# 背景:仓库里长期没有"哪些事件应该有生产派发点"的清单,
+# 于是 11 个事件常量零派发(其中 4 个在 metrics 里有钩子却恒为 0,
+# error.occurred 的唯一监听者 ErrorLedger 更是成了死代码)。
+# 下面三张清单 + tests/test_metrics_command.py 的对账测试共同构成防线。
+
+
+def _collect_class_strings(cls: type) -> List[str]:
+    """按类定义顺序收集类里的字符串常量
+
+    Args:
+        cls: 事件常量类(如 V2Events)
+
+    Returns:
+        字符串常量列表(定义顺序,去重)
+    """
+    values: List[str] = []
+    # vars() 保留类体的定义顺序 → 模块加载时确定性生成
+    for attr_name in vars(cls):
+        if attr_name.startswith("_"):
+            continue  # 跳过 __module__ / __doc__ 等 dunder
+        value = getattr(cls, attr_name)
+        if isinstance(value, str) and value not in values:
+            values.append(value)
+    return values
+
+
+def _collect_class_attr_map(cls: type) -> Dict[str, str]:
+    """收集 事件值 → 类属性名 的映射
+
+    供对账测试定位派发点(源码里写的是 V2Events.XXX 而不是字面量)。
+    """
+    mapping: Dict[str, str] = {}
+    for attr_name in vars(cls):
+        if attr_name.startswith("_"):
+            continue
+        value = getattr(cls, attr_name)
+        if isinstance(value, str):
+            mapping.setdefault(value, attr_name)
+    return mapping
+
+
+# V2 全部通用事件名(23 个,从类定义推导,不手写重复字符串)
+ALL_V2_EVENTS: List[str] = _collect_class_strings(V2Events)
+
+# 事件值 → V2Events 属性名(如 "command.executed" → "COMMAND_EXECUTED")
+V2_EVENT_ATTRS: Dict[str, str] = _collect_class_attr_map(V2Events)
+
+# 必须有生产派发点的事件(对账基准;测试逐个校验源码里确实存在派发点)
+MUST_DISPATCH_EVENTS: List[str] = [
+    V2Events.COMMAND_EXECUTED,   # repl/router.py        —— 命令执行完成后
+    V2Events.SESSION_CREATED,    # core/chat/pipeline_post.py —— 新建存档会话
+    V2Events.SESSION_SAVED,      # core/chat/pipeline_post.py —— 增量更新存档会话
+    V2Events.APP_STOPPED,        # main.py               —— 主循环退出前
+    V2Events.ERROR_OCCURRED,     # core/errors.py::report_error —— 错误集中上报
+]
+
+# 低频/待接线事件:当前无生产派发点,需要时接线(不硬造派发点凑数)
+OPTIONAL_EVENTS: List[str] = [
+    V2Events.APP_STOPPING,        # 应用优雅退出前(与 app.stopped 语义重叠,暂不接线)
+    V2Events.SESSION_MESSAGE_ADDED,  # 单条消息落库(目前整轮结束才存档)
+    V2Events.SESSION_LOADED,      # 从存档恢复会话(目前 /load 直接读文件)
+    V2Events.LLM_CHUNK,           # 流式分片(逐 token 广播开销大)
+    V2Events.CONFIG_CHANGED,      # 配置变更(目前各命令各自落盘)
+    V2Events.USAGE_RECORDED,      # 用量落盘(目前由 core/usage.py 直接写文件)
+]
+
+# 已知事件名全集(通用事件 + Hook 事件)—— dispatch_event 的拼写自检基准
+KNOWN_EVENTS: Set[str] = set(ALL_V2_EVENTS) | set(HOOK_EVENTS)
+
+
 # ---------------- 事件分发表面 ----------------
 
 # 全局开关(可通过环境变量或 set_dispatch_enabled 关闭,用于极简模式)
@@ -130,11 +201,18 @@ def dispatch_event(event_type: str,
     Note:
         - 异常被 EventBus 内部捕获,不会冒泡
         - 关闭后(环境变量 FR_CLI_NO_EVENTS=1)直接 no-op
+        - 事件名拼错时只 log.warning(不抛异常),避免"写错名字"完全静默
     """
     if not _dispatch_enabled:
         return None
     if os.environ.get("FR_CLI_NO_EVENTS") == "1":
         return None
+    if event_type not in KNOWN_EVENTS:
+        # 派发失败永不报错,所以写错事件名必须在这里留痕,否则完全静默
+        log.warning(
+            "未知事件名 %r —— 不在 V2Events / V2HookEvents 清单内,疑似拼写错误",
+            event_type,
+        )
     try:
         from fr_cli.v3.core.events import EventBus
         bus = EventBus.instance()

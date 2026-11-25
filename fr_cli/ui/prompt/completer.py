@@ -245,9 +245,12 @@ class FanRenCompleter(Completer if HAS_PT else object):
         "remote agent": ["add", "list", "delete", "scan", "import"],
     }
 
-    def __init__(self, get_commands: Callable, get_agents: Callable):
+    def __init__(self, get_commands: Callable, get_agents: Callable,
+                 get_files: Callable = None):
         self.get_commands = get_commands
         self.get_agents = get_agents
+        # v2.8.7(UX)：@ 也能补全文件路径（此前只有 Agent）
+        self.get_files = get_files
 
     def _categorize(self, cmd: str) -> str:
         """给命令分类"""
@@ -348,9 +351,16 @@ class FanRenCompleter(Completer if HAS_PT else object):
                 )
 
     def _complete_agents(self, word: str):
-        """处理 @ Agent 补全"""
+        """处理 @ 补全 —— Agent 优先，文件路径兜底
+
+        v2.8.7(UX)：此前 @ 只能补 Agent，用户想引用工作区里的文件时
+        只能手打完整路径。现在同时补全文件路径（单层，不递归 —— 递归
+        在大目录里会卡住补全）。
+        """
+        matched_agents = False
         for agent_name, desc in self.get_agents():
             if agent_name.startswith(word) or not word:
+                matched_agents = True
                 short_desc = (desc[:30] + "...") if desc and len(desc) > 30 else (desc or "")
                 yield Completion(
                     agent_name + " ",
@@ -358,3 +368,21 @@ class FanRenCompleter(Completer if HAS_PT else object):
                     display="@" + agent_name,
                     display_meta=short_desc,
                 )
+        if not matched_agents:
+            yield from self._complete_files(word)
+
+    def _complete_files(self, word: str):
+        """补全文件路径（依赖 get_files 回调）"""
+        if not self.get_files:
+            return
+        try:
+            entries = self.get_files(word)
+        except Exception:
+            entries = []
+        for path, desc in entries or []:
+            yield Completion(
+                path,
+                start_position=-len(word) if word else 0,
+                display=path,
+                display_meta=desc or "文件",
+            )

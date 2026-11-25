@@ -1,6 +1,7 @@
 """
 蜂群（Swarm）多 Agent 协作测试
 """
+import time
 from unittest.mock import patch, MagicMock
 from types import SimpleNamespace
 
@@ -133,7 +134,10 @@ class TestSwarmTool:
         result, err = _swarm_run(deps, mode="parallel", names=["a", "b"], user_input="任务")
 
         assert err is None
-        mock_run_swarm.assert_called_once_with("parallel", ["a", "b"], deps, "任务", max_workers=5)
+        # v3.1：整体 deadline 由 _swarm_run 透传（无配置时用默认 60）
+        mock_run_swarm.assert_called_once_with(
+            "parallel", ["a", "b"], deps, "任务", max_workers=5, timeout=60.0
+        )
 
     @patch("fr_cli.agent.swarm.run_swarm")
     def test_swarm_run_tool_string_names(self, mock_run_swarm):
@@ -144,7 +148,150 @@ class TestSwarmTool:
         result, err = _swarm_run(deps, mode="parallel", names="a,b", user_input="任务")
 
         assert err is None
-        mock_run_swarm.assert_called_once_with("parallel", ["a", "b"], deps, "任务", max_workers=5)
+        mock_run_swarm.assert_called_once_with(
+            "parallel", ["a", "b"], deps, "任务", max_workers=5, timeout=60.0
+        )
+
+    @patch("fr_cli.agent.swarm.run_swarm")
+    def test_swarm_run_tool_uses_config_timeout(self, mock_run_swarm):
+        """config.json 的 swarm_timeout 应当被透传给蜂群引擎"""
+        from fr_cli.command.registered.swarm import _swarm_run
+        mock_run_swarm.return_value = ({"mode": "parallel", "results": []}, None)
+
+        deps = SimpleNamespace(cfg={"swarm_timeout": 15})
+        result, err = _swarm_run(deps, mode="parallel", names=["a"], user_input="任务")
+
+        assert err is None
+        mock_run_swarm.assert_called_once_with(
+            "parallel", ["a"], deps, "任务", max_workers=5, timeout=15.0
+        )
+
+
+class TestSwarmTimeout:
+    """真超时：deadline 到达即返回，不再是死代码"""
+
+    def _make_state(self):
+        state = SimpleNamespace()
+        state.client = MagicMock()
+        state.model_name = "glm-4-flash"
+        state.lang = "zh"
+        state.executor = MagicMock()
+        state.plugins = {}
+        state.vfs = MagicMock()
+        state.vfs.cwd = "/tmp"
+        state.security = None
+        state.cfg = {}
+        return state
+
+    @patch("fr_cli.agent.swarm_resolver.call_agent")
+    def test_parallel_timeout_returns_at_deadline(self, mock_call_agent):
+        """超时任务必须在 deadline 到达时返回（墙钟不受挂起线程拖累）"""
+        from fr_cli.agent.swarm import SwarmEngine
+
+        def _slow(name, state, user_input=""):
+            time.sleep(1.0)
+            return "late", None
+
+        mock_call_agent.side_effect = _slow
+
+        engine = SwarmEngine(self._make_state())
+        started = time.monotonic()
+        result, err = engine.run_parallel(["agent:slow"], "任务", timeout=0.2)
+        elapsed = time.monotonic() - started
+
+        assert err is None  # 超时按部分失败语义，不让整个蜂群 fail
+        assert elapsed < 1.0
+        assert len(result["results"]) == 1
+        entry = result["results"][0]
+        assert entry["agent"] == "agent:slow"  # 带真实任务名，不是 unknown
+        assert entry["kind"] == "agent"
+        assert entry["target"] == "slow"
+        assert entry["result"] is None
+        assert "超时" in entry["error"]
+
+    @patch("fr_cli.agent.swarm_resolver.call_agent")
+    def test_parallel_timeout_partial_failure(self, mock_call_agent):
+        """一个任务超时不影响其它任务，整体仍然成功返回"""
+        from fr_cli.agent.swarm import SwarmEngine
+
+        def _side_effect(name, state, user_input=""):
+            if name == "fast":
+                return "quick", None
+            time.sleep(1.0)
+            return "late", None
+
+        mock_call_agent.side_effect = _side_effect
+
+        engine = SwarmEngine(self._make_state())
+        result, err = engine.run_parallel(["agent:fast", "agent:slow"], "任务", timeout=0.3)
+
+        assert err is None
+        results = result["results"]
+        assert len(results) == 2
+        # 排序仍按 names 原始顺序
+        assert [r["agent"] for r in results] == ["agent:fast", "agent:slow"]
+        fast = results[0]
+        slow = results[1]
+        assert fast["error"] is None
+        assert fast["result"] == "quick"
+        assert slow["error"] and "超时" in slow["error"]
+
+    @patch("fr_cli.agent.swarm_resolver.call_agent")
+    def test_pipeline_timeout_returns_partial(self, mock_call_agent):
+        """流水线超时同样按部分失败语义返回"""
+        from fr_cli.agent.swarm import SwarmEngine
+
+        def _slow(name, state, user_input=""):
+            time.sleep(1.0)
+            return "late", None
+
+        mock_call_agent.side_effect = _slow
+
+        engine = SwarmEngine(self._make_state())
+        started = time.monotonic()
+        result, err = engine.run_pipeline(["agent:slow"], "初始输入", timeout=0.2)
+        elapsed = time.monotonic() - started
+
+        assert err is None
+        assert elapsed < 1.0
+        assert len(result["results"]) == 1
+        entry = result["results"][0]
+        assert entry["agent"] == "agent:slow"
+        assert "超时" in entry["error"]
+
+    @patch("fr_cli.agent.swarm_resolver.call_agent")
+    def test_pipeline_checks_deadline_between_steps(self, mock_call_agent):
+        """流水线每步之间检查 deadline，超时后停止并记录超时条目"""
+        from fr_cli.agent.swarm import SwarmEngine
+
+        def _side_effect(name, state, user_input=""):
+            if name == "fast":
+                return "quick", None
+            time.sleep(1.0)
+            return "late", None
+
+        mock_call_agent.side_effect = _side_effect
+
+        engine = SwarmEngine(self._make_state())
+        result, err = engine.run_pipeline(["agent:fast", "agent:slow"], "初始输入", timeout=0.3)
+
+        assert err is None
+        results = result["results"]
+        assert results[0]["agent"] == "agent:fast"
+        assert results[0]["result"] == "quick"
+        assert results[1]["agent"] == "agent:slow"
+        assert "超时" in results[1]["error"]
+
+    def test_resolve_swarm_timeout_priority(self):
+        """超时优先级：显式入参 > config.json 的 swarm_timeout > 默认 60"""
+        from fr_cli.agent.swarm import resolve_swarm_timeout
+
+        state = self._make_state()
+        assert resolve_swarm_timeout(state) == 60
+
+        state.cfg = {"swarm_timeout": 12}
+        assert resolve_swarm_timeout(state) == 12
+        assert resolve_swarm_timeout(state, 5) == 5
 
 
 class TestSwarmUniversalResolver:

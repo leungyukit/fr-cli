@@ -7,6 +7,7 @@ v3.0+ 重构说明:
   - FrCliError:基类(带 emoji/hint/log 用户体验)
   - APIKeyError:被外部 import 唯一保留的子类
   - friendly_print / safe_run:用户面错误格式化
+  - report_error:错误集中上报(广播 error.occurred 事件)
   - set_debug / is_debug:全局调试开关
 - 本文件集中管理核心错误族(APIKeyError/NetworkError 等),各模块统一 from fr_cli.core.errors 导入
 - v3.1+ UX:扩展 common exception → 友好提示映射,所有 except 走 friendly_print
@@ -15,6 +16,7 @@ import os
 import json
 import traceback
 import logging
+from typing import Any, Dict
 
 from fr_cli.conf.paths import ROOT
 
@@ -138,6 +140,39 @@ def friendly_print(exc: Exception, debug: bool = False) -> str:
     if debug or is_debug():
         text += "\n" + traceback.format_exc()
     return text
+
+
+def report_error(exc: Exception, source: str = "unknown", **extra: Any) -> None:
+    """上报一个错误:广播 error.occurred 事件(ErrorLedger / 指标由此收单)
+
+    v3.0+ 之前 error.occurred 只有监听者(ErrorLedger 在 error_ledger.py 里订阅)
+    却没有生产派发点 —— 错误账本因此永远收不到条目,等于死代码。
+    本函数是它唯一的生产派发入口。
+
+    Args:
+        exc: 触发错误的异常
+        source: 来源标识(如 "chat" / "command_executor")
+        extra: 附加信息(一并放进事件 data,如 stage=...)
+
+    Note:
+        永不抛异常 —— 错误上报本身不能影响主流程。
+    """
+    try:
+        from fr_cli.core.events import V2Events, dispatch_event
+        data: Dict[str, Any] = {
+            "error": str(exc),
+            "error_type": type(exc).__name__,
+            "description": friendly_print(exc),
+            "_source": source,
+        }
+        data.update(extra)
+        dispatch_event(
+            V2Events.ERROR_OCCURRED,
+            data=data,
+            source=source,
+        )
+    except Exception:
+        pass
 
 
 def suggest_fix(exc: Exception) -> str:

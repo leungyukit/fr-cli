@@ -6,8 +6,9 @@ fr-cli TUI 主面板 —— 基于 prompt_toolkit
 - / 命令补全（带描述）
 - @ Agent 补全
 - 历史回溯（跨 session 持久化）
-- 底部状态条（model / token / dir / mode）
-- 快捷键：Ctrl+L 清屏、Ctrl+C 清空、Ctrl+D 退出、Esc 取消
+- 底部状态条（model / token / dir / mode / 队列深度 / 待生效转向指令）
+- 快捷键：Ctrl+L 清屏、Ctrl+C 清空（生成中只打断）、Ctrl+S 转向注入、
+  Ctrl+D 退出、Esc 取消
 - AI 流式输出时 spinner
 """
 import sys
@@ -27,7 +28,7 @@ except ImportError:
 
 from fr_cli.ui.prompt.completer import FanRenCompleter
 from fr_cli.ui.prompt.status import StatusState
-from fr_cli.ui.ui import YELLOW, RESET
+from fr_cli.ui.ui import CYAN, DIM, YELLOW, RESET
 from fr_cli.conf.paths import ROOT
 
 # 输入态指示符: 蓝色小箭头(样式见 _PROMPT_STYLE 的 "indicator"), 与输入区上方
@@ -99,6 +100,7 @@ class FanRenPrompt:
         self._completer = FanRenCompleter(
             get_commands=self._get_command_completions,
             get_agents=self._get_agent_completions,
+            get_files=self._get_file_completions,
         )
 
         # 快捷键
@@ -108,10 +110,12 @@ class FanRenPrompt:
         self._prefix_hint = ""
 
         def _toolbar():
+            # v2.8.7(UX)：状态栏实时反映队列深度 / 待生效转向指令
+            self._sync_dynamic_status()
             result = []
             if self._prefix_hint:
                 result.append(("class:hint", f"{self._prefix_hint}  "))
-            result.extend(self.status.render())
+            result.extend(self.status.render(self._terminal_width()))
             return result
 
         self._session = PromptSession(
@@ -170,19 +174,75 @@ class FanRenPrompt:
 
         @kb.add("c-c")
         def _(event):
-            """Ctrl+C = 清空当前输入；AI 回答中则同时中断流式输出（与 Esc 同效）"""
-            # 使用 reset() 替代 text="" 以彻底清除 buffer 的 IME/preedit 状态
+            """Ctrl+C —— 空闲时清空输入；AI 生成中只中断流式输出、**保留草稿**
+
+            v2.8.7(UX) 语义拆分（对齐 kimi-cli）：
+            - AI 正在回答：用户多半是"等太久了"，按 Ctrl+C 只想让它停下，
+              这时把已经敲好的草稿一起清掉是误伤 —— 故只打断，不清草稿；
+            - 空闲：保持传统 Unix 语义，Ctrl+C 清空当前行。
+            """
+            queue_mgr = getattr(self.state, "_queue_mgr", None)
+            if queue_mgr is not None and queue_mgr.is_processing:
+                # 生成中：只请求中断（stream_cnt 会显示 [已中断]），草稿原样留着
+                self._request_interrupt()
+                return
+
+            # 空闲：使用 reset() 替代 text="" 以彻底清除 buffer 的 IME/preedit 状态
             event.current_buffer.reset()
             # 强制清除终端渲染状态，防止残留字符
             event.app.renderer.erase()
-            # AI 正在流式回答时,Ctrl+C 请求中断(stream_cnt 会显示 [已中断])
+
+        @kb.add("c-s")
+        def _(event):
+            """Ctrl+S —— 把当前输入作为**转向指令**注入正在运行的这一轮
+
+            v2.8.7(UX)：流式期间可交互。
+            与 Enter 的区别：
+            - Enter：排进对话队列，**下一轮**独立处理；
+            - Ctrl+S：注入**当前轮**，模型带着新指令在同一轮里继续推理。
+
+            空闲时按 Ctrl+S 无意义（此时应直接 Enter），故不暂存。
+            """
+            buffer = event.current_buffer
+            text = (buffer.text or "").strip()
+            if not text:
+                return
+
             queue_mgr = getattr(self.state, "_queue_mgr", None)
-            if queue_mgr is not None and queue_mgr.is_processing:
-                try:
-                    from fr_cli.core.stream import request_interrupt
-                    request_interrupt()
-                except Exception:
-                    pass
+            if queue_mgr is None or not queue_mgr.is_processing:
+                # 没有正在跑的对话 —— 无处可注入，提示用户改用 Enter
+                self._notify(f"{DIM}当前没有进行中的对话，直接按 Enter 提交即可{RESET}")
+                return
+
+            from fr_cli.core.steering import push_steer
+            count = push_steer(self.state, text)
+
+            # 取走输入框内容，避免和 Enter 语义混淆（重复提交）
+            buffer.reset()
+            event.app.renderer.erase()
+            self._notify(f"{CYAN}↯ 转向指令已注入（{count} 条待生效）{RESET}")
+            self._invalidate()
+
+        @kb.add("c-o")
+        def _(event):
+            """Ctrl+O —— 展开最近一次被折叠的内容
+
+            v2.8.7(UX)：超长回答与超长命令输出都会被折叠（省略号 + 尾部），
+            折叠掉的内容存在 ``fr_cli/core/collapse.py`` 里，这里原样打印回来。
+            """
+            from fr_cli.core.collapse import take
+
+            item = take()
+            if item is None:
+                self._notify(f"{DIM}没有可展开的折叠内容{RESET}")
+                return
+
+            def _run():
+                print(f"\n{DIM}──── 展开：{item.meta or '折叠内容'} ────{RESET}")
+                print(item.text)
+
+            self._run_in_terminal(_run)
+            self._invalidate()
 
         @kb.add("c-d")
         def _(event):
@@ -211,11 +271,7 @@ class FanRenPrompt:
         @kb.add("escape")
         def _(event):
             """Esc = 立即中断当前流式输出"""
-            try:
-                from fr_cli.core.stream import request_interrupt
-                request_interrupt()
-            except Exception:
-                pass
+            self._request_interrupt()
             # 不退出 prompt（用户可能还要再发）
 
         return kb
@@ -263,6 +319,62 @@ class FanRenPrompt:
             pass
         return agents
 
+    def _get_file_completions(self, prefix: str = "") -> List[tuple]:
+        """获取可补全的文件路径（@ 补全用）
+
+        v2.8.7(UX)：只列**一层**不递归 —— 递归扫描大目录会让补全卡住。
+        根目录取用户配置的 allowed_dirs（VFS 可写范围）+ 当前工作目录。
+
+        Args:
+            prefix: 已输入的路径片段（前缀匹配，大小写不敏感）
+
+        Returns:
+            list[tuple[str, str]]: (路径, 说明) 列表，最多 30 条
+        """
+        import os
+        from pathlib import Path
+
+        roots = []
+        try:
+            allowed = (getattr(self.state, "cfg", None) or {}).get("allowed_dirs") or []
+        except Exception:
+            allowed = []
+        for d in allowed:
+            try:
+                p = Path(d).expanduser()
+                if p.is_dir():
+                    roots.append(p)
+            except Exception:
+                continue
+        try:
+            roots.append(Path(os.getcwd()))
+        except Exception:
+            pass
+
+        needle = (prefix or "").lower()
+        results = []
+        seen = set()
+        for root in roots:
+            try:
+                entries = sorted(root.iterdir(), key=lambda x: x.name.lower())
+            except Exception:
+                continue
+            for entry in entries:
+                name = entry.name
+                if needle and needle not in name.lower():
+                    continue
+                if name.startswith("."):
+                    continue
+                key = str(entry)
+                if key in seen:
+                    continue
+                seen.add(key)
+                suffix = "/" if entry.is_dir() else ""
+                results.append((name + suffix, "目录" if entry.is_dir() else "文件"))
+                if len(results) >= 30:
+                    return results
+        return results
+
     def _invalidate(self):
         """触发 prompt_toolkit 重绘底部状态栏"""
         if self._session and hasattr(self._session, 'app'):
@@ -271,6 +383,84 @@ class FanRenPrompt:
             except Exception:
                 pass
 
+    @staticmethod
+    def _request_interrupt():
+        """请求中断当前流式输出（Esc / Ctrl+C 共用）"""
+        try:
+            from fr_cli.core.stream import request_interrupt
+            request_interrupt()
+        except Exception:
+            pass
+
+    @staticmethod
+    def _run_in_terminal(func):
+        """在 prompt_toolkit 的终端层执行一个打印动作。
+
+        prompt_toolkit 下裸 print 会和渲染打架，用 run_in_terminal 把输出
+        挪到提示符上方；没有运行中的事件循环时（无 TTY 的测试环境）
+        退回普通调用。
+        """
+        def _safe():
+            try:
+                func()
+            except Exception:
+                pass
+
+        try:
+            import asyncio
+            asyncio.get_running_loop()
+        except Exception:
+            # 不在事件循环里 —— run_in_terminal 不可用
+            _safe()
+            return
+
+        try:
+            from prompt_toolkit.application import run_in_terminal
+            run_in_terminal(_safe)
+        except Exception:
+            _safe()
+
+    @staticmethod
+    def _notify(message: str):
+        """在输入框上方打印一行提示，不破坏当前输入行"""
+        FanRenPrompt._run_in_terminal(lambda: print(message))
+
+    def _terminal_width(self) -> int:
+        """当前终端宽度（用于状态栏按宽度裁剪）"""
+        try:
+            from prompt_toolkit.application import get_app
+            return int(get_app().output.get_size().columns)
+        except Exception:
+            pass
+        try:
+            import shutil
+            return shutil.get_terminal_size(fallback=(80, 24)).columns
+        except Exception:
+            return 80
+
+    def _sync_dynamic_status(self):
+        """把队列深度 / 待生效转向指令数同步到状态条
+
+        由底部状态栏的 toolbar 回调驱动 —— 生成期间 spinner 每 0.1s 触发
+        一次 invalidate，状态条因此能实时反映这两个数字。
+        """
+        try:
+            queue_mgr = getattr(self.state, "_queue_mgr", None)
+            self.status.queue_depth = queue_mgr.depth() if queue_mgr is not None else 0
+        except Exception:
+            self.status.queue_depth = 0
+        try:
+            from fr_cli.core.steering import steer_count
+            self.status.steer_pending = steer_count(self.state)
+        except Exception:
+            self.status.steer_pending = 0
+        try:
+            # v2.8.7：待确认的高危操作（后台线程在等主线程代读输入）
+            from fr_cli.security.interactive import BROKER
+            self.status.confirm_pending = BROKER.pending_desc() if BROKER.has_pending() else ""
+        except Exception:
+            self.status.confirm_pending = ""
+
     def update_last_stats(self, response_time: float = 0, input_tokens: int = 0,
                           output_tokens: int = 0, total_tokens: int = 0):
         """更新上次 AI 回答的统计信息并触发重绘"""
@@ -278,7 +468,26 @@ class FanRenPrompt:
         self.status.last_input_tokens = input_tokens
         self.status.last_output_tokens = output_tokens
         self.status.last_total_tokens = total_tokens
+        self._sync_context_usage()
         self._invalidate()
+
+    def _sync_context_usage(self):
+        """同步上下文占用（接近压缩阈值时状态栏预警）
+
+        每轮回答结束后算一次（不是每次状态栏刷新都算 —— 状态栏每 0.1s
+        刷新一次，重算整个 messages 的 token 会拖慢输入响应）。
+        """
+        try:
+            from fr_cli.memory.compress import estimate_tokens
+            messages = self.state.get_messages()
+            if not messages:
+                return
+            self.status.context_tokens = estimate_tokens(messages)
+            self.status.context_limit = int(
+                getattr(self.state, "context_compress_threshold", 0) or 0
+            )
+        except Exception:
+            pass
 
     def set_busy(self, busy: bool):
         """设置 AI 是否正在生成（控制 spinner）"""
@@ -287,6 +496,14 @@ class FanRenPrompt:
             self._start_spinner()
         else:
             self._stop_spinner()
+            # 本轮结束 —— 清掉工具字段。
+            # 失败原因保留到本轮结束为止：工具结果本身不回显给用户，
+            # 状态栏是失败现场唯一可见的地方。
+            self.status.tool_name = ""
+            self.status.tool_args = ""
+            self.status.tool_source = ""
+            self.status.tool_error = ""
+            self.status.tool_started = 0.0
         self._invalidate()
 
     def _start_spinner(self):
@@ -334,8 +551,12 @@ class FanRenPrompt:
         try:
             self._prefix_hint = prefix_hint
             indicator = FormattedText([INPUT_INDICATOR])
+            # v2.8.7(UX)：占位符精简
+            # 此前是一行 40+ 字符的固定提示（把所有快捷键都塞进去），
+            # 窄终端会溢出，而且 placeholder 一输入就消失 —— 没人读得到。
+            # 现在只留"怎么用"的四种输入形态；快捷键交给 /help 与启动卡片。
             placeholder = FormattedText([
-                ("class:placeholder", "  输消息 · / 命令 · @ Agent · ! shell · Ctrl+E/R/U 编辑")
+                ("class:placeholder", "  输消息 · /命令 · @Agent或文件 · !shell")
             ])
 
             result = self._session.prompt(

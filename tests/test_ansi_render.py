@@ -7,7 +7,6 @@
 import io
 import sys
 
-import pytest
 
 from fr_cli.ui import ansi
 

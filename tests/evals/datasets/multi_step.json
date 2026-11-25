@@ -1,0 +1,64 @@
+[
+  {
+    "id": "multi_step_read_then_write",
+    "user_input": "先读 notes.md，再把要点写进 summary.md",
+    "expect_tool": "write_file",
+    "expect_tools": ["read_file", "write_file"],
+    "expect_params": {"path": "summary.md", "content": "要点：修复登录"},
+    "max_steps": 4,
+    "tags": ["multi_step", "fs"],
+    "notes": "读 → 写 两步收敛",
+    "setup": {"files": {"notes.md": "# 笔记\nTODO: 修复登录\n"}},
+    "script": [
+      "先读原始文件。\n【调用：read_file({\"path\": \"notes.md\"})】",
+      "读到要点了，现在写摘要。\n【调用：write_file({\"path\": \"summary.md\", \"content\": \"要点：修复登录\"})】",
+      "摘要已写好。"
+    ]
+  },
+  {
+    "id": "multi_step_ls_then_read",
+    "user_input": "先列出目录，再读第一个文件",
+    "expect_tool": "read_file",
+    "expect_tools": ["list_files", "read_file"],
+    "expect_params": {"path": "a.txt"},
+    "max_steps": 4,
+    "tags": ["multi_step", "fs"],
+    "notes": "列目录 → 读文件 两步收敛",
+    "setup": {"files": {"a.txt": "内容\n"}},
+    "script": [
+      "先看看有什么。\n【调用：list_files({})】",
+      "读 a.txt。\n【调用：read_file({\"path\": \"a.txt\"})】",
+      "读完了。"
+    ]
+  },
+  {
+    "id": "multi_step_write_then_append",
+    "user_input": "先建 out.txt 写第一行，再追加第二行",
+    "expect_tool": "append_file",
+    "expect_tools": ["write_file", "append_file"],
+    "expect_params": {"path": "out.txt", "content": "second"},
+    "max_steps": 4,
+    "tags": ["multi_step", "fs"],
+    "notes": "写 → 追加 两步收敛",
+    "script": [
+      "先写第一行。\n【调用：write_file({\"path\": \"out.txt\", \"content\": \"first\"})】",
+      "再追加一行。\n【调用：append_file({\"path\": \"out.txt\", \"content\": \"second\"})】",
+      "两行都写好了。"
+    ]
+  },
+  {
+    "id": "multi_step_write_read_verify",
+    "user_input": "写完 data.txt 之后读回来确认",
+    "expect_tool": "read_file",
+    "expect_tools": ["write_file", "read_file"],
+    "expect_params": {"path": "data.txt"},
+    "max_steps": 4,
+    "tags": ["multi_step", "fs"],
+    "notes": "写 → 读回 两步收敛",
+    "script": [
+      "先写。\n【调用：write_file({\"path\": \"data.txt\", \"content\": \"payload\"})】",
+      "读回确认。\n【调用：read_file({\"path\": \"data.txt\"})】",
+      "确认无误。"
+    ]
+  }
+]

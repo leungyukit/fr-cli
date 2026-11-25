@@ -98,14 +98,6 @@ def _rename_file(deps, **kwargs):
     return result
 
 
-@register(
-    name="replace_text",
-    triggers=["替换", "replace", "文本替换", "正则替换"],
-    description="替换文件中的文本（支持正则）",
-    params={"path": str, "old_text": str, "new_text": str, "use_regex": bool},
-    security="sec_write",
-    aliases=["/replace"],
-)
 def _to_bool(v):
     """把字符串或布尔值统一转为 bool"""
     if isinstance(v, bool):
@@ -200,6 +192,18 @@ def _multi_edit(deps, **kwargs):
     })
 
 
+# v2.8.7：@register 装饰器此前**错贴到了上面的 _to_bool 上** ——
+# 于是注册表里的 "replace_text" 指向 `_to_bool`，而真 handler `_replace_text`
+# 根本没被注册 → 该工具（含 /replace 别名）每次调用都 TypeError，100% 不可用。
+# （是 eval 层跑出来的：它把这个用例标成 known_issue。）
+@register(
+    name="replace_text",
+    triggers=["替换", "replace", "文本替换", "正则替换"],
+    description="替换文件中的文本（支持正则）",
+    params={"path": str, "old_text": str, "new_text": str, "use_regex": bool},
+    security="sec_write",
+    aliases=["/replace"],
+)
 def _replace_text(deps, **kwargs):
     result = deps.vfs.replace_text(
         kwargs["path"],

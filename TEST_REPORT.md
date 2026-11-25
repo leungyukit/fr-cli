@@ -1,113 +1,65 @@
-# fr-cli v2.4.3 测试报告
+# 测试报告 —— 已改为 CI 自动生成
 
-## 测试时间
-2026-06-13
+> **v2.8.7(P2-8) 起本文件不再手工维护。**
 
-## 测试结果汇总
+手工维护的静态报告必然与真实结果脱节 —— 本文件上一版还停留在
+v2.4.3 / 357 个用例，而仓库当前已有 2300+ 个用例。报告改为由 CI
+在每次 push / PR 时生成，作为**构建产物**上传。
 
-### [OK] 所有测试通过
+## CI 产物
+
+`.github/workflows/tests.yml` 的 test job 现在会生成并上传：
+
+| 产物 | 路径 | 内容 |
+|---|---|---|
+| JUnit XML | `test-results/junit.xml` | 每个用例的通过/失败/耗时，GitHub Actions 会自动渲染成测试报告表格 |
+| 覆盖率 XML | `coverage.xml` | 机器可读，供 Codecov / SonarQube 之类的服务消费 |
+| 覆盖率 HTML | `htmlcov/` | 逐行覆盖视图，可下载后本地打开 |
+
+产物名：`test-report-py<版本>-<系统>`，保留 14 天。
+
+## 本地生成同样的产物
 
 ```bash
-.venv/bin/python -m pytest tests/ -q
-# 357 passed in ~15s
+# 依赖（dev extra 里已声明 pytest-cov）
+pip install pytest-cov
+
+# 跑测试 + 出报告
+pytest tests/ -v --tb=short \
+  --junitxml=test-results/junit.xml \
+  --cov=fr_cli --cov-report=xml --cov-report=html --cov-report=term:skip-covered
 ```
 
-| 模块 | 状态 | 说明 |
-|------|------|------|
-| core.llm | [OK] | 模型加载、Provider 配置 |
-| core.model_factory | [OK] | 模型工厂、配置文件 |
-| core.plan | [OK] | 计划模式生成与执行 |
-| agent.shell_mode | [OK] | Shell 模式切换 |
-| agent.workflow | [OK] | 工作流引擎 |
-| agent.swarm | [OK] | 蜂群统一调度 |
-| agent.builtins.local | [OK] | 本地系统操作 Agent |
-| agent.builtins.remote | [OK] | 远程 SSH Agent |
-| agent.builtins.rag | [OK] | 本地知识库问答 |
-| agent.builtins.spider | [OK] | 网页爬虫 |
-| agent.builtins.db | [OK] | 数据库助手 |
-| weapon.fs | [OK] | 虚拟文件系统沙盒 |
-| weapon.mail | [OK] | IMAP/SMTP 邮件 |
-| weapon.m365 | [OK] | Microsoft 365 OAuth2 邮件 |
-| weapon.cron | [OK] | 定时任务 |
-| weapon.web | [OK] | 联网搜索与抓取 |
-| weapon.vision | [OK] | 图片生成与识别 |
-| weapon.ocr | [OK] | OCR 文字识别 |
-| weapon.dataframe | [OK] | Excel / CSV 读取 |
-| command.registry | [OK] | 统一工具注册表 |
-| command.security | [OK] | 四阶安全确认中间件 |
-| memory.history | [OK] | 会话历史 |
-| memory.session | [OK] | 按日期自动存档 |
-| dynamic_builder | [OK] | 动态构建新工具 |
+然后打开 `htmlcov/index.html` 看逐行覆盖。
 
-## 模块导入测试
+## 只想快速看一眼结果
 
-### 核心模块
-- `fr_cli.core.llm.list_providers()`[OK]
-- `fr_cli.core.model_factory.get_model_factory()`[OK]
-- `fr_cli.core.plan.generate_plan()`[OK]
-
-### Agent 模块
-- `fr_cli.agent.shell_mode.get_shell_manager()`[OK]
-- `fr_cli.agent.workflow.parse_workflow()`[OK]
-- `fr_cli.agent.swarm.SwarmEngine`[OK]
-- `fr_cli.agent.builtins.local.run_local_agent()`[OK]
-- `fr_cli.agent.builtins.remote.run_remote_agent()`[OK]
-
-### 武器库模块
-- `fr_cli.weapon.mail.MailClient`[OK]
-- `fr_cli.weapon.m365.M365MailClient`[OK]
-- `fr_cli.weapon.fs.VFS`[OK]
-- `fr_cli.weapon.cron.CronManager`[OK]
-- `fr_cli.weapon.web.WebRaider`[OK]
-- `fr_cli.weapon.vision.VisionClient`[OK]
-- `fr_cli.weapon.ocr.ocr_recognize_file()`[OK]
-- `fr_cli.weapon.dataframe.read_excel()`[OK]
-- `fr_cli.weapon.dataframe.read_csv()`[OK]
-
-## 功能测试
-
-### Shell 模式
 ```bash
-> /shell
-(shell) $ ls -la
-(shell) $ exit
+pytest tests/ -q
 ```
 
-### 模型支持
-15+ 模型提供商：zhipu, zhipu-coding, openai, deepseek, kimi, kimi-code, qwen, doubao, mimo, minimax, minimax-token-plan, ernie, stepfun, stepfun-step-plan, spark
+## 终端里看运行时指标
 
-### Microsoft 365 邮件
-- `/m365_config setup` 配置向导 [OK]
-- `/m365_inbox` 收件箱列表 [OK]
-- `/m365_read <id>` 读取邮件 [OK]
-- `/m365_send <to> <sub> <body>` 发送邮件 [OK]
+除了 CI 覆盖率，fr-cli 自己在运行时也会记录指标（LLM 调用次数、
+工具调用次数、token 消耗、错误计数等）。终端里直接看：
 
-## 已清理的 dead code
+```
+/metrics          # 人类可读摘要
+/metrics json     # 结构化 JSON
+/metrics prom     # Prometheus 文本格式
+```
 
-本次评审后已删除/清理：
-- `fr_cli/command/handlers/` — 与 `command/registered/` 重复
-- `fr_cli/agent/coding_helper.py` — 零调用
-- `fr_cli/agent/gateway.py` — 零调用
-- `fr_cli/agent/acp.py` — 零调用
-- `fr_cli/agent/plugin_system.py` — 零调用
-- `fr_cli/agent/context_files.py` — 零调用
-- `fr_cli/agent/builtins/powerful_agent_template.py` — 仅在测试引用
-- `fr_cli/agent/workflow_system/` — 生产零调用
-- `fr_cli/agent/image_and_parallel.py` 中的 `ParallelExecutor` / `AsyncParallelExecutor` / `BatchImageGenerator` / `ImageModelConfig` / `ImageGenerator` / `TerminalImageDisplay`
-- `fr_cli/main.py:288-368` 重复死代码
+指标的生产派发点见 `fr_cli/core/events.py::ALL_V2_EVENTS`（事件名清单）
+与 `fr_cli/core/metrics/`（渲染与聚合）。
 
-## 安全加固
+## 离线评测（eval）
 
-- 注册表为高敏操作补充 `security` 声明：`set_key`, `set_model`, `set_limit`, `set_lang`, `set_alias`, `mcp_call`, `mail_read`, `m365_read`, `m365_config`, `open_file`, `launch_app`, `agent_create`, `update_run`, `local_llm`
-- `@local` Windows 路径移除 `shell=True` 回退
-- `read_excel` / `read_csv` 命令强制走 `VFS` 沙盒校验
+单元测试之外，仓库还有一层**离线 eval**（不需要 API key），
+用于回答"改了 prompt / 模型 / 工具描述之后，agent 是变好还是变坏"：
 
-## 命令路由
+```bash
+python tests/evals/run_evals.py
+```
 
-### /shell 命令
-- 文件：`fr_cli/repl/commands/shell.py`
-- 行为：切换为交互式 shell 模式，所有输入直接交给 Shell 执行
-
-### /help 命令
-- 文件：`fr_cli/repl/commands/_common.py`
-- 行为：打印分组命令列表或指定主题详细帮助
+指标包含工具选择正确率、参数正确率、多步完成率、越权拦截率。
+详见 `tests/evals/README.md`。

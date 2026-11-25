@@ -108,6 +108,9 @@ class TestSSEEndpoint(unittest.TestCase):
                     except Exception:
                         pass
             time.sleep(0.4)
+        # 失败原因此前只写进一个没人读的局部变量 —— 调试模式下打出来
+        if last_err and os.environ.get("FR_CLI_DEBUG"):
+            print(f"[SSE] 最后一次读取失败: {last_err}")
         return []
 
     @unittest.skipIf(os.environ.get("FR_CLI_FLAKY_SSE"), "skip")

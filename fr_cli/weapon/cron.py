@@ -18,6 +18,7 @@
 import threading
 import subprocess
 import shlex
+import weakref
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
@@ -130,6 +131,22 @@ class _ProxyColorDisable:
                 _color_disable_orig = None
 
 
+# ------------------------------------------------------------------
+# 活跃管理器登记簿
+#
+# CronManager 的计时器是 daemon 线程：进程退出时它们不会挡住收尾，
+# 但在**进程存活期间**它们会持续触发。而每次触发都会进入
+# _stdout_guard() —— prompt_toolkit.patch_stdout 是**进程级**的
+# sys.stdout 替换，会把此刻其它线程的 print 全部劫持走
+# （pytest 的 capsys 因此拿到空串，表现为"单跑通过、全量随机失败"）。
+#
+# 登记簿让"停掉所有定时任务"在任何地方都能做到：
+#   * 应用退出 —— 不留后台线程在退出后继续裸写 stdout
+#   * 测试夹具 teardown —— 不让计时器跨用例污染
+# ------------------------------------------------------------------
+_ACTIVE_MANAGERS = weakref.WeakSet()
+
+
 class CronManager:
     """定时任务管理器 —— 任务调度器"""
 
@@ -137,6 +154,9 @@ class CronManager:
         self.jobs = []
         self._job_id_counter = 0
         self._lock = threading.Lock()
+        # 停止标记：stop() 之后不再给已有任务续期
+        self._stopped = False
+        _ACTIVE_MANAGERS.add(self)
 
     def _resolve_state(self, state_provider):
         """解析最新 state 对象，避免闭包捕获旧引用"""
@@ -225,6 +245,10 @@ class CronManager:
 
     def _runner_wrapper(self, job):
         """统一执行入口：执行任务 → 处理一次性/at 任务清理 → 注册下一次"""
+        # 已被 stop() 停掉的任务不再执行，也不再续期
+        if self._stopped:
+            return
+
         # 一次性任务：执行后从列表移除
         is_one_shot = job["mode"] == "at"
 
@@ -240,7 +264,9 @@ class CronManager:
                 self._persist()
                 return
 
-            # 注册下一次
+            # 注册下一次（stop() 可能在本次执行期间被调用）
+            if self._stopped:
+                return
             self._schedule_next(job)
             self._persist()
 
@@ -279,6 +305,9 @@ class CronManager:
                 return None, f"{RED}间隔不能小于 {MIN_INTERVAL} 秒{RESET}"
         else:
             return None, f"{RED}必须指定 schedule 或 interval{RESET}"
+
+        # 新任务意味着"要跑起来" —— 解除 stop() 留下的暂停标记
+        self._stopped = False
 
         # 包装 state_provider
         if state_provider is None and state is not None:
@@ -336,6 +365,41 @@ class CronManager:
         self._persist()
         return True, T("cron_killed", lang, job_id)
 
+    def stop(self, clear_persisted: bool = False) -> int:
+        """停止所有定时任务（取消后台计时器）。
+
+        计时器是 daemon 线程，进程退出时不会挡住收尾；但不取消的话它们
+        会在进程存活期间继续触发，而每次触发都会进入 _stdout_guard() ——
+        prompt_toolkit.patch_stdout 是**进程级**的 sys.stdout 替换，会把
+        此刻其它线程/用例的 print 全部劫持走。
+
+        Args:
+            clear_persisted: 是否同时把任务从持久化配置里删掉。
+                默认 False —— 只停"当前这一轮调度"，任务配置保留，
+                下次启动仍会恢复（"暂停"而非"删除"）。
+
+        Returns:
+            int: 被停止的任务数
+        """
+        with self._lock:
+            jobs = list(self.jobs)
+            for job in jobs:
+                timer = job.get("timer")
+                if timer is not None:
+                    try:
+                        timer.cancel()
+                    except Exception:
+                        pass
+                job["timer"] = None
+            count = len(jobs)
+            if clear_persisted:
+                self.jobs.clear()
+        # 置位后 _runner_wrapper 不再给已有任务续期
+        self._stopped = True
+        if clear_persisted:
+            self._persist()
+        return count
+
     def _persist(self):
         """将任务配置持久化到 ~/.fr_cli/config.json 的 cron 命名空间（不含线程对象）"""
         try:
@@ -344,13 +408,23 @@ class CronManager:
             pass
 
     def load_persistent_jobs(self, lang="zh", state=None, state_provider=None):
-        """从 ~/.fr_cli/config.json 的 cron 命名空间恢复定时任务"""
+        """从 ~/.fr_cli/config.json 的 cron 命名空间恢复定时任务
+
+        幂等：重复调用不会产生重复任务（先停掉并清空当前任务，再按
+        持久化配置重建）。这很重要 —— 恢复走的是**全局默认管理器**，
+        AppState 每建一次就会调一次，不幂等就会把任务越堆越多。
+        """
         try:
             # 动态计算老文件路径（避免 monkeypatch 不生效）
             from fr_cli.conf import paths as _paths
             old_path = _paths.ROOT / "cron.json"
             jobs = load_namespace("cron", default=list, old_path=old_path)
             if isinstance(jobs, list):
+                # 先取快照再清空：clear_persisted=True 会把命名空间写成空，
+                # 直接清会把刚读出来的持久化数据一起抹掉
+                self.stop(clear_persisted=False)
+                with self._lock:
+                    self.jobs.clear()
                 self.import_jobs(jobs, lang=lang, state=state, state_provider=state_provider)
         except Exception:
             pass
@@ -464,3 +538,23 @@ def list_jobs(lang="zh"):
 def del_job(job_id, lang="zh"):
     """删除定时任务（委托给默认管理器）"""
     return _default_manager.del_job(job_id, lang)
+
+
+def stop_all(clear_persisted: bool = False) -> int:
+    """停止所有 CronManager 实例的定时任务。
+
+    应用退出 / 测试夹具 teardown 用它把散落在各处的计时器一次收干净。
+
+    Args:
+        clear_persisted: 是否同时清掉持久化配置（默认保留）
+
+    Returns:
+        int: 被停止的任务总数
+    """
+    total = 0
+    for mgr in list(_ACTIVE_MANAGERS):
+        try:
+            total += mgr.stop(clear_persisted=clear_persisted)
+        except Exception:
+            pass
+    return total

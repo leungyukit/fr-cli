@@ -63,6 +63,35 @@ from fr_cli.repl.queue import ChatQueueManager
 from fr_cli.repl.actions import action_edit_last_ai, action_retry_last_user, action_undo_last
 
 
+def _dispatch_app_stopped(reason: str) -> None:
+    """广播 app.stopped 事件(主循环退出前调用)
+
+    v3.0+:此前该事件只在 metrics 里注册了钩子,却没有任何生产派发点,
+    指标恒为 0。这里补上派发点(Ctrl+D 与 /exit 两条退出路径都覆盖)。
+
+    同时停掉所有定时任务:它们的计时器是 daemon 线程,进程退出时不会
+    挡住收尾,但在退出流程里继续触发会用 prompt_toolkit.patch_stdout
+    抢走 stdout,把告别语/统计输出搅乱。
+
+    Args:
+        reason: 退出原因(如 "eof" / "exit")
+    """
+    try:
+        from fr_cli.weapon.cron import stop_all
+        stop_all()
+    except Exception:
+        pass
+    try:
+        from fr_cli.core.events import V2Events, dispatch_event
+        dispatch_event(
+            V2Events.APP_STOPPED,
+            data={"reason": reason},
+            source="main",
+        )
+    except Exception:
+        pass
+
+
 def _build_parser() -> argparse.ArgumentParser:
     """构建命令行参数解析器"""
     parser = argparse.ArgumentParser(
@@ -220,6 +249,14 @@ def main():
     # 创建对话队列管理器（普通 AI 对话走队列，支持并发输入）
     state._queue_mgr = ChatQueueManager(state, prompt)
 
+    # v2.8.7：开启「确认中转站」——
+    # 工具执行在后台线程跑，安全确认不能直接 input()（会和主线程的
+    # prompt_toolkit 抢同一个 stdin → 用户敲的 Y/A/F/N 全被输入框吞掉 → 假死）。
+    # 改为由本线程（拥有 stdin 的那个）代读，答案经中转站送回后台线程。
+    from fr_cli.security.interactive import BROKER
+    if getattr(prompt, "_session", None) is not None:
+        BROKER.enable()
+
     # ================= 主循环 =================
     first_iter = True
     while True:
@@ -234,13 +271,25 @@ def main():
 
         u = prompt.get_input(prefix_hint=prefix_hint)
         if u is None:  # Ctrl+D 退出
+            BROKER.cancel_all()  # 待确认的操作按拒绝处理，否则退出会死等
             if state._queue_mgr.is_processing or state._queue_mgr.peek():
                 print(f"{YELLOW}正在处理队列中的问题，请稍候...{RESET}")
                 state._queue_mgr.wait_for_complete()
             print_bye()
+            _dispatch_app_stopped("eof")
             break
-        # 输入态结束: 浅灰分隔线打印在已提交输入的下方, 表示当前不在输入状态
+        # 输入态结束: 浅灰分隔线打印在已提交输入的下方, 表示当前不在输入态
         print_input_separator(active=False)
+
+        # v2.8.7：待确认的操作 —— Y/A/F/N 优先当作确认答案（不当对话消息）
+        if BROKER.has_pending():
+            from fr_cli.security.interactive import deliver_if_confirm
+            if deliver_if_confirm(u):
+                continue
+            if u.strip():
+                # 不是确认答案 → 照常当对话消息处理，但提醒确认还在等
+                print(f"{YELLOW}[!] 还有操作待确认，请在输入框输入 Y / A / F / N{RESET}")
+
         if not u:
             continue
 
@@ -273,6 +322,17 @@ def main():
         if u in state.aliases:
             u = state.aliases[u]
 
+        # /paste —— 多行粘贴降级：读到 EOF 为止，整段作为**一条消息**提交。
+        # 背景：不支持 bracketed paste 协议的终端会把多行粘贴拆成多次回车，
+        # 粘一段代码就变成三条残缺消息（详见 repl/paste.py）。
+        from fr_cli.repl.paste import collect_multiline, is_paste_command
+        if is_paste_command(u):
+            text = collect_multiline(prompt)
+            if not text.strip():
+                print(f"{YELLOW}（内容为空，已取消）{RESET}")
+                continue
+            u = text
+
         # @agent_name 直接调用 Agent 分身（不走普通 AI 对话队列）
         if u.startswith("@"):
             from fr_cli.agent.dispatch import dispatch_agent_call
@@ -291,6 +351,8 @@ def main():
             should_break = dispatch_command(state, u)
             if should_break:
                 # _cmd_exit 已经打印过 print_bye，这里不再重复
+                BROKER.cancel_all()  # 待确认的操作按拒绝处理，别让后台线程死等
+                _dispatch_app_stopped("exit")
                 break
         else:
             # 普通对话走队列（支持用户在 AI 回答期间继续输入）

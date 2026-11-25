@@ -84,6 +84,31 @@ class AppStateClientMixin:
         self._client_cache[cache_key] = client
         return client
 
+    def get_fallback_client(self):
+        """获取**降级用**的备用 provider 客户端（不改变用户当前选择）。
+
+        v2.8.7（P0-2）：主模型瞬时不可用时，LLM 调用可以降级到 backup provider。
+        与 :meth:`reinit_client` 不同 —— 这里只影响本次调用，
+        不会把用户的 ``/model`` 选择改掉。
+
+        Returns:
+            ``(client, model)`` 元组；没有可用备用时返回 ``None``
+        """
+        cfg = self.cfg or {}
+        provider = cfg.get("provider") or ""
+        backup = cfg.get("backup_provider") or ""
+        if not backup or backup == provider:
+            return None
+        try:
+            from fr_cli.core.llm import check_provider_availability
+            ok, _reason, model = check_provider_availability(backup, cfg)
+            if not ok or not model:
+                return None
+            client = self.get_client_for(backup, model)
+            return client, model
+        except Exception:
+            return None
+
     def resolve_agent_llm(self, agent_name: str) -> Tuple[Any, str, str]:
         """解析 Agent 的 LLM 配置
 

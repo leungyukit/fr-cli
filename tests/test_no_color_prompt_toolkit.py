@@ -5,7 +5,6 @@
 """
 
 
-import pytest
 
 
 class TestNoColorControl:

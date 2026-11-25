@@ -8,37 +8,34 @@ Agent HTTP 服务 —— 将分身能力发布为 Web API
 - 启动时自动生成随机 Token，所有请求需携带 Authorization: Bearer <token>
 - CORS 限制为同源，不再开放 *
 - 支持 IP 白名单（可选）
+
+服务骨架（鉴权 / 响应包裹 / 异常处理）统一到 fr_cli.core.http_base：
+- 并发：BaseHTTPServer（继承标准库 ThreadingHTTPServer），多个请求不再排队
+- 响应包裹：result_error 策略（{"result", "error"}），与历史形状完全一致
 """
 import concurrent.futures
-import json
 import secrets
 import threading
-from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.parse import urlparse
 
 from fr_cli.agent.manager import list_agents, load_persona, load_memory, load_skills
 from fr_cli.agent.workflow import load_workflow
 from fr_cli.agent.executor import run_agent
 from fr_cli.agent.workflow import run_workflow as wf_run
+from fr_cli.core.http_base import (
+    WRAP_RESULT_ERROR,
+    AuthPolicy,
+    BaseHTTPHandler,
+    BaseHTTPServer,
+)
 from fr_cli.core.result import Result
 
 
-class _AgentHTTPHandler(BaseHTTPRequestHandler):
+class _AgentHTTPHandler(BaseHTTPHandler):
     """HTTP 请求处理器 —— 路由分发 + Token 认证 + CORS + IP 白名单"""
 
-    # 关闭默认日志输出（避免污染 CLI 界面）
-    def log_message(self, format, *args):
-        pass
-
-    def _check_auth(self):
-        """校验请求是否携带正确的 Bearer Token"""
-        expected = getattr(self.server, "_token", None)
-        if not expected:
-            return True
-        auth = self.headers.get("Authorization", "")
-        if auth.startswith("Bearer ") and auth[7:] == expected:
-            return True
-        return False
+    # 响应包裹策略：保持历史的 {"result", "error"} 形状
+    wrap_mode = WRAP_RESULT_ERROR
 
     def _check_ip(self):
         """IP 白名单校验"""
@@ -48,54 +45,41 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
         client_ip = self.client_address[0]
         return client_ip in whitelist
 
-    def _send_cors_headers(self):
-        """发送 CORS 响应头"""
+    def _extra_response_headers(self):
+        """CORS 响应头（未配置 allowed_origins 时不开放跨域）"""
+        headers = {}
         allowed_origins = getattr(self.server, "_allowed_origins", [])
         origin = self.headers.get("Origin", "")
         if allowed_origins and origin in allowed_origins:
-            self.send_header("Access-Control-Allow-Origin", origin)
-        elif not allowed_origins:
-            # 未配置时默认只允许同源（不发送 CORS 头）
-            pass
-        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
-        self.send_header("Access-Control-Allow-Headers", "Content-Type, Authorization")
-
-    def _send_json(self, status, data):
-        self.send_response(status)
-        self.send_header("Content-Type", "application/json; charset=utf-8")
-        self._send_cors_headers()
-        self.end_headers()
-        self.wfile.write(json.dumps(data, ensure_ascii=False).encode("utf-8"))
+            headers["Access-Control-Allow-Origin"] = origin
+        headers["Access-Control-Allow-Methods"] = "GET, POST, OPTIONS"
+        headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
+        return headers
 
     def _send_result(self, result: Result, status_ok=200, status_fail=500):
         """将 Result 对象序列化为标准 JSON 响应"""
         if result.is_ok():
-            self._send_json(status_ok, {"result": result.unwrap(), "error": None})
+            self._send_wrapped(status_ok, data=result.unwrap())
         else:
-            self._send_json(status_fail, {"result": None, "error": result.error})
+            self._send_error(status_fail, result.error)
 
     def _read_json(self):
-        try:
-            length = int(self.headers.get("Content-Length", 0))
-            if length:
-                body = self.rfile.read(length).decode("utf-8")
-                return json.loads(body)
-            return {}
-        except Exception:
-            return {}
+        """读取 JSON 请求体（解析失败返回空 dict）"""
+        return self._read_json_body()
 
     def do_OPTIONS(self):
         """处理 CORS 预检请求"""
         self.send_response(204)
-        self._send_cors_headers()
+        for key, value in self._extra_response_headers().items():
+            self.send_header(key, value)
         self.end_headers()
 
     def do_GET(self):
         if not self._check_ip():
             self._send_json(403, {"error": "IP not allowed"})
             return
+        # 基类的 _check_auth 失败时已经发送了 401 {"error": "Unauthorized"}
         if not self._check_auth():
-            self._send_json(401, {"error": "Unauthorized"})
             return
 
         parsed = urlparse(self.path)
@@ -169,22 +153,44 @@ class _AgentHTTPHandler(BaseHTTPRequestHandler):
         return min(timeout, max_timeout)
 
     def _run_with_timeout(self, func, timeout, *args, **kwargs):
-        """在线程池中执行函数并设置超时；超时后尝试取消任务"""
-        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
-            future = executor.submit(func, *args, **kwargs)
+        """在线程池中执行函数并设置超时
+
+        历史问题：原实现用 `with ThreadPoolExecutor(...)`，退出 with 块时
+        `shutdown(wait=True)` 会阻塞到挂起任务结束 —— 超时形同虚设，
+        调用方依旧要等任务跑完才拿得到响应。
+
+        现在的做法：显式 `shutdown(wait=False)`，超时后调用方立刻拿到 504。
+
+        诚实边界
+        --------
+        Python **无法强杀线程**。超时只保证"不再阻塞调用方返回"，
+        超时任务所在的线程仍会继续跑完（资源不释放、副作用仍可能发生）；
+        未开始的任务可以被 cancel 掉，已开始的任务无法中断。
+        另外 Python 3.9+ 的线程池工作线程会在解释器退出时被 join，
+        一个卡死的任务仍可能拖慢进程退出 —— 真要强杀只能换子进程隔离。
+        """
+        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
+        future = executor.submit(func, *args, **kwargs)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            # 若任务尚未开始，可取消；已开始则无法强行中断
+            future.cancel()
+            raise
+        finally:
             try:
-                return future.result(timeout=timeout)
-            except concurrent.futures.TimeoutError:
-                # 若任务尚未开始，可取消；已开始则无法强行中断
-                future.cancel()
-                raise
+                # Python 3.9+ 支持 cancel_futures：顺带取消排队中的任务
+                executor.shutdown(wait=False, cancel_futures=True)
+            except TypeError:
+                # Python 3.8 没有 cancel_futures 参数，降级
+                executor.shutdown(wait=False)
 
     def do_POST(self):
         if not self._check_ip():
             self._send_json(403, {"error": "IP not allowed"})
             return
+        # 基类的 _check_auth 失败时已经发送了 401 {"error": "Unauthorized"}
         if not self._check_auth():
-            self._send_json(401, {"error": "Unauthorized"})
             return
 
         parsed = urlparse(self.path)
@@ -278,11 +284,21 @@ class AgentHTTPServer:
             return Result.fail(f"服务已在运行: http://{self.host}:{self.port}")
 
         self._token = secrets.token_urlsafe(16)
-        self._server = HTTPServer((self.host, self.port), _AgentHTTPHandler)
+        # 并发骨架：ThreadingHTTPServer（此前是单线程 HTTPServer，请求会排队）
+        self._server = BaseHTTPServer((self.host, self.port), _AgentHTTPHandler)
         self._server._state = self.state
         self._server._token = self._token
         self._server._allowed_origins = self._allowed_origins
         self._server._ip_whitelist = self._ip_whitelist
+        # 统一鉴权策略：全部方法都需要 Bearer Token
+        self._server.auth_policy = AuthPolicy(
+            token=self._token,
+            protected_methods=None,  # 所有方法都要鉴权
+            missing_status=401,
+            missing_message="Unauthorized",
+            invalid_status=401,
+            invalid_message="Unauthorized",
+        )
         self._thread = threading.Thread(target=self._server.serve_forever, daemon=True)
         self._thread.start()
         msg = (

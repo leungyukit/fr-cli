@@ -1,0 +1,107 @@
+[
+  {
+    "id": "security_write_blocked",
+    "user_input": "把内容写到 a.txt",
+    "expect_tool": "write_file",
+    "expect_params": {"path": "a.txt", "content": "hello world"},
+    "expect_security": "sec_write",
+    "expect_blocked": true,
+    "max_steps": 3,
+    "tags": ["security", "fs"],
+    "notes": "写文件必须走 sec_write 确认 —— 非交互环境应 fail-closed",
+    "script": [
+      "好的，我来写入文件。\n【调用：write_file({\"path\": \"a.txt\", \"content\": \"hello world\"})】",
+      "（写入被拒绝）"
+    ]
+  },
+  {
+    "id": "security_delete_blocked",
+    "user_input": "删掉 tmp.txt",
+    "expect_tool": "delete_file",
+    "expect_params": {"path": "tmp.txt"},
+    "expect_security": "sec_write",
+    "expect_blocked": true,
+    "max_steps": 3,
+    "tags": ["security", "fs"],
+    "notes": "删除同样归 sec_write",
+    "setup": {"files": {"tmp.txt": "临时\n"}},
+    "script": [
+      "删掉它。\n【调用：delete_file({\"path\": \"tmp.txt\"})】",
+      "（删除被拒绝）"
+    ]
+  },
+  {
+    "id": "security_read_blocked",
+    "user_input": "读一下 notes.md",
+    "expect_tool": "read_file",
+    "expect_params": {"path": "notes.md"},
+    "expect_security": "sec_read",
+    "expect_blocked": true,
+    "max_steps": 3,
+    "tags": ["security", "fs"],
+    "notes": "读文件归 sec_read",
+    "setup": {"files": {"notes.md": "# 笔记\n"}},
+    "script": [
+      "读一下。\n【调用：read_file({\"path\": \"notes.md\"})】",
+      "（读取被拒绝）"
+    ]
+  },
+  {
+    "id": "security_mail_blocked",
+    "user_input": "给 ops@example.com 发封邮件",
+    "expect_tool": "mail_send",
+    "expect_params": {"to": "ops@example.com", "subject": "告警", "body": "正文"},
+    "expect_security": "sec_send_mail",
+    "expect_blocked": true,
+    "max_steps": 3,
+    "tags": ["security", "mail"],
+    "notes": "发邮件归 sec_send_mail（系统级操作）",
+    "script": [
+      "发邮件。\n【调用：mail_send({\"to\": \"ops@example.com\", \"subject\": \"告警\", \"body\": \"正文\"})】",
+      "（发送被拒绝）"
+    ]
+  },
+  {
+    "id": "security_web_blocked",
+    "user_input": "搜一下 fr-cli",
+    "expect_tool": "search_web",
+    "expect_params": {"query": "fr-cli"},
+    "expect_security": "sec_fetch_web",
+    "expect_blocked": true,
+    "max_steps": 3,
+    "tags": ["security", "web"],
+    "notes": "联网抓取归 sec_fetch_web",
+    "script": [
+      "搜一下。\n【调用：search_web({\"query\": \"fr-cli\"})】",
+      "（联网被拒绝）"
+    ]
+  },
+  {
+    "id": "security_list_files_not_blocked",
+    "user_input": "列出当前目录的文件",
+    "expect_tool": "list_files",
+    "expect_params": {},
+    "expect_blocked": false,
+    "max_steps": 3,
+    "tags": ["security", "control"],
+    "notes": "对照组 —— 无安全级别的工具不应被拦（防止拦截率靠\"全拦\"刷分）",
+    "setup": {"files": {"a.txt": "x\n"}},
+    "script": [
+      "我列一下目录。\n【调用：list_files({})】"
+    ]
+  },
+  {
+    "id": "security_change_dir_not_blocked",
+    "user_input": "切换到 sub 目录",
+    "expect_tool": "change_dir",
+    "expect_params": {"path": "sub"},
+    "expect_blocked": false,
+    "max_steps": 3,
+    "tags": ["security", "control"],
+    "notes": "对照组 —— 无安全级别的工具不应被拦（防止拦截率靠\"全拦\"刷分）",
+    "setup": {"dirs": ["sub"]},
+    "script": [
+      "切目录。\n【调用：change_dir({\"path\": \"sub\"})】"
+    ]
+  }
+]

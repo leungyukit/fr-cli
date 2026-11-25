@@ -97,7 +97,7 @@ def execute_step(state, step: Dict[str, Any], step_idx: int,
             exec_result = state.executor.execute(cmd_str)
             result, error = exec_result.to_tuple()
         else:
-            exec_result = state.executor.invoke_tool(tool, params)
+            exec_result = state.executor.invoke_tool(tool, params, source="plan")
             result, error = exec_result.to_tuple()
 
         if error:

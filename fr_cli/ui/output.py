@@ -19,7 +19,6 @@
     kv("用量", "1234 tokens", indent=1)
 """
 
-import os
 import sys
 from typing import Optional
 

@@ -38,6 +38,16 @@ class ChatQueueManager:
         with self.lock:
             return list(self.queue)
 
+    def depth(self) -> int:
+        """当前待处理条数（供状态栏显示）"""
+        with self.lock:
+            return len(self.queue)
+
+    def is_busy(self) -> bool:
+        """是否正在处理（含排队中的问题）"""
+        with self.lock:
+            return bool(self.is_processing or self.queue)
+
     def clear(self):
         """清空队列"""
         with self.lock:

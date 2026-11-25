@@ -8,13 +8,37 @@ import pytest
 
 @pytest.fixture(autouse=True)
 def force_color(monkeypatch):
-    """默认开颜色,验证 ANSI 转义码"""
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    monkeypatch.delenv("FR_CLI_NO_COLOR", raising=False)
-    import sys as _sys
-    monkeypatch.setattr(_sys.stdout, "isatty", lambda: True)
+    """默认开颜色,验证 ANSI 转义码
+
+    v2.8.7：``fr_cli.ui.ui`` 在 import 时就 ``set_no_color(_NO_COLOR)``，
+    非 TTY（pytest/CI）下把 GREEN/CYAN/RESET 等常量清空 —— 断言 ANSI 码
+    的用例必然失败。这里显式恢复常量并强制判定函数返回 True。
+    """
+    from fr_cli.ui import ui
+
+    original_no_color = ui._NO_COLOR
+    ui.set_no_color(False)
+
     import importlib
     from fr_cli.ui import output
+    importlib.reload(output)
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("FR_CLI_NO_COLOR", raising=False)
+
+    def _fake_color_enabled() -> bool:
+        import os
+        if os.environ.get("FORCE_COLOR") or os.environ.get("CLICOLOR_FORCE"):
+            return True
+        if os.environ.get("NO_COLOR") or os.environ.get("FR_CLI_NO_COLOR"):
+            return False
+        return True  # 测试环境强制开色
+
+    monkeypatch.setattr(output, "_ui_color_enabled", _fake_color_enabled)
+
+    yield
+
+    ui.set_no_color(original_no_color)
     importlib.reload(output)
 
 
@@ -239,7 +263,7 @@ class TestBoxAlignment:
         from fr_cli.conf.model_wizard import _box
         from fr_cli.ui.ui import get_display_width
         capsys.readouterr()  # 清空历史输出
-        _box("步骤 a/6  ·  选择模型供应商", [f"输入编号选择,或按 q 取消", ""])
+        _box("步骤 a/6  ·  选择模型供应商", ["输入编号选择,或按 q 取消", ""])
         lines = [l for l in capsys.readouterr().out.splitlines() if l.strip()]
         widths = {get_display_width(re.sub(r'\033\[[0-9;]*m', '', l)) for l in lines}
         assert len(widths) == 1, f"框内各行宽度不一致: {widths}"

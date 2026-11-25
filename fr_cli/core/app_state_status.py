@@ -118,8 +118,8 @@ class AppStateStatusMixin:
 
         # Cron
         try:
-            from fr_cli.weapon.cron import CronManager
-            summary["cron_jobs"] = len(CronManager().jobs)
+            from fr_cli.weapon.cron import _default_manager
+            summary["cron_jobs"] = len(_default_manager.jobs)
         except Exception:
             summary["cron_jobs"] = 0
 

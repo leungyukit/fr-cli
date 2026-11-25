@@ -128,7 +128,7 @@ class TestDirectoryOperations:
         """尝试 cd 到沙盒外应被拒绝"""
         sandbox.cd("/etc", "zh")
         # cwd 应没变(还是 tmp_path)
-        result = sandbox._resolve("test.txt")
+        sandbox._resolve("test.txt")
         # 如果 cwd 没变,test.txt 不在 /etc 下
         # 我们只验证 cd 没有副作用
         f = Path("/tmp/cd_test_after.txt")
@@ -255,3 +255,136 @@ class TestMultiSandbox:
         assert _ok(multi_sandbox.read("in1.txt", "zh")) == "1"
         multi_sandbox.cd(str(d2), "zh")
         assert _ok(multi_sandbox.read("in2.txt", "zh")) == "2"
+
+
+# ==================== ANSI 泄漏治理 ====================
+
+class _FakeProxyStdout:
+    """冒充 prompt_toolkit.patch_stdout 的 StdoutProxy。
+
+    必须忠实复现两级行为, 少一级就会让用例失去意义:
+    1) 识别: ui 的 stdout_is_prompt_toolkit_proxy() 靠
+       type(sys.stdout).__module__ 是否含 "prompt_toolkit" 判定, 所以要把
+       __module__ 伪装成 prompt_toolkit.patch_stdout;
+    2) 破坏: 真代理非 raw 模式走 Vt100_Output.write(), 该方法的实现是
+       `self._buffer.append(data.replace("\\x1b", "?"))`
+       (prompt_toolkit/output/vt100.py), 会把文本里的 ESC 字节换成字面 '?'。
+       少了第 2 级, 旧代码路径输出的是真 ESC 而不是 ?[ 残损序列,
+       "无 ?[ 泄漏"这条断言就永远为真 —— 用例空跑。
+    """
+
+    def __init__(self):
+        self.parts = []
+
+    def write(self, s):
+        self.parts.append(s.replace("\x1b", "?"))
+        return len(s)
+
+    def flush(self):
+        pass
+
+    @property
+    def text(self):
+        return "".join(self.parts)
+
+
+_FakeProxyStdout.__module__ = "prompt_toolkit.patch_stdout"
+
+
+class _FakeTtyStdout:
+    """冒充真实终端(非 prompt_toolkit 代理): 原样透传, 不破坏 ESC。
+
+    用于反向用例 —— 证明修复没有退化成"全局禁色": 在允许上色的环境里,
+    print_styled 必须仍输出真 ESC 序列。
+    """
+
+    def __init__(self):
+        self.parts = []
+
+    def write(self, s):
+        self.parts.append(s)
+        return len(s)
+
+    def flush(self):
+        pass
+
+    def isatty(self):
+        return True
+
+    @property
+    def text(self):
+        return "".join(self.parts)
+
+
+class TestAnsiLeakUnderPatchStdout:
+    """VFS 写文件的 diff 展示在 patch_stdout 代理期不得泄漏 ANSI 残损序列。
+
+    背景: fs.py 曾用 from ui import 颜色常量后裸 print。那些常量是导入期
+    冻结的快照(ui 在 REPL 启动前导入, 当时 stdout 还是真 TTY, 颜色全开),
+    而 reset_color() 全仓库无人调用, 快照永不更新; 进 patch_stdout 代理期后
+    裸 print 仍吐真 ESC, 被 Vt100_Output.write() 换成 '?'。已改为
+    print_styled(每次实时判定 use_color()), 这里锁死该行为。
+    """
+
+    def _arm_real_colors(self, monkeypatch):
+        """把 fs 模块级的颜色常量 Patch 成真 ESC 序列。
+
+        必须这么做: ui.py 在 import 时就按当时 stdout 是否 TTY 调 set_no_color(),
+        pytest 捕获 stdout 期间常量全是空串 —— 不 Patch 的话"无泄漏"用例会因为
+        输出里本来就没有任何 ESC 而空跑通过(假通过)。
+        生产环境里 REPL 启动前 stdout 是真 TTY, fs.CYAN 冻结为 '\033[96m',
+        Patch 成真序列正是忠实复现生产状态。
+        """
+        import fr_cli.weapon.fs as fs_mod
+        monkeypatch.setattr(fs_mod, "CYAN", "\x1b[96m")
+        monkeypatch.setattr(fs_mod, "GREEN", "\x1b[92m")
+        monkeypatch.setattr(fs_mod, "YELLOW", "\x1b[93m")
+        monkeypatch.setattr(fs_mod, "RED", "\x1b[91m")
+        monkeypatch.setattr(fs_mod, "RESET", "\x1b[0m")
+
+    def test_no_damaged_ansi_when_stdout_is_proxy(self, sandbox, tmp_path, monkeypatch):
+        import fr_cli.ui.ui as ui
+        # 只保留"代理期"这一个关色因子, 排除 pytest 捕获 stdout 造成的关色,
+        # 否则用例会因错误的原因通过。
+        self._arm_real_colors(monkeypatch)
+        monkeypatch.setattr(ui, "_NO_COLOR", False)
+        proxy = _FakeProxyStdout()
+        monkeypatch.setattr(sys, "stdout", proxy)
+
+        sandbox.write("leak.txt", "line one\nline two\n", "zh")
+
+        out = proxy.text
+        assert "?[" not in out, f"残损 ANSI 泄漏: {out!r}"
+        assert "\x1b" not in out, f"裸 ESC 泄漏: {out!r}"
+        assert "line one" in out, f"纯文本被误剥: {out!r}"
+
+    def test_color_preserved_when_stdout_is_real_tty(self, sandbox, tmp_path, monkeypatch):
+        import fr_cli.ui.ui as ui
+        # 反向用例: 非代理且允许上色时, 必须仍输出真 ESC 序列,
+        # 防止修复退化成"全局禁色"。
+        self._arm_real_colors(monkeypatch)
+        monkeypatch.setattr(ui, "_NO_COLOR", False)
+        monkeypatch.setattr(ui, "color_enabled", lambda: True)
+        proxy = _FakeTtyStdout()
+        monkeypatch.setattr(sys, "stdout", proxy)
+
+        sandbox.write("color.txt", "hello\n", "zh")
+
+        out = proxy.text
+        assert "\x1b[96m" in out, f"颜色被误剥: {out!r}"
+        assert "?[" not in out, f"残损 ANSI 泄漏: {out!r}"
+
+    def test_replace_preview_also_goes_through_print_styled(self, sandbox, tmp_path, monkeypatch):
+        import fr_cli.ui.ui as ui
+        self._arm_real_colors(monkeypatch)
+        monkeypatch.setattr(ui, "_NO_COLOR", False)
+        proxy = _FakeProxyStdout()
+        monkeypatch.setattr(sys, "stdout", proxy)
+
+        (tmp_path / "rep.txt").write_text("alpha\nbeta\n", encoding="utf-8")
+        sandbox.replace_text("rep.txt", "beta", "gamma", False, "zh")
+
+        out = proxy.text
+        assert "?[" not in out, f"残损 ANSI 泄漏: {out!r}"
+        assert "\x1b" not in out, f"裸 ESC 泄漏: {out!r}"
+        assert "gamma" in out

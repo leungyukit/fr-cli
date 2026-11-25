@@ -12,11 +12,163 @@ _build_deps 经 executor.py re-export 保持旧导入路径可用:
 """
 from __future__ import annotations
 
+import contextlib
+import contextvars
 from types import SimpleNamespace
+from typing import Any, Dict, Optional
 
 from fr_cli.addon.plugin import exec_plugin
-from fr_cli.command.registry import get_registry
 from fr_cli.core.result import Result
+from fr_cli.core.trace import start_span
+
+#: 当前工具调用的来源（谁发起的这次调用）
+#:
+#: 用 ContextVar 而不是函数参数层层透传 —— Agent 内部代码是用户自己写的，
+#: 它们调 ``context["executor"].invoke_tool(...)`` 时不会传来源，
+#: 只能在**外层**用 :func:`tool_source_scope` 圈一段上下文。
+_TOOL_SOURCE: contextvars.ContextVar[str] = contextvars.ContextVar(
+    "fr_cli_tool_source", default=""
+)
+
+
+@contextlib.contextmanager
+def tool_source_scope(source: str):
+    """标记本上下文内工具调用的来源（状态栏显示用）。
+
+    用法::
+
+        with tool_source_scope("local"):
+            result = agent.run(context)      # 内部任意 invoke_tool 都会带上 local
+
+    Args:
+        source: 来源标识，如 ``master`` / ``local`` / ``workflow:xx`` / ``plan``
+
+    Yields:
+        None
+    """
+    token = _TOOL_SOURCE.set(source or "")
+    try:
+        yield
+    finally:
+        _TOOL_SOURCE.reset(token)
+
+
+def _summarize_value(value: Any, max_len: int = 120) -> Any:
+    """把单个参数值压成可安全放进 span 属性的摘要（超长截断，容器只记规模）。"""
+    if value is None or isinstance(value, (int, float, bool)):
+        return value
+    if isinstance(value, str):
+        if len(value) <= max_len:
+            return value
+        return value[:max_len] + f"...(已截断,原长 {len(value)})"
+    if isinstance(value, dict):
+        return f"<dict:{len(value)} 个键>"
+    if isinstance(value, (list, tuple, set)):
+        return f"<{type(value).__name__}:{len(value)} 项>"
+    return f"<{type(value).__name__}>"
+
+
+def _tool_args_digest(kwargs: Dict[str, Any], max_len: int = 28) -> str:
+    """把工具参数压成状态栏用的一行摘要。
+
+    只取"最能说明在干什么"的那个参数（路径 / 查询 / 命令 / 名称），
+    值截断到 max_len —— 状态栏只有一行宽，塞不下完整参数。
+    """
+    if not kwargs:
+        return ""
+    # 优先展示这些语义明确的键
+    preferred = ("path", "file_path", "query", "command", "cmd", "url",
+                 "name", "target", "pattern")
+    picked = None
+    for key in preferred:
+        if key in kwargs:
+            picked = (key, kwargs[key])
+            break
+    if picked is None:
+        picked = next(iter(kwargs.items()))
+
+    key, value = picked
+    if not isinstance(value, str):
+        value = str(value)
+    value = " ".join(value.split())  # 折行压平
+    if len(value) > max_len:
+        value = value[:max_len] + "…"
+    return f"{key}={value}" if value else str(key)
+
+
+def _report_tool_start(state, tool_name: str, kwargs: Dict[str, Any], source: str = ""):
+    """上报"工具开始执行"到 REPL 状态栏。
+
+    返回一个上下文对象（供 _report_tool_end 还原状态）；没有 TUI 时返回 None。
+    """
+    prompt = getattr(state, "_prompt", None)
+    if prompt is None:
+        return None
+    try:
+        import time
+        prompt.status.tool_name = tool_name
+        prompt.status.tool_args = _tool_args_digest(kwargs)
+        prompt.status.tool_source = source or ""
+        prompt.status.tool_error = ""
+        prompt.status.tool_started = time.time()
+        prompt._invalidate()
+        return prompt
+    except Exception:
+        return None
+
+
+def _report_tool_end(prompt, error: str = "", tool_name: str = "") -> None:
+    """工具执行结束 —— 成功则清空状态栏工具字段，失败则保留失败现场。
+
+    失败时**不清**工具名与参数：工具结果本身不会回显给用户，
+    状态栏是失败原因唯一可见的地方（保留到本轮对话结束）。
+
+    Args:
+        prompt: 上报的 TUI 组件
+        error: 失败原因（空串 = 成功）
+        tool_name: 本次执行的工具名 —— 并行执行时用来判断
+            "状态栏现在显示的是不是我自己"（不是就不能清，
+            否则会把另一个还在跑的工具误显示成"就绪"）
+    """
+    if prompt is None:
+        return
+    try:
+        if error:
+            prompt.status.tool_error = _short_error(error)
+        else:
+            if tool_name and prompt.status.tool_name != tool_name:
+                return  # 状态栏已经切到别的工具了，别覆盖
+            prompt.status.tool_name = ""
+            prompt.status.tool_args = ""
+            prompt.status.tool_source = ""
+            prompt.status.tool_error = ""
+            prompt.status.tool_started = 0.0
+        prompt._invalidate()
+    except Exception:
+        pass
+
+
+def _short_error(error: Any, max_len: int = 48) -> str:
+    """把错误压成状态栏能塞下的一行（换行压平 + 截断）。"""
+    if error is None:
+        return ""
+    text = " ".join(str(error).split())
+    if len(text) > max_len:
+        text = text[:max_len] + "…"
+    return text
+
+
+def _summarize_kwargs(kwargs: Dict[str, Any], max_keys: int = 8) -> Dict[str, Any]:
+    """把工具参数压缩成摘要字典（避免把整段文件内容/长文本塞进 trace）。"""
+    if not kwargs:
+        return {}
+    summary: Dict[str, Any] = {}
+    items = list(kwargs.items())
+    for key, value in items[:max_keys]:
+        summary[key] = _summarize_value(value)
+    if len(items) > max_keys:
+        summary["__truncated__"] = f"省略 {len(items) - max_keys} 个参数"
+    return summary
 
 
 def _build_deps(state, client=None, model_name=None):
@@ -68,13 +220,47 @@ class CommandDispatchMixin:
     # 第一层：结构化工具调用
     # ------------------------------------------------------------------
     def invoke_tool(self, tool_name, kwargs, msgs=None, skip_security=False,
-                    client=None, model_name=None):
+                    client=None, model_name=None, source: Optional[str] = None):
         """根据工具名和结构化参数，通过注册表调度执行。返回 Result。
 
         Args:
             skip_security: 跳过安全确认。默认为 False（走 sec_* 检查）。
             client / model_name: v2.4.4 起，显式覆盖 LLM 上下文（取代 push_agent_context 栈）。
                 传 None 时使用 AppState 默认。
+            source: 工具调用来源（状态栏显示用，如 ``master`` / ``local``）。
+                传 None 时取当前上下文的来源标记（见 :func:`tool_source_scope`）。
+        """
+        # 结构化 trace：一次工具调用 = 一个 span（kind="tool"）
+        # 没有上层 span 时，start_span 会自成一个独立 trace（trace_id 自成一体）
+        with start_span(tool_name, kind="tool", tool=tool_name,
+                        args=_summarize_kwargs(kwargs)) as span:
+            # v2.8.7(UX)：把"正在调什么工具、传了什么参数、谁在调"上报到状态栏。
+            # 此前状态栏的 tool_name 字段从未被赋值，工具执行分支是死代码 ——
+            # 用户只能看到 spinner，看不到到底在跑什么。
+            src = source if source is not None else _TOOL_SOURCE.get()
+            status_ctx = _report_tool_start(self.state, tool_name, kwargs, src)
+            try:
+                result = self._invoke_tool_impl(tool_name, kwargs, msgs=msgs,
+                                                skip_security=skip_security,
+                                                client=client, model_name=model_name)
+            except Exception as e:
+                _report_tool_end(status_ctx, error=str(e), tool_name=tool_name)
+                raise
+            _report_tool_end(status_ctx,
+                             error=result.error if not result.is_ok() else "",
+                             tool_name=tool_name)
+            if result.is_ok():
+                span.set_attribute("success", True)
+            else:
+                span.set_attribute("success", False)
+                span.mark_error(result.error or "工具执行失败")
+            return result
+
+    def _invoke_tool_impl(self, tool_name, kwargs, msgs=None, skip_security=False,
+                          client=None, model_name=None):
+        """invoke_tool 的实际执行体（trace 埋点见 invoke_tool）。
+
+        事件派发逻辑（dispatch_event）保持原样，不受埋点影响。
         """
         # v2.7+:PreToolUse hook(可阻止/修改)
         if not skip_security:

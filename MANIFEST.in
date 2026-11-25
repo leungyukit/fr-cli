@@ -4,3 +4,6 @@ include fr_cli/conf/default_models.yaml
 include fr_cli/assets/*.jpeg
 include fr_cli/assets/*.png
 include fr_cli/assets/*.jpg
+include fr_cli/assets/*.ansi
+include fr_cli/assets/*.txt
+recursive-include fr_cli/web/static *

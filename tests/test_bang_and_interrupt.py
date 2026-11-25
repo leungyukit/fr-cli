@@ -4,8 +4,6 @@ from contextlib import redirect_stdout
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-import pytest
-
 from fr_cli.repl.bang import handle_bang
 
 
@@ -93,7 +91,7 @@ class TestBangPipeMode:
 
 class TestCtrlCInterruptBinding:
     def test_ctrl_c_requests_interrupt_when_processing(self):
-        """Ctrl+C 在 AI 回答中应请求中断流式输出"""
+        """Ctrl+C 在 AI 回答中应请求中断流式输出，且**保留草稿**"""
         import fr_cli.core.stream as stream_mod
         from fr_cli.ui.prompt.tui import FanRenPrompt
 
@@ -107,9 +105,10 @@ class TestCtrlCInterruptBinding:
             event = MagicMock()
             binding.handler(event)
             assert stream_mod._current_interrupt.is_set() is True
-            # 原有行为保留:清空输入 + 擦除渲染
-            event.current_buffer.reset.assert_called_once()
-            event.app.renderer.erase.assert_called_once()
+            # v2.8.7(UX)：生成中按 Ctrl+C 只打断，**不清空草稿**
+            # （用户多半是"等太久了"，草稿被误清是伤人的）
+            event.current_buffer.reset.assert_not_called()
+            event.app.renderer.erase.assert_not_called()
         finally:
             stream_mod._current_interrupt.reset()
 
@@ -125,7 +124,29 @@ class TestCtrlCInterruptBinding:
             binding = next(
                 b for b in prompt._kb.bindings if b.keys == ("c-c",)
             )
-            binding.handler(MagicMock())
+            event = MagicMock()
+            binding.handler(event)
             assert stream_mod._current_interrupt.is_set() is False
+            # 空闲时保持传统语义:清空输入 + 擦除渲染
+            event.current_buffer.reset.assert_called_once()
+            event.app.renderer.erase.assert_called_once()
+        finally:
+            stream_mod._current_interrupt.reset()
+
+    def test_ctrl_c_without_queue_mgr_clears_buffer(self):
+        """没有队列管理器(极简模式)时 Ctrl+C 仍应清空输入"""
+        import fr_cli.core.stream as stream_mod
+        from fr_cli.ui.prompt.tui import FanRenPrompt
+
+        stream_mod._current_interrupt.reset()
+        prompt = FanRenPrompt(SimpleNamespace())
+        try:
+            binding = next(
+                b for b in prompt._kb.bindings if b.keys == ("c-c",)
+            )
+            event = MagicMock()
+            binding.handler(event)
+            assert stream_mod._current_interrupt.is_set() is False
+            event.current_buffer.reset.assert_called_once()
         finally:
             stream_mod._current_interrupt.reset()

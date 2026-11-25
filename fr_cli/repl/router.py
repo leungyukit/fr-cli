@@ -8,7 +8,8 @@
 将 main.py 中巨大的 if-elif 链提取为字典映射，
 让 main.py 只剩主循环本身。
 """
-from difflib import get_close_matches
+from difflib import SequenceMatcher
+from fr_cli.core.headless import is_headless
 from fr_cli.ui.ui import CYAN, RED, RESET, DIM, YELLOW
 
 
@@ -24,6 +25,7 @@ from fr_cli.repl.commands import (
     _cmd_limit,
     _cmd_lang,
     _cmd_usage,
+    _cmd_metrics,
     _cmd_autonomous,
     _cmd_dir,
     _cmd_dirs,
@@ -105,6 +107,7 @@ COMMAND_ROUTES = {
     "/limit": _cmd_limit,
     "/lang": _cmd_lang,
     "/usage": _cmd_usage,
+    "/metrics": _cmd_metrics,
     "/autonomous": _cmd_autonomous,
     "/mode": _cmd_mode,
     "/dir": _cmd_dir,
@@ -274,9 +277,49 @@ def _cmd_category(cmd: str) -> str:
     return "其他"
 
 
-def _print_similar_cmds(cmd, all_cmds):
-    """打印相似命令建议（编辑距离 ≤ 2）"""
-    similars = get_close_matches(cmd, all_cmds, n=3, cutoff=0.3)
+def _is_subsequence(short: str, long: str) -> bool:
+    """short 的字符是否按顺序出现在 long 中（``mdl`` ⊂ ``model``）"""
+    it = iter(long)
+    return all(ch in it for ch in short)
+
+
+def _cmd_similarity(cmd: str, cand: str) -> float:
+    """命令相似度 0~1。
+
+    三路取最大：
+    1. 编辑距离（SequenceMatcher 的 ratio）
+    2. 子序列包含 —— ``/mdl`` 想打 ``/model`` 时 ratio 只有 0.6，
+       子序列判定能把它抬到 0.75
+    3. 前缀相同 —— ``/stat`` → ``/status``
+    """
+    c = (cmd or "").lstrip("/").lower()
+    d = (cand or "").lstrip("/").lower()
+    if not c or not d:
+        return 0.0
+    ratio = SequenceMatcher(None, c, d).ratio()
+    if _is_subsequence(c, d):
+        # 按覆盖率折算：``/mdl`` ⊂ ``/model`` 抬到 0.72，
+        # 但 ``/kee`` ⊂ ``/gatekeeper`` 只有 0.66 —— 不会盖过真正的 ``/key``
+        ratio = max(ratio, 0.6 + 0.2 * (len(c) / len(d)))
+    if d.startswith(c):
+        ratio = max(ratio, 0.8)
+    return ratio
+
+
+def _print_similar_cmds(cmd, all_cmds, limit: int = 5):
+    """打印相似命令建议。
+
+    v2.8.7(P2-3)：此前只有 ``get_close_matches(n=3, cutoff=0.3)`` ——
+    只给 **3 条**，且**不认子序列**（``/mdl`` 这类缩写常常一条都匹配不上）。
+    现在按统一相似度排序，最多给 5 条。
+    """
+    scored = []
+    for c in all_cmds:
+        s = _cmd_similarity(cmd, c)
+        if s >= 0.4:
+            scored.append((s, c))
+    scored.sort(key=lambda x: (-x[0], x[1]))
+    similars = [c for _, c in scored[:limit]]
     if similars:
         print(f"{DIM}你是不是想:{RESET}")
         for c in similars:
@@ -333,6 +376,13 @@ def handle_smart_cmd(state, cmd, u, parts):
         print(f"{YELLOW}多个命令以 '{letter}' 开头，请选择:{RESET}")
         for i, c in enumerate(matches, 1):
             print(f"  [{i}] {CYAN}{c}{RESET}")
+
+        # v2.8.7+:无头模式(bot / 服务端进程)不能等 input() —— 会永久挂起 worker。
+        # 直接把候选列出来，让调用方（bot）把列表作为回复发回聊天窗口。
+        if is_headless(state):
+            print(f"{DIM}无头模式: 请直接输入完整命令名。{RESET}")
+            return False
+
         try:
             choice = input(f"{YELLOW}编号 (回车取消): {RESET}").strip()
             if choice.isdigit():
@@ -349,7 +399,7 @@ def handle_smart_cmd(state, cmd, u, parts):
     # 3. 其他未知命令 → 先尝试执行引擎
     skip_sec = bool(getattr(state, "_batch_mode", False))
     try:
-        exec_result = state.executor.execute(u, state.messages, skip_security=skip_sec)
+        exec_result = state.executor.execute(u, state.get_messages(), skip_security=skip_sec)
     except AttributeError:
         # state 没有 executor（如极简批处理模式），直接走智能提示
         print(f"{RED}未知命令: {cmd}{RESET}")
@@ -372,6 +422,32 @@ def handle_smart_cmd(state, cmd, u, parts):
     return False
 
 
+def _dispatch_command_executed(cmd: str, elapsed: float, should_break: bool) -> None:
+    """广播 command.executed 事件(命令执行完成后调用)
+
+    v3.0+:此前该事件只在 metrics 里注册了钩子,却没有任何生产派发点,
+    指标恒为 0。这里补上派发点(事件总线异常不影响主流程)。
+
+    Args:
+        cmd: 命令名(含前导斜杠,如 "/model")
+        elapsed: 命令耗时(秒)
+        should_break: 该命令是否要求退出主循环
+    """
+    try:
+        from fr_cli.core.events import V2Events, dispatch_event
+        dispatch_event(
+            V2Events.COMMAND_EXECUTED,
+            data={
+                "cmd": cmd,
+                "elapsed": round(elapsed, 3),
+                "should_break": bool(should_break),
+            },
+            source="router",
+        )
+    except Exception:
+        pass
+
+
 def dispatch(state, u: str) -> bool:
     """统一命令分发入口：返回 True 表示应退出主循环"""
     from datetime import datetime
@@ -384,6 +460,10 @@ def dispatch(state, u: str) -> bool:
         try:
             should_break = COMMAND_ROUTES[cmd](state, parts)
             if should_break:
+                # v3 事件总线:命令执行完成(广播,不影响控制流)
+                _dispatch_command_executed(
+                    cmd, (datetime.now() - cmd_start).total_seconds(), True,
+                )
                 return True
         except (EOFError, KeyboardInterrupt):
             print(f"{DIM}已取消。{RESET}")
@@ -393,6 +473,8 @@ def dispatch(state, u: str) -> bool:
             traceback.print_exc()
         # 记录耗时
         elapsed = (datetime.now() - cmd_start).total_seconds()
+        # v3 事件总线:命令执行完成(广播,不影响控制流)
+        _dispatch_command_executed(cmd, elapsed, False)
         if elapsed > 1.0:
             from fr_cli.core.recommender import record_command_usage
             record_command_usage(cmd)

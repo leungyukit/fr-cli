@@ -50,6 +50,10 @@ def _cmd_agent_create(state, parts):
 
 
 def _cmd_agent_list(state, parts):
+    # v2.8.7+:统一视图 —— 本地 / 远程 / 内置 Agent 一起列出
+    # (fr_cli.agent.registry.AgentRegistry 是子 Agent 的单一真相源)
+    from fr_cli.agent.registry import get_agent_registry
+
     agents = list_agents()
     if not agents:
         print(f"{YELLOW}暂无 Agent 分身。使用 /agent_create <名称> <描述> 创建。{RESET}")
@@ -62,6 +66,30 @@ def _cmd_agent_list(state, parts):
             if a["has_skills"]: flags.append("技能")
             flag_str = f" ({', '.join(flags)})" if flags else ""
             print(f"  {a['name']}{flag_str}")
+
+    # 统一注册表里的其它来源(远程 / 内置)
+    try:
+        registry = get_agent_registry()
+        registry.refresh()
+        by_kind = {}
+        for entry in registry.list():
+            if entry.kind == "local":
+                continue  # 本地分身上面已列过
+            by_kind.setdefault(entry.kind, []).append(entry)
+        if by_kind:
+            kind_label = {
+                "builtin": "内置 Agent",
+                "remote": "远程 Agent",
+                "dynamic": "动态 Agent",
+            }
+            print()
+            for kind, entries in sorted(by_kind.items()):
+                print(f"{CYAN}{kind_label.get(kind, kind)}:{RESET}")
+                for e in entries:
+                    desc = f" — {e.description}" if e.description else ""
+                    print(f"  {e.name}{desc}")
+    except Exception:
+        pass
     return False
 
 

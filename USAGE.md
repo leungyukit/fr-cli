@@ -74,10 +74,10 @@ curl -fsSL https://raw.githubusercontent.com/leungyukit/fr-cli/master/release/fr
 
 ### 1.4 Docker 部署
 
-仓库内置 `Dockerfile` + `docker-compose.yml`:
+仓库内置 `docker/Dockerfile` + `docker/docker-compose.yml`:
 
 ```bash
-docker compose up fr-cli
+docker compose -f docker/docker-compose.yml up fr-cli
 ```
 
 ### 1.5 核心依赖
@@ -135,8 +135,10 @@ fr-cli -q -c "/model current"
 | 快捷键 | 功能 |
 |--------|------|
 | `Enter` | 发送 |
-| `Shift+Enter` / `Ctrl+J` | 换行 |
-| `Ctrl+C` | 清空当前输入;AI 输出 / 工具执行中按则中断当前轮 |
+| `Esc+Enter` / `Ctrl+J` | 换行(多行输入) |
+| `Ctrl+S` | AI 生成途中追加指令(转向**本轮**,模型带着新指令继续推理) |
+| `Ctrl+O` | 展开最近一次被折叠的长内容(超长回答 / 超长命令输出) |
+| `Ctrl+C` | 清空当前输入;AI 输出 / 工具执行中按则中断当前轮(保留草稿) |
 | `Ctrl+L` | 清屏 |
 | `Ctrl+D` | 退出 |
 | `e` | 编辑上一条 |
@@ -151,7 +153,13 @@ fr-cli -q -c "/model current"
 | `!<cmd>` | 执行系统命令 |
 | `!<cmd> \| <prompt>` | 命令输出管道给 AI 分析 |
 | `/<cmd> [args]` | 执行 REPL 命令 |
-| `@<agent> <task>` | 调用内置/自定义 Agent |
+| `@<agent> <task>` | 调用内置/自定义 Agent(也可 `@<文件路径>` 直接引用文件) |
+| `/paste` | 多行粘贴:读到 `Ctrl+D`(或单独一行 `.`)为止,整段作为**一条消息**提交 |
+
+> **多行粘贴**:现代终端(iTerm2 / Windows Terminal / GNOME Terminal / Alacritty 等)
+> 靠 bracketed paste 协议,粘贴多行**本身就是一条消息**。
+> 若终端不支持该协议,粘贴会被拆成多次回车(粘 3 行代码 = 3 条残缺消息)——
+> 这时用 `/paste` 兜底:输入 `/paste` 后连续粘贴,`Ctrl+D` 结束。
 
 ---
 
@@ -217,6 +225,26 @@ fr-cli -q -c "/model current"
 
 `is_token_plan: true` 时,系统自动使用 `token_plan_base_url`。
 
+例如阶跃星辰的 **Step Plan** 端点:
+
+```json
+{
+  "providers": {
+    "stepfun": {
+      "key": "your-stepfun-key",
+      "model": "step-5-preview",
+      "is_token_plan": true,
+      "base_url": "https://api.stepfun.com/step_plan/v1",
+      "token_plan_base_url": "https://api.stepfun.com/step_plan/v1"
+    }
+  }
+}
+```
+
+> **Key 归属约定**:顶层 `key` 字段按历史约定属于 `zhipu`(向后兼容)。
+> 建议每个提供商都写自己的 `providers.<id>.key` —— 只配顶层 key 时,
+> 其他没有独立 key 的提供商会被判定为"未配置"并回退到零配置试用模式。
+
 ### 3.3 命令速查
 
 | 命令 | 功能 |
@@ -234,7 +262,20 @@ fr-cli -q -c "/model current"
 | `/limit <n>` | 设置最大 token 上限(默认 20000) |
 | `/lang <zh\|en>` | 切换界面语言 |
 
-### 3.4 Token 用量与计费
+### 3.4 推理模型:思考与答案分离
+
+`step-5-preview`、GLM thinking 系、火山方舟 thinking 系等推理模型会输出**思考过程**。
+
+| | 行为 |
+|---|---|
+| 终端显示 | 思考照常显示(与思考内容合并流式输出) |
+| 历史 / 记忆 | **只存最终答案**,思考不进 `~/.fr_cli/sessions/` 与 `context.json` 摘要 |
+| 二次提问 | 上下文里没有思考过程,不会越滚越长、也不会污染答案 |
+
+> 若某个提供商把答案整个放在 `reasoning_content` 里(火山方舟 coding endpoint),
+> fr-cli 会自动把思考内容当作答案返回 —— 不会出现"只答思考、不答问题"。
+
+### 3.5 Token 用量与计费
 
 ```bash
 >>> /usage           # 最近 1 天汇总
@@ -1345,6 +1386,15 @@ def auto_compress_messages(state, messages):
 - `F` — 永久允许同类(Forever),写入 `~/.fr_cli/config.json`
 - `N` / 回车 — 拒绝(Deny)
 
+> **在输入框里回答**（v2.8.7 起）：AI 触发的确认（例如生成图片、写文件）发生在
+> **后台线程**,而输入框由主线程的 prompt_toolkit 占着 —— 两者抢同一个终端输入,
+> 你敲的 `Y` 会被输入框吞掉、确认永远等不到(表现为"终端卡死")。
+>
+> 现在改为:**在输入框里直接输入 `Y` / `A` / `F` / `N` 回车**即可,
+> 底部状态栏会同时显示 `⚠ 待确认 <工具名> (Y/A/F/N)` 提醒你。
+> 输入框里的其他内容仍按普通对话消息处理,不会被误当成授权。
+> 等待超过 5 分钟或退出时按**拒绝**处理(fail-closed)。
+
 ### 22.2 受保护操作(sec_*)
 
 | 类别 | 含义 |
@@ -1663,6 +1713,10 @@ AI 也可调:
   }
 }
 ```
+
+> **顶层 `key` 的归属**:按历史约定,顶层 `key` 属于 `zhipu`(向后兼容)。
+> 推荐每个提供商都写自己的 `providers.<id>.key`;顶层 `key` 留空即可。
+> 没有独立 key 的提供商会走"零配置试用"(Mock 客户端),不会误用别的提供商的 key。
 
 ### 27.1 数据目录结构
 
@@ -1987,8 +2041,10 @@ FR_CLI_FLAKY_SSE=1 pytest tests/
 | 按键 | 功能 |
 |------|------|
 | `Enter` | 发送消息 |
-| `Shift+Enter` / `Ctrl+J` | 换行 |
-| `Ctrl+C` | 清空当前输入 |
+| `Esc+Enter` / `Ctrl+J` | 换行(多行输入) |
+| `Ctrl+S` | AI 生成途中追加指令(转向本轮) |
+| `Ctrl+O` | 展开最近一次被折叠的长内容 |
+| `Ctrl+C` | 清空当前输入(生成中则只中断输出、保留草稿) |
 | `Ctrl+L` | 清屏 |
 | `Ctrl+D` | 退出 |
 | `e` | 编辑上一条消息 |

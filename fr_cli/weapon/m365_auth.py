@@ -14,7 +14,7 @@ import webbrowser
 from typing import Any, Dict
 
 from fr_cli.core.result import Result
-from fr_cli.ui.ui import CYAN, DIM, GREEN, RED, RESET, YELLOW
+from fr_cli.ui.ui import CYAN, DIM, GREEN, RESET, YELLOW
 
 
 AUTHORITY_BASE = "https://login.microsoftonline.com"

@@ -165,9 +165,8 @@ class TestExportPptx(unittest.TestCase):
 
     def test_with_pptx(self):
         # 跳过 if pptx not installed
-        try:
-            from pptx import Presentation
-        except ImportError:
+        import importlib.util
+        if importlib.util.find_spec("pptx") is None:
             self.skipTest("python-pptx not installed")
 
         with tempfile.TemporaryDirectory() as tmp:

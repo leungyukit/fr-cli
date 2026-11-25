@@ -10,8 +10,6 @@ default_models.yaml”。用户文件只写了 3 个 provider 时，会把内置
 """
 import json
 
-import pytest
-import yaml
 
 from fr_cli.core.model_factory import ModelFactory
 

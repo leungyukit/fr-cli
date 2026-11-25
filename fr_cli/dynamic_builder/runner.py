@@ -53,7 +53,7 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     # 1. 规划
     plan = plan_build(requirement, state, lang)
     if "error" in plan:
-        return False, f"规划失败: {plan['error']}"
+        return Result.fail(f"规划失败: {plan['error']}")
 
     need_build = plan.get("need_build", False)
     reasoning = plan.get("reasoning", "")
@@ -137,6 +137,10 @@ def build_tool(requirement: str, state, lang: str = "zh", confirm: bool = True) 
     # 6. 自测：用示例参数或默认值调用一次
     test_kwargs = plan.get("test_params") or default_kwargs_for_params(params)
     print(f"{CYAN}正在自测工具 [{tool_name}]...{RESET}")
+    # 自测跳过工具级 sec_exec 确认：用户刚刚确认过构建，且工具代码已在
+    # **子进程沙箱**内执行（超时 / rlimit / 凭证脱敏 / import 守卫）；
+    # 沙箱内的能力调用（web_c / mail_c / disk_c / client / mcp）仍会回到
+    # 父进程，按各自的 sec_* 类别走一次真实确认。
     self_test = get_registry().dispatch(
         _build_deps(state), tool_name, skip_security=True, **test_kwargs
     )

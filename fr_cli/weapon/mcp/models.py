@@ -12,8 +12,30 @@ MCP 模型与可用性标志
 """
 from __future__ import annotations
 
+import re
 from dataclasses import asdict, dataclass
 from typing import Dict, List, Optional
+
+
+def mcp_tool_name(server: str, tool: str) -> str:
+    """生成 MCP 工具在统一注册表中的工具名: ``mcp_<server>_<tool>``。
+
+    server / tool 名里的非字母数字字符统一替换为下划线,
+    保证生成的工具名是合法标识符。
+
+    Args:
+        server: MCP 服务器名
+        tool: MCP 工具名
+
+    Returns:
+        规范化后的注册表工具名(如 ``mcp_filesystem_read_file``)
+    """
+
+    def _clean(value: str) -> str:
+        cleaned = re.sub(r"[^0-9a-zA-Z_]+", "_", str(value or "")).strip("_")
+        return cleaned or "unknown"
+
+    return f"mcp_{_clean(server)}_{_clean(tool)}"
 
 
 @dataclass

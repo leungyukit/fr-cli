@@ -101,6 +101,141 @@ class TestMaybeCompress:
         assert did_compress is False
 
 
+class TestTieredCompress:
+    """v2.8.7(P1-5)：早期对话分层摘要"""
+
+    def test_split_tiers_makes_contiguous_segments(self):
+        from fr_cli.memory.compress import _split_tiers
+
+        old = [{"role": "user", "content": f"m{i}"} for i in range(9)]
+        segments = _split_tiers(old, 3)
+        assert len(segments) == 3
+        # 连续、不重不漏
+        flat = [m["content"] for seg in segments for m in seg]
+        assert flat == [f"m{i}" for i in range(9)]
+
+    def test_split_tiers_single_segment_when_too_few(self):
+        from fr_cli.memory.compress import _split_tiers
+
+        old = [{"role": "user", "content": "a"}, {"role": "user", "content": "b"}]
+        assert len(_split_tiers(old, 3)) == 1
+
+    def test_split_tiers_tiers_one(self):
+        from fr_cli.memory.compress import _split_tiers
+
+        old = [{"role": "user", "content": f"m{i}"} for i in range(9)]
+        assert len(_split_tiers(old, 1)) == 1
+
+    @patch("fr_cli.memory.compress.stream_cnt")
+    def test_tiered_summaries_are_separate_messages(self, mock_stream):
+        from fr_cli.memory.compress import compress_messages
+
+        # 每次摘要调用返回不同内容，便于验证是分段而非单段
+        counter = {"n": 0}
+
+        def fake(*a, **kw):
+            counter["n"] += 1
+            return (f"第{counter['n']}段摘要", {}, 0.1, False)
+
+        mock_stream.side_effect = fake
+
+        messages = [{"role": "system", "content": "sys"}]
+        for i in range(8):
+            messages.append({"role": "user", "content": f"问题{i}"})
+            messages.append({"role": "assistant", "content": f"回答{i}"})
+        messages.append({"role": "user", "content": "现在的问题"})
+        messages.append({"role": "assistant", "content": "现在的回答"})
+
+        result = compress_messages(messages, MagicMock(), "m", lang="zh", keep_recent=1, tiers=3)
+
+        # system 提示 + 3 段摘要 + 最近一轮
+        summaries = [r for r in result if r["role"] == "system" and "历史摘要" in r["content"]]
+        assert len(summaries) == 3
+        assert "历史摘要 1/3" in summaries[0]["content"]
+        assert "历史摘要 3/3" in summaries[2]["content"]
+        # 各段内容互不相同（确实分了 3 次 LLM 调用）
+        assert len({s["content"].split("\n", 1)[1] for s in summaries}) == 3
+        # 最近一轮仍在末尾
+        assert result[-2]["content"] == "现在的问题"
+        assert result[-1]["content"] == "现在的回答"
+
+    @patch("fr_cli.memory.compress.stream_cnt")
+    def test_tiers_one_keeps_single_summary(self, mock_stream):
+        from fr_cli.memory.compress import compress_messages
+
+        mock_stream.return_value = ("唯一摘要", {}, 0.1, False)
+        messages = [{"role": "system", "content": "sys"}]
+        for i in range(8):
+            messages.append({"role": "user", "content": f"问题{i}"})
+            messages.append({"role": "assistant", "content": f"回答{i}"})
+        messages.append({"role": "user", "content": "现在的问题"})
+        messages.append({"role": "assistant", "content": "现在的回答"})
+
+        result = compress_messages(messages, MagicMock(), "m", lang="zh", keep_recent=1, tiers=1)
+
+        summaries = [r for r in result if r["role"] == "system" and "历史摘要" in r["content"]]
+        assert len(summaries) == 1
+        assert mock_stream.call_count == 1
+
+    @patch("fr_cli.memory.compress.stream_cnt")
+    def test_partial_failure_keeps_excerpt(self, mock_stream):
+        """某段摘要失败 → 保留该段原文片段，而不是整段丢弃"""
+        from fr_cli.memory.compress import compress_messages
+
+        calls = {"n": 0}
+
+        def fake(*a, **kw):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                return ("", {}, 0.1, False)  # 第二段失败
+            return (f"摘要{calls['n']}", {}, 0.1, False)
+
+        mock_stream.side_effect = fake
+
+        messages = [{"role": "system", "content": "sys"}]
+        for i in range(8):
+            messages.append({"role": "user", "content": f"问题{i}"})
+            messages.append({"role": "assistant", "content": f"回答{i}"})
+        messages.append({"role": "user", "content": "现在的问题"})
+        messages.append({"role": "assistant", "content": "现在的回答"})
+
+        result = compress_messages(messages, MagicMock(), "m", lang="zh", keep_recent=1, tiers=3)
+
+        summaries = [r for r in result if r["role"] == "system" and "历史摘要" in r["content"]]
+        assert len(summaries) == 3
+        assert any("保留原文片段" in s["content"] for s in summaries)
+
+    @patch("fr_cli.memory.compress.stream_cnt")
+    def test_all_failure_falls_back_to_truncation(self, mock_stream):
+        """所有段都失败 → 退化为只保留 system + recent（与旧行为一致）"""
+        from fr_cli.memory.compress import compress_messages
+
+        mock_stream.return_value = ("", {}, 0.1, False)
+        messages = [{"role": "system", "content": "sys"}]
+        for i in range(8):
+            messages.append({"role": "user", "content": f"问题{i}"})
+            messages.append({"role": "assistant", "content": f"回答{i}"})
+        messages.append({"role": "user", "content": "现在的问题"})
+        messages.append({"role": "assistant", "content": "现在的回答"})
+
+        result = compress_messages(messages, MagicMock(), "m", lang="zh", keep_recent=1, tiers=3)
+
+        assert result[-2]["content"] == "现在的问题"
+        assert not any("历史摘要" in r.get("content", "") for r in result)
+
+    @patch("fr_cli.memory.compress.stream_cnt")
+    def test_maybe_compress_forwards_tiers(self, mock_stream):
+        from fr_cli.memory.compress import maybe_compress
+
+        mock_stream.return_value = ("摘要", {}, 0.1, False)
+        messages = [{"role": "user", "content": "x" * 4000}] * 10
+        compressed, did_compress, before, after = maybe_compress(
+            messages, MagicMock(), "m", threshold=100, keep_recent=2, tiers=2
+        )
+        assert did_compress is True
+        assert after < before
+
+
 class TestContextReplCommand:
     """测试 REPL /context 命令"""
 

@@ -11,7 +11,8 @@ def run_agent(name, state, **kwargs):
         # 工作流模式:委托给 workflow 引擎(workflow 内部仍会触发 agent.invoked)
         wf_result = run_workflow(name, state, user_input=kwargs.get("pipeline_input"), **kwargs)
         if wf_result.is_fail():
-            return Result.fail(wf_result.error)
+            # v3.1：工作流失败时透传 data —— 里面保留着已成功步骤的结果
+            return Result.fail(wf_result.error, data=wf_result.data)
         final_result, _ = wf_result.unwrap()
         return Result.ok(final_result)
     persona = load_persona(name)
@@ -121,7 +122,11 @@ def delegate_to_agent(name, state, pipeline_input=None, **kwargs):
         "agent_name": name,
         "pipeline_input": pipeline_input,
     }
-    result = mod.run(context, **kwargs)
+    # v2.8.7(UX)：标记工具调用来源 —— Agent 内部代码调 invoke_tool 时不会传来源，
+    # 只能在外层圈一段上下文，状态栏才能显示"这次是 @local 在跑"。
+    from fr_cli.command.executor_dispatch import tool_source_scope
+    with tool_source_scope(name):
+        result = mod.run(context, **kwargs)
     if isinstance(result, Result):
         return result
     return Result.ok(result)

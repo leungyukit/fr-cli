@@ -173,17 +173,10 @@ class TestDiscard(unittest.TestCase):
 
 class TestFormat(unittest.TestCase):
     def test_format(self):
-        group = {
-            "main_repo": "/repo",
-            "prefix": "test",
-            "base_branch": "master",
-            "worktrees": [{"agent": "a", "path": "/p1", "branch": "b1"}],
-            "status": "active",
-        }
+        # format_group 内部自己从存储取 group —— 这里测的是"取不到"时的输出
         out = format_group("gid", "zh")
-        # 调用时 group=None 会返回"不存在"
-        # 这里我们直接验证 format 的输入兼容性
         self.assertIsInstance(out, str)
+        self.assertIn("gid", out)
 
 
 if __name__ == "__main__":

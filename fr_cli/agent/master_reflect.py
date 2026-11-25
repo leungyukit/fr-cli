@@ -81,6 +81,8 @@ class MasterAgentReflectMixin:
         # 自适应阈值：不超过模型 token 上限的 60%
         limit = getattr(self.state, "limit", 0) or 0
         effective_threshold = min(threshold, int(limit * 0.6)) if limit > 0 else threshold
+        # v2.8.7(P1-5):分层摘要段数(1 = 单段合并的旧行为)
+        tiers = getattr(self.state, "context_compress_tiers", 3)
         try:
             compressed, did_compress, before, after = maybe_compress(
                 messages,
@@ -89,6 +91,7 @@ class MasterAgentReflectMixin:
                 lang=self.state.lang,
                 threshold=effective_threshold,
                 keep_recent=keep_recent,
+                tiers=tiers,
             )
             if did_compress:
                 messages[:] = compressed

@@ -20,7 +20,7 @@
 """
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from typing import List, Tuple, Optional
+from typing import Any, List, Tuple, Optional
 
 from fr_cli.core.result import Result
 
@@ -138,6 +138,28 @@ def _split_calls(text: str) -> List[Tuple[str, str]]:
     return items
 
 
+def _isolate_msgs(msgs):
+    """给每个并发线程一份**独立**的消息上下文副本。
+
+    v2.8.7(P2-5)：并行工具此前共享同一个 ``msgs`` list ——
+    任何声明了 ``needs_msgs`` 且往上下文里写东西的工具，
+    都会与其他线程互相踩（append 顺序错乱、内容被覆盖）。
+
+    这里做**两层**拷贝：列表本身 + 每条消息 dict 各拷一份 ——
+    只拷列表的话，工具改 ``msgs[i]["content"]`` 仍会串到别的线程。
+    非 dict 的消息项按原样保留（不可拷贝时兜底回列表浅拷贝）。
+    """
+    if not msgs:
+        return msgs
+    try:
+        return [dict(m) if isinstance(m, dict) else m for m in msgs]
+    except Exception:
+        try:
+            return list(msgs)
+        except Exception:
+            return msgs
+
+
 class ParallelExecutor:
     """并发执行多个工具调用"""
 
@@ -149,6 +171,52 @@ class ParallelExecutor:
         """
         self.executor = executor
         self.max_workers = _clamp_workers(max_workers)
+
+    def execute_parsed(self, calls: List[Tuple[str, Any]], msgs=None,
+                       skip_security: bool = False,
+                       client=None, model_name=None) -> List[Result]:
+        """并发执行一批**已解析**的工具调用（参数是 dict）。
+
+        与 :meth:`execute_batch` 的区别：后者收 JSON 字符串并自己解析参数；
+        **原生 function calling** 路径拿到的已经是 dict，不必再序列化一遍。
+
+        返回的 Result 列表**按入参顺序**排列 —— 调用方要把它和 tool_calls
+        一一对应回填（``role="tool"`` 消息必须与请求顺序一致）。
+
+        Args:
+            calls: ``[(tool_name, kwargs_dict), ...]``
+            msgs: LLM 消息上下文（每个线程一份独立副本）
+            skip_security: 跳过安全确认
+            client/model_name: LLM 覆盖
+        """
+        if not calls:
+            return []
+
+        results: List[Optional[Result]] = [None] * len(calls)
+
+        with ThreadPoolExecutor(max_workers=self.max_workers) as pool:
+            future_to_idx = {}
+            for idx, (tool_name, kwargs) in enumerate(calls):
+                if not isinstance(kwargs, dict):
+                    results[idx] = Result.fail(f"参数解析失败: {tool_name}")
+                    continue
+                future = pool.submit(
+                    self.executor.invoke_tool,
+                    tool_name, dict(kwargs), _isolate_msgs(msgs),
+                    skip_security=skip_security,
+                    client=client, model_name=model_name,
+                )
+                future_to_idx[future] = idx
+
+            for future in as_completed(future_to_idx):
+                idx = future_to_idx[future]
+                try:
+                    results[idx] = future.result(timeout=120)
+                except Exception as e:
+                    # v2.8.7(P2-6)：保留异常类型
+                    results[idx] = Result.fail(f"执行异常: {e}", error_type=type(e).__name__)
+
+        return [r if r is not None else Result.fail("未执行") for r in results]
 
     def execute_batch(self, calls: List[Tuple[str, str, str]], msgs=None,
                       skip_security: bool = False,
@@ -185,7 +253,7 @@ class ParallelExecutor:
                     continue
                 future = pool.submit(
                     self.executor.invoke_tool,
-                    tool_name, kwargs, msgs,
+                    tool_name, kwargs, _isolate_msgs(msgs),
                     skip_security=skip_security,
                     client=client, model_name=model_name,
                 )
@@ -197,7 +265,8 @@ class ParallelExecutor:
                     result = future.result(timeout=120)
                     results[idx] = result
                 except Exception as e:
-                    results[idx] = Result.fail(f"执行异常: {e}")
+                    # v2.8.7(P2-6)：保留异常类型
+                    results[idx] = Result.fail(f"执行异常: {e}", error_type=type(e).__name__)
 
         # 填充可能的 None(应该不会发生)
         final_results = [r if r is not None else Result.fail("未执行") for r in results]

@@ -7,9 +7,20 @@ v2.4.4 行为变更：
 - 新增 `clear_all_auto_confirm()` 全局撤销（供 /unconfirm 命令使用）
 """
 import os
-from fr_cli.ui.ui import RED, BOLD, YELLOW, CYAN, RESET, print_styled, use_color
+import threading
+from fr_cli.ui.ui import RED, BOLD, YELLOW, CYAN, DIM, RESET, print_styled, use_color
 from fr_cli.lang.i18n import T
 from fr_cli.conf.config import save_config
+
+#: 安全确认的**全局互斥锁**（v2.8.7 P2-3）。
+#:
+#: 并行工具调用（【并行调用】标记路径 / 原生 function calling 多 tool_calls）
+#: 会在多个线程里同时走到这里。若不串行化，两个线程会同时 ``input()`` ——
+#: 终端输入被抢走，**用户回答的 Y/A/F/N 可能落到另一个工具上**
+#: （"允许读文件"被当成"允许执行命令"），这是安全问题，不只是显示问题。
+#:
+#: 用 RLock 而非 Lock：同一个工具内部再触发一次确认时不能自锁死。
+_CONFIRM_LOCK = threading.RLock()
 
 
 def clear_all_auto_confirm(config):
@@ -58,34 +69,104 @@ def ask(k, d, l, fconfirm, sconfirm, config):
 
     # ReAct 工具执行跑在 prompt_toolkit patch_stdout 代理里(queue.py), 裸 print
     # 打色会把 ESC 替换成 '?' 泄漏 ?[91m 乱码; 统一走 print_styled(色关自动剥序列)
-    print_styled(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
-    print_styled(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
-    print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
+    #
+    # 整段提示 + 读输入放进全局锁 —— 并行工具调用时**同一时刻只会有一个确认问句**,
+    # 用户的 Y/A/F/N 不会串到别的工具上（见 _CONFIRM_LOCK 注释）。
+    with _CONFIRM_LOCK:
+        print_styled(f"\n{RED}{BOLD}{T('sec_title', l)}{RESET}")
+        print_styled(f"{YELLOW}  >> {T(k, l)}: {d}{RESET}")
+        print_styled(f"    {CYAN}{T('sec_opt_y', l)}  {T('sec_opt_a', l)}  {T('sec_opt_f', l)}  {T('sec_opt_n', l)}{RESET}")
 
-    while True:
-        # input() 提示同理: 代理期不能带转义序列, 退化为纯空格
-        prompt = f"{BOLD} {RESET}" if use_color() else " "
-        c = input(prompt).strip().lower()
-        if c == 'y':
-            return True, sconfirm, fconfirm
-        elif c == 'a':
-            # 仅对当前 sec_* 类别标记本次会话放行
-            sconfirm[k] = True
-            return True, sconfirm, fconfirm
-        elif c == 'f':
-            # 仅对当前 sec_* 类别永久放行（v2.4.4 关键修复：不波及其他类别）
-            sconfirm[k] = True
-            fconfirm[k] = True
-            config["auto_confirm"] = dict(fconfirm)
-            # 兼容清理：如果旧版 bool 字段存在且为 True，但新版 dict 已细粒度化，删除旧字段
-            if "auto_confirm_forever" in config:
-                del config["auto_confirm_forever"]
-            save_config(config)
-            return True, sconfirm, fconfirm
-        elif c == 'n' or c == '':
-            return False, sconfirm, fconfirm
-        # 未识别输入：重新提示（保留原 UX）
-        print_styled(f"  {YELLOW}[!] 请输入 Y/A/F/N 之一{RESET}")
+        # v2.8.7：后台线程发起确认时**不能**用裸 input() ——
+        # 主线程的 prompt_toolkit 正占着 stdin（raw 模式），两边抢同一个 fd：
+        # 用户敲的 Y/A/F/N 全被输入框吞掉，input() 永远等不到 → 终端假死。
+        # 改由主线程代读，答案经确认中转站送回（详见 security/interactive.py）。
+        if _use_confirm_broker():
+            print_styled(f"  {DIM}↳ 请在下方输入框输入 Y / A / F / N 回答{RESET}")
+            while True:
+                c = _request_confirm_via_broker(k, d)
+                if c is None:
+                    # 超时 / 取消 / 中转站被关闭 —— 按"拒绝"处理（fail-closed）
+                    return False, sconfirm, fconfirm
+                decision = _resolve_answer(c, k, sconfirm, fconfirm, config)
+                if decision is not None:
+                    return decision
+                print_styled(f"  {YELLOW}[!] 请输入 Y/A/F/N 之一{RESET}")
+
+        while True:
+            # input() 提示同理: 代理期不能带转义序列, 退化为纯空格
+            prompt = f"{BOLD} {RESET}" if use_color() else " "
+            try:
+                c = input(prompt).strip().lower()
+            except (EOFError, KeyboardInterrupt):
+                # 非交互 / 用户中断 —— 按"拒绝"处理，不能让整批工具卡死
+                return False, sconfirm, fconfirm
+            decision = _resolve_answer(c, k, sconfirm, fconfirm, config)
+            if decision is not None:
+                return decision
+            # 未识别输入：重新提示（保留原 UX）
+            print_styled(f"  {YELLOW}[!] 请输入 Y/A/F/N 之一{RESET}")
+
+
+def _use_confirm_broker() -> bool:
+    """本次确认是否走「主线程代读」通道。
+
+    两条同时满足才走中转站：
+
+    1. 中转站已启用（REPL 有 prompt_toolkit 输入框时才启用）
+    2. 当前**不是**主线程 —— 主线程自己发起确认时（斜杠命令里触发的高危操作）
+       此刻并没有 prompt_toolkit 在读 stdin，裸 ``input()`` 才是对的；
+       走中转站会自己等自己（死锁）。
+    """
+    try:
+        from fr_cli.security.interactive import BROKER
+        if not BROKER.enabled:
+            return False
+        return threading.current_thread() is not threading.main_thread()
+    except Exception:
+        return False
+
+
+def _request_confirm_via_broker(k, d):
+    """向主线程请求一次确认答案（阻塞）。
+
+    Returns:
+        str | None: 答案；超时 / 取消返回 None（调用方按拒绝处理）
+    """
+    try:
+        from fr_cli.security.interactive import BROKER, DEFAULT_TIMEOUT
+        return BROKER.request(k, d, timeout=DEFAULT_TIMEOUT)
+    except Exception:
+        return None
+
+
+def _resolve_answer(c, k, sconfirm, fconfirm, config):
+    """把一次 Y/A/F/N 输入落成放行决策。
+
+    Returns:
+        tuple | None: (是否放行, sconfirm, fconfirm)；``None`` 表示输入无法识别，
+                      调用方应重新提示。
+    """
+    c = (c or "").strip().lower()
+    if c in ('y', 'yes'):
+        return True, sconfirm, fconfirm
+    elif c == 'a':
+        # 仅对当前 sec_* 类别标记本次会话放行
+        sconfirm[k] = True
+        return True, sconfirm, fconfirm
+    elif c == 'f':
+        # 仅对当前 sec_* 类别永久放行（v2.4.4 关键修复：不波及其他类别）
+        sconfirm[k] = True
+        fconfirm[k] = True
+        config["auto_confirm"] = dict(fconfirm)
+        # 兼容清理：如果旧版 bool 字段存在且为 True，但新版 dict 已细粒度化，删除旧字段
+        if "auto_confirm_forever" in config:
+            del config["auto_confirm_forever"]
+        save_config(config)
+        return True, sconfirm, fconfirm
+    elif c in ('n', 'no', ''):
+        return False, sconfirm, fconfirm
+    return None
 
 
 def _migrate_fconfirm(fconfirm):

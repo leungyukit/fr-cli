@@ -6,7 +6,6 @@
 2. markdown_stream 在 import 时把 ui 禁色态下的空常量"回填"成硬编码
    ANSI 码, 主动推翻全局禁色 → 非 TTY 场景泄漏 ?[96m 乱码。
 """
-import io
 import sys
 
 import pytest

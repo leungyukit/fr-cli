@@ -42,7 +42,9 @@ def engine(tmp_path, monkeypatch):
     state.master_agent = MagicMock()
     state.master_agent.handle = MagicMock(return_value=("done", True))
 
-    def _fake_stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None, silent=False):
+    # **kw 是必须的：v2.8.7 起 stream_cnt 支持 provider/timeout/retry/fallback/
+    # tools 等关键字参数，固定签名会把调用打成 TypeError
+    def _fake_stream_cnt(client, model, messages, lang, custom_prefix=None, max_tokens=None, silent=False, **kw):
         return json.dumps({"steps": ["搜索资料", "整理笔记", "生成报告"]}), {}, 0.0, False
 
     monkeypatch.setattr("fr_cli.agent.hermes.engine.stream_cnt", _fake_stream_cnt)

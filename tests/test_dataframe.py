@@ -7,6 +7,7 @@ dataframe 数据读取测试
 """
 import os
 import sys
+from unittest.mock import MagicMock
 
 import pytest
 

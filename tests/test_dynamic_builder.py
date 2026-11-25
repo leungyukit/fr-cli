@@ -285,3 +285,41 @@ class TestCleanCodeMarkers:
         text = "x = 1"
         result = _clean_code_markers(text)
         assert result == "x = 1"
+
+    def test_clean_extracts_code_block_from_reasoning(self):
+        """推理模型会把思考过程混进正文 —— 必须抽取出真正的代码块"""
+        from fr_cli.dynamic_builder.code_generator import _clean_code_markers
+        text = (
+            "用户要求我生成一个工具。\n"
+            "要求分析：\n1. 必须包含 run 入口\n"
+            "```python\n"
+            "def run(deps, **kwargs):\n    return 'ok', None\n"
+            "```\n"
+            "以上方案可行。\n"
+        )
+        result = _clean_code_markers(text)
+        assert result.startswith("def run(deps, **kwargs):")
+        assert "用户要求" not in result
+        assert "以上方案可行" not in result
+
+    def test_clean_picks_largest_block(self):
+        """模型给出多个草稿版本时取最完整的一段"""
+        from fr_cli.dynamic_builder.code_generator import _clean_code_markers
+        text = (
+            "```python\ndef run(deps, **kwargs):\n    ...\n```\n"
+            "```python\n"
+            "def run(deps, **kwargs):\n"
+            "    a = 1\n    b = 2\n    return a + b, None\n"
+            "```\n"
+        )
+        result = _clean_code_markers(text)
+        assert "a + b" in result
+        assert "..." not in result
+
+    def test_clean_strips_prose_without_fence(self):
+        """没有围栏时，从 run 入口处切开"""
+        from fr_cli.dynamic_builder.code_generator import _clean_code_markers
+        text = "先说下思路……\ndef run(deps, **kwargs):\n    return 1, None\n"
+        result = _clean_code_markers(text)
+        assert result.startswith("def run(deps, **kwargs):")
+        assert "先说下思路" not in result

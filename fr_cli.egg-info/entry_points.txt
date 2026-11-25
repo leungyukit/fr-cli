@@ -1,2 +1,0 @@
-[console_scripts]
-fr-cli = fr_cli.main:main

@@ -2,6 +2,7 @@
 Web Console 生命周期管理
 
 封装 HTTP server 的启动/停止/状态查询。
+服务骨架复用 fr_cli.core.http_base 的 BaseHTTPServer(并发 + 统一鉴权策略)。
 """
 from __future__ import annotations
 
@@ -9,9 +10,9 @@ import os
 import platform
 import subprocess
 import threading
-from http.server import ThreadingHTTPServer
 from typing import Any, Dict, Optional
 
+from fr_cli.core.http_base import BaseHTTPServer
 from fr_cli.web.console.events import attach_event_bus, detach_event_bus
 from fr_cli.web.console.handler import generate_token, make_handler
 
@@ -68,10 +69,10 @@ def start_console(host: str = DEFAULT_HOST, port: int = DEFAULT_PORT,
 
     # 允许端口 TIME_WAIT 状态下立即重用(测试场景)
     if reuse_port:
-        ThreadingHTTPServer.allow_reuse_address = True
+        BaseHTTPServer.allow_reuse_address = True
 
     try:
-        server = ThreadingHTTPServer((host, port), handler_cls)
+        server = BaseHTTPServer((host, port), handler_cls)
     except OSError as e:
         return {"ok": False, "error": f"无法绑定 {host}:{port}: {e}"}
 

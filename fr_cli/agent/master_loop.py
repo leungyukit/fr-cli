@@ -13,20 +13,24 @@ MasterAgent ReAct 主循环 Mixin
   - MasterAgentPromptMixin 提供 _build_system_prompt / _detect_artifacts
   - MasterAgent.__init__ 提供 self.state / self.session / self._status_data / self._step_count
 """
-import json
-import re
 from datetime import datetime
 from pathlib import Path
+
+import json
 
 from fr_cli.memory.context import extract_recent_turns, build_context_summary, save_context
 from fr_cli.memory.session import create_session, update_session
 from fr_cli.ui.ui import DIM, RESET, print_styled
+from fr_cli.core.steering import drain_steer
 
 from fr_cli.agent.master_storage import (
     SESSION_FILE,
     STATUS_FILE,
     _save_json,
 )
+
+# v2.8.7(UX)：单次任务内最多注入几轮转向指令（防无限循环）
+MAX_STEER_ROUNDS = 3
 
 
 class MasterAgentLoopMixin:
@@ -42,7 +46,54 @@ class MasterAgentLoopMixin:
       - self._detect_artifacts(txt, lang, background)  （由 MasterAgentPromptMixin 提供）
     """
 
-    MAX_STEPS = 8  # 单次任务最大工具调用步数
+    MAX_STEPS = 8  # 单次任务最大工具调用步数（可被 config 覆盖）
+    MAX_REPEAT_CALLS = 3  # 同一 tool+params 累计成功多少次即判定死循环
+    MAX_STEP_RETRIES = 1  # 单步工具失败后的重试次数（0 = 不重试）
+
+    # ---------- 运行时预算（P1-6） ----------
+
+    def _resolve_limits(self):
+        """从 config 读 ReAct 循环的运行时预算，缺省回落到类常量。
+
+        v2.8.7(P1-6)：``MAX_STEPS`` 此前写死为 8，用户改不动；同一 tool+params
+        连调 8 次也只是把预算耗光，没有死循环判定。
+
+        Returns:
+            ``(max_steps, max_repeat_calls, step_retries)``
+        """
+        cfg = getattr(self.state, "cfg", None) or {}
+        master_cfg = cfg.get("master") if isinstance(cfg, dict) else None
+        if not isinstance(master_cfg, dict):
+            master_cfg = {}
+
+        def _int(key: str, default: int, allow_zero: bool = False) -> int:
+            try:
+                value = int(master_cfg.get(key, default))
+            except (TypeError, ValueError):
+                return default
+            if value < 0:
+                return default
+            if value == 0 and not allow_zero:
+                # 0 对 max_steps / max_repeat_calls 无意义（前者会一步不做，
+                # 后者会第一次调用就误判死循环）→ 回落默认值
+                return default
+            return value
+
+        return (
+            _int("max_steps", self.MAX_STEPS),
+            _int("max_repeat_calls", self.MAX_REPEAT_CALLS),
+            # step_retries 允许为 0 —— 那是"明确关闭重试"的合法配置
+            _int("step_retries", self.MAX_STEP_RETRIES, allow_zero=True),
+        )
+
+    @staticmethod
+    def _call_key(tool_name: str, params) -> str:
+        """工具调用的去重键 —— 同名工具 + 同参数视为同一调用"""
+        try:
+            payload = json.dumps(params, sort_keys=True, ensure_ascii=False, default=str)
+        except Exception:
+            payload = str(params)
+        return f"{tool_name}::{payload}"
 
     # ---------- 核心 ReAct 循环 ----------
 
@@ -135,16 +186,48 @@ class MasterAgentLoopMixin:
         # ReAct 循环
         final_answer = None
         observations = []
+        steered: list[str] = []
+        loop_detected = False
 
-        while self._step_count < self.MAX_STEPS:
-            self._step_count += 1
+        # v2.8.7(P1-6)：运行时预算从 config 读（缺省回落到类常量）
+        max_steps, max_repeat_calls, step_retries = self._resolve_limits()
+        call_counts: dict[str, int] = {}
+
+        while self._step_count < max_steps:
             from fr_cli.core.stream import stream_cnt
 
             # 调用 LLM 获取 Thought + Action
             txt, usage, _, _ = stream_cnt(
                 self.state.client, self.state.model_name, messages, lang,
-                custom_prefix="", max_tokens=2048, silent=isolated_run
+                custom_prefix="", max_tokens=2048, silent=isolated_run,
+                provider=getattr(self.state, "provider", None),
             )
+
+            # ---- 转向指令注入（v2.8.7 UX）----
+            # 用户在生成途中按 Ctrl+S 追加的指令：作为本轮的**追加 user 消息**，
+            # 让 ReAct 循环带着新指令再走一轮 —— 而不是排成下一轮独立对话。
+            # 优先于工具执行：新指令的优先级高于模型刚给出的行动方案。
+            steer_msgs = drain_steer(self.state)
+            if steer_msgs:
+                if len(steered) < MAX_STEER_ROUNDS:
+                    messages.append({"role": "assistant", "content": txt})
+                    for m in steer_msgs:
+                        messages.append({"role": "user", "content": m})
+                    steered.extend(steer_msgs)
+                    if not isolated_run:
+                        print_styled(
+                            f"{DIM}[↯] 已注入 {len(steer_msgs)} 条转向指令，"
+                            f"本轮继续{RESET}"
+                        )
+                    continue
+                # 超过上限：丢弃多余的转向指令（避免无限循环），提示用户
+                if not isolated_run:
+                    print_styled(
+                        f"{DIM}[↯] 转向指令已达上限（{MAX_STEER_ROUNDS} 轮），"
+                        f"多余的已丢弃{RESET}"
+                    )
+
+            self._step_count += 1
 
             # 解析工具调用
             tool_calls = self._extract_tool_calls(txt)
@@ -162,20 +245,55 @@ class MasterAgentLoopMixin:
                 if hint:
                     messages.append({"role": "system", "content": f"[历史失败提示]\n{hint}"})
 
-                result, error = self._execute_tool(call["tool"], call.get("params", {}))
+                params = call.get("params", {})
+
+                # v2.8.7(P1-6)：单步失败可选重试 —— 同一调用失败后原地重试，
+                # 重试次数来自 config（step_retries=0 即不重试，保持旧行为）
+                attempts = max(1, step_retries + 1)
+                result, error = None, None
+                attempts_made = 0
+                for attempt in range(attempts):
+                    attempts_made = attempt + 1
+                    result, error = self._execute_tool(call["tool"], params)
+                    if error is None:
+                        break
+                    if attempt < attempts - 1:
+                        # 重试前把失败原因塞进观察，模型下一轮能看到
+                        observation_lines.append(
+                            f"[!] 工具 {call['tool']} 第 {attempt + 1} 次失败: {error}（重试中）"
+                        )
+                # 实际发生的重试次数 = 总尝试次数 - 1
+                retries_used = attempts_made - 1
+
                 step_info = {
                     "tool": call["tool"],
-                    "params": call.get("params", {}),
+                    "params": params,
                     "success": error is None,
                     "time": datetime.now().isoformat(),
+                    "retries": retries_used,
                 }
                 self.session["current_task"]["steps"].append(step_info)
                 if error:
                     observation_lines.append(f"[x] 工具 {call['tool']} 失败: {error}")
-                    self._record_interaction(user_input, call["tool"], False, error, tool_params=call.get("params", {}))
+                    self._record_interaction(user_input, call["tool"], False, error, tool_params=params)
                 else:
                     observation_lines.append(f"[OK] 工具 {call['tool']} 结果: {str(result)[:500]}")
-                    self._record_interaction(user_input, call["tool"], True, str(result)[:200], tool_params=call.get("params", {}))
+                    self._record_interaction(user_input, call["tool"], True, str(result)[:200], tool_params=params)
+
+                    # v2.8.7(P1-6)：死循环检测 —— 同一 tool+params 累计成功
+                    # max_repeat_calls 次即判定为无进展循环，直接收尾。
+                    # 只统计**成功**调用：失败重试不是死循环。
+                    key = self._call_key(call["tool"], params)
+                    call_counts[key] = call_counts.get(key, 0) + 1
+                    if call_counts[key] >= max_repeat_calls:
+                        loop_detected = True
+                        observation_lines.append(
+                            f"[!] 检测到重复调用 {call['tool']}（同一参数累计成功 "
+                            f"{call_counts[key]} 次），停止循环"
+                        )
+
+            if loop_detected:
+                break
 
             observation_text = "\n".join(observation_lines)
             observations.append(observation_text)
@@ -185,13 +303,21 @@ class MasterAgentLoopMixin:
             messages.append({"role": "user", "content": f"[系统观察结果]\n{observation_text}\n\n请基于以上结果继续思考或给出最终回答。"})
 
         if final_answer is None:
-            # 达到最大步数仍未收敛，强制要求总结
-            messages.append({"role": "user", "content": "已达到最大执行步数，请基于已有观察结果直接给出最终回答，不要再调用工具。"})
+            # 未收敛：区分「步数用尽」与「检测到死循环」，给模型不同的收尾指令
+            if loop_detected:
+                messages.append({"role": "user", "content": (
+                    "检测到重复的工具调用（同一工具与参数反复成功，执行没有进展），已停止循环。"
+                    "请基于已有观察结果直接给出最终回答，说明当前完成到哪一步、"
+                    "遇到什么阻碍，不要再调用工具。"
+                )})
+            else:
+                messages.append({"role": "user", "content": "已达到最大执行步数，请基于已有观察结果直接给出最终回答，不要再调用工具。"})
             self._maybe_compress_messages(messages)
             from fr_cli.core.stream import stream_cnt
             final_answer, _, _, _ = stream_cnt(
                 self.state.client, self.state.model_name, messages, lang,
-                custom_prefix="", max_tokens=2048, silent=isolated_run
+                custom_prefix="", max_tokens=2048, silent=isolated_run,
+                provider=getattr(self.state, "provider", None),
             )
             # 将 assistant 的最终回答加入消息历史，保证会话连续性
             messages.append({"role": "assistant", "content": final_answer})
@@ -218,6 +344,9 @@ class MasterAgentLoopMixin:
 
         # 保存到消息列表以便会话连贯（后台任务使用独立列表）
         target_messages.append({"role": "user", "content": user_input})
+        # v2.8.7(UX)：转向指令也进历史，让下一轮知道中途改过需求
+        for msg in steered:
+            target_messages.append({"role": "user", "content": msg})
         target_messages.append({"role": "assistant", "content": final_answer})
 
         if not isolated_run:
@@ -248,58 +377,38 @@ class MasterAgentLoopMixin:
     def _extract_tool_calls(text):
         """
         从 assistant 回复中提取工具调用。
-        格式 1（主路径，容错多形态）：见 toolcalls.extract_tool_calls ——
-          认 tool_call XML 标签 / ```tool 等代码围栏 / 裸 JSON / 对象数组，
-          键位兼容 tool+params、tool+arguments、name+arguments。
-          旧实现只认 ```tool 围栏，live 实测 step-5-preview 的
-          tool_call XML 形态被当成"最终答案"，工具从未执行（静默失败）。
-        格式 2：【调用：tool_name({...})】（传统流式对话兼容格式）
+
+        v2.8.7 行为变更：统一委托 ``fr_cli.core.tool_protocol.extract_calls``
+        （单一真相源）。此前本方法自带一套解析器：
+          - 格式 1 走 ``core/plan/toolcalls.py``（四层容错）
+          - 格式 2（【调用：tool({...})】）**只走 json.loads**，没有宽松回退
+        导致同一段 AI 文本在传统流式对话路径能解析、在 ReAct 路径被静默丢弃
+        （live 实测 step-5-preview 的形态）。现在两条路径行为一致。
+
+        保留返回 dict 列表形态（{"tool", "params"}），与旧调用方兼容。
         """
-        calls = []
-
-        # 格式 1：工具调用代码块（容错多形态，见 toolcalls.extract_tool_calls）
-        # live 实测 step-5-preview 吐的是 tool_call XML 标签包裹的 JSON /
-        # 裸 JSON / 普通围栏，旧实现只认 ```tool 围栏，导致工具调用被当成
-        # "最终答案"、ReAct 循环一步退出、工具从未执行（静默失败）。
-        from fr_cli.core.plan.toolcalls import extract_tool_calls
-        for call in extract_tool_calls(text):
-            calls.append({"tool": call["tool"], "params": call.get("params", {})})
-
-        # 格式 2：【调用：tool_name({...})】（兼容传统模式）
-        i = 0
-        while True:
-            start = text.find('【调用：', i)
-            if start == -1:
-                break
-            paren = text.find('(', start)
-            if paren == -1:
-                break
-            tool_name = text[start + 4:paren].strip()
-            # 匹配嵌套括号
-            depth = 1
-            end = paren + 1
-            while end < len(text) and depth > 0:
-                if text[end] == '(' and (end == 0 or text[end - 1] != '\\'):
-                    depth += 1
-                elif text[end] == ')' and (end == 0 or text[end - 1] != '\\'):
-                    depth -= 1
-                end += 1
-            if depth != 0:
-                break
-            arg_str = text[paren + 1:end - 1]
-            try:
-                params = json.loads(arg_str)
-                calls.append({"tool": tool_name, "params": params})
-            except Exception:
-                pass
-            i = end
-
-        return calls
+        from fr_cli.core.tool_protocol import extract_calls
+        return [call.to_dict() for call in extract_calls(text)]
 
     def _execute_tool(self, tool_name, params):
-        """通过注册表执行工具"""
-        from fr_cli.command.executor import _build_deps
-        from fr_cli.command.registry import get_registry
-        reg = get_registry()
-        deps = _build_deps(self.state)
-        return reg.dispatch(deps, tool_name, **params)
+        """通过**统一执行器**执行工具。
+
+        v2.8.7（P1-2）：此前直接走 ``registry.dispatch``，绕过了
+        ``executor.invoke_tool`` —— 而后者才是派发 ``tool.invoked`` /
+        ``tool.succeeded`` / ``tool.failed`` 事件与跑 Pre/PostToolUse hook
+        的地方。MasterAgent 默认接管普通对话后，工具类指标恒为 0（假零）。
+
+        改走 invoke_tool 后：事件、hook、安全确认三者与普通对话路径完全一致。
+        """
+        try:
+            result = self.state.executor.invoke_tool(tool_name, params, source="master")
+        except AttributeError:
+            # 极简模式（无 executor）—— 退回注册表直调
+            from fr_cli.command.executor import _build_deps
+            from fr_cli.command.registry import get_registry
+            reg = get_registry()
+            deps = _build_deps(self.state)
+            return reg.dispatch(deps, tool_name, **params)
+        if result.is_ok():
+            return result.unwrap(), None
+        return None, result.error

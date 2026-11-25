@@ -9,7 +9,7 @@
 import os
 from pathlib import Path
 from fr_cli.lang.i18n import T
-from fr_cli.ui.ui import GREEN, RED, CYAN, YELLOW, DIM, RESET
+from fr_cli.ui.ui import GREEN, RED, CYAN, YELLOW, DIM, RESET, print_styled
 from fr_cli.core.result import Result
 
 from fr_cli.weapon.fs_diff import (  # noqa: F401 (re-export,旧导入路径兼容)
@@ -153,7 +153,12 @@ class VFS:
                 f.write(content)
 
             if output_lines:
-                print("\n".join(output_lines))
+                # 不能裸 print: 本模块的颜色常量是导入期冻结的快照, 而 REPL 的
+                # AI 对话跑在 prompt_toolkit patch_stdout 代理里, 非 raw 模式走
+                # Vt100_Output.write(), 会把文本里的 ESC 字节替换成字面 '?',
+                # 于是用户看到 ?[96m[NEW] ... 乱码。print_styled 每次调用实时
+                # 判定 use_color(), 代理期自动剥序列, 非代理期(cron/直跑)保留颜色。
+                print_styled("\n".join(output_lines))
 
             return Result.ok(f"{GREEN}{T('ok_write', l, str(target))}{RESET}")
         except PermissionError:
@@ -245,8 +250,8 @@ class VFS:
             new_lines = new_content.splitlines(keepends=True)
             diff_text = _format_diff(old_lines, new_lines, str(target), l)
             if diff_text:
-                print(f"{CYAN}{T('diff_replace', l, str(target), count)}{RESET}")
-                print(diff_text)
+                print_styled(f"{CYAN}{T('diff_replace', l, str(target), count)}{RESET}")
+                print_styled(diff_text)
 
             with open(target, 'w', encoding=encoding) as f:
                 f.write(new_content)

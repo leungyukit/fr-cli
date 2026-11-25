@@ -56,7 +56,7 @@ class TestRendererCodeBlock(unittest.TestCase):
         r = StreamingMarkdownRenderer(use_color=False)
         out1 = r.feed("```python\n")
         out2 = r.feed("print('hi')\n")
-        out3 = r.feed("```\n")
+        r.feed("```\n")
         # 开始标记
         self.assertIn("python", out1)
         # 代码内容

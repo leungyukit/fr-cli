@@ -10,17 +10,46 @@ import pytest
 def force_color(monkeypatch):
     """默认所有测试都开颜色,这样能验证 ANSI 转义码
 
-    - 清掉 NO_COLOR / FR_CLI_NO_COLOR
-    - mock sys.stdout.isatty() 返回 True
+    v2.8.7：原先只 mock 了 stdout.isatty()，但
+    ``fr_cli.ui.ui`` 在 **import 时**就做了两件事：
+      ① ``_NO_COLOR = not color_enabled()`` —— 非 TTY 下为 True
+      ② ``set_no_color(_NO_COLOR)`` —— 把 GREEN/CYAN/RESET 等常量**清空**
+    于是 pytest（stdout 不是 TTY）下颜色常量是空串，断言 ANSI 码的用例
+    在 CI 里必然失败 —— 且与 isatty mock 无关，mock 的是 stdout 对象，
+    而 capsys 会在 fixture 之后替换 sys.stdout。
+
+    正确做法：显式恢复颜色常量 + 强制判定函数返回 True。
+    判定仍尊重 NO_COLOR / FR_CLI_NO_COLOR（TestTTYFallback 靠它）——
+    那两个用例自己 reload 了 output 模块，重新绑定回真函数，行为与生产一致。
     """
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    monkeypatch.delenv("FR_CLI_NO_COLOR", raising=False)
-    # mock isatty 让 _color_enabled() 返回 True
-    import sys as _sys
-    monkeypatch.setattr(_sys.stdout, "isatty", lambda: True)
-    # 重新加载 output 拿到新的 isatty 状态
+    from fr_cli.ui import ui
+
+    original_no_color = ui._NO_COLOR
+
+    # ① 恢复被 import 时清空的颜色常量
+    ui.set_no_color(False)
+    # ② output.py 是按值 import 颜色常量的，得在恢复之后 reload 才能拿到带色值
     import importlib
     from fr_cli.ui import output
+    importlib.reload(output)
+
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.delenv("FR_CLI_NO_COLOR", raising=False)
+
+    def _fake_color_enabled() -> bool:
+        import os
+        if os.environ.get("FORCE_COLOR") or os.environ.get("CLICOLOR_FORCE"):
+            return True
+        if os.environ.get("NO_COLOR") or os.environ.get("FR_CLI_NO_COLOR"):
+            return False
+        return True  # 测试环境强制开色（CI/pytest 下 stdout 不是 TTY）
+
+    monkeypatch.setattr(output, "_ui_color_enabled", _fake_color_enabled)
+
+    yield
+
+    # 还原：恢复原来的关色状态，并让 output 重新按当前常量绑定
+    ui.set_no_color(original_no_color)
     importlib.reload(output)
 
 

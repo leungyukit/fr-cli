@@ -2,6 +2,7 @@
 终端UI、颜色定义与动画引擎
 """
 import sys, platform, os
+from typing import Dict, Tuple, Union
 
 # 原始 ANSI 颜色代码表（供 set_no_color 恢复使用）
 _COLOR_CODES = {
@@ -20,6 +21,83 @@ _COLOR_CODES = {
     'CODE_BG': '\033[48;5;236m',
     'CODE_FG': '\033[38;5;255m',
 }
+
+# 当前生效的颜色码 —— 活引用的唯一真值来源。
+# 运行时被 set_no_color() 改写，所有持有 _LiveColor 的模块立刻跟着变。
+_COLOR_STATE: Dict[str, str] = {}
+
+
+# ── 颜色常量的"活引用" ──────────────────────────────────────────────
+#
+# 历史漏洞：模块用 ``from fr_cli.ui.ui import RED`` 取色时拿到的是**字符串
+# 副本** —— import 期就把转义序列烤进了局部变量。于是运行时
+# ``set_no_color(True)`` 只能改 ui.ui 自己的全局，那 90+ 个副本纹丝不动：
+# "全局关色"对它们无效，非 TTY / prompt_toolkit.patch_stdout 代理期仍会
+# 漏出 ?[91m 这类乱码。（markdown_stream.py 早先用 PEP 562 代理修过自己，
+# 但那是逐个模块打补丁 —— 这里从根上解决。）
+#
+# 现在常量本身是 str 子类实例：它记住自己的**名字**（或名字元组），取值时
+# 实时回读 _COLOR_STATE。于是：
+#   * ``from fr_cli.ui.ui import RED`` 拿到的仍是活引用；
+#   * ``CYAN + BOLD`` 返回的也是活引用（组合在**取用时**才求值，
+#     所以 import 期就写下的 ``COLOR_HUNK = CYAN + BOLD`` 同样是活的）；
+#   * ``f"{RED}"`` / ``format(RED)`` / ``print(RED)`` 都拿到当前值。
+#
+# 底层字符串值保留导入期的颜色码，仅用于让 isinstance(x, str) 成立、
+# 以及在少数不需要实时性的场景（如当字典键）下不炸。
+_ColorSpec = Union[str, Tuple[str, ...]]
+
+
+def _resolve_color(spec: _ColorSpec) -> str:
+    """解析颜色规格 → 当前生效的转义序列（实时）"""
+    if isinstance(spec, str):
+        return _COLOR_STATE.get(spec, "")
+    return "".join(_COLOR_STATE.get(name, "") for name in spec)
+
+
+def _join_spec(a: _ColorSpec, b: _ColorSpec) -> Tuple[str, ...]:
+    """拼接两个颜色规格，保持"活"的组合"""
+    a_t = (a,) if isinstance(a, str) else tuple(a)
+    b_t = (b,) if isinstance(b, str) else tuple(b)
+    return a_t + b_t
+
+
+class _LiveColor(str):
+    """颜色常量的活引用（见上方说明）"""
+
+    def __new__(cls, spec: _ColorSpec, fallback: str = ""):
+        obj = super().__new__(cls, fallback)
+        obj._spec = spec
+        return obj
+
+    def __str__(self) -> str:
+        return _resolve_color(self._spec)
+
+    def __format__(self, format_spec: str) -> str:
+        return format(str(self), format_spec)
+
+    def __bool__(self) -> bool:
+        # 真值也跟随实时状态：关色后 RED 等价于空串，
+        # 于是 `if not color:` 这类判断（markdown_stream._color）在
+        # 关色时会正确地跳过着色。
+        return bool(_resolve_color(self._spec))
+
+    def __eq__(self, other) -> bool:
+        if isinstance(other, str):
+            return _resolve_color(self._spec) == str(other)
+        return NotImplemented
+
+    def __hash__(self) -> int:
+        return hash(_resolve_color(self._spec))
+
+    def __add__(self, other):
+        if isinstance(other, _LiveColor):
+            return _LiveColor(_join_spec(self._spec, other._spec))
+        return str(self) + other
+
+    def __radd__(self, other):
+        return other + str(self)
+
 
 # ── NO_COLOR 支持 ──
 # 单一判定源: 所有 UI 模块(ui / output / markdown_stream / stream)都走这里,
@@ -66,29 +144,40 @@ def set_no_color(value: bool = True) -> None:
     运行时启用/禁用 ANSI 颜色(显式覆盖, 优先于环境判定)。
     当 prompt_toolkit.patch_stdout 接管 stdout 时,原始 ANSI 转义序列会被当作
     纯文本显示为 ?[92m 等乱码；调用本函数可全局关闭颜色输出。
+
+    实现要点：改的是 _COLOR_STATE（活引用的真值来源），**不是**重新绑定
+    模块全局 —— 因为 ``from fr_cli.ui.ui import RED`` 这种按值导入早就把
+    旧字符串复制走了，重新绑定模块全局对它们无效。
     """
-    global _NO_COLOR, RESET, BOLD, DIM, RED, GREEN, YELLOW, BLUE, MAGENTA, CYAN, WHITE, MAROON, GRAY, CODE_BG, CODE_FG
+    global _NO_COLOR
     _NO_COLOR = bool(value)
-    if _NO_COLOR:
-        RESET = BOLD = DIM = ""
-        RED = GREEN = YELLOW = BLUE = MAGENTA = CYAN = WHITE = ""
-        MAROON = GRAY = ""
-        CODE_BG = CODE_FG = ""
-    else:
-        RESET = _COLOR_CODES['RESET']
-        BOLD = _COLOR_CODES['BOLD']
-        DIM = _COLOR_CODES['DIM']
-        RED = _COLOR_CODES['RED']
-        GREEN = _COLOR_CODES['GREEN']
-        YELLOW = _COLOR_CODES['YELLOW']
-        BLUE = _COLOR_CODES['BLUE']
-        MAGENTA = _COLOR_CODES['MAGENTA']
-        CYAN = _COLOR_CODES['CYAN']
-        WHITE = _COLOR_CODES['WHITE']
-        MAROON = _COLOR_CODES['MAROON']
-        GRAY = _COLOR_CODES['GRAY']
-        CODE_BG = _COLOR_CODES['CODE_BG']
-        CODE_FG = _COLOR_CODES['CODE_FG']
+    for name, code in _COLOR_CODES.items():
+        _COLOR_STATE[name] = "" if _NO_COLOR else code
+
+
+def no_color() -> bool:
+    """当前是否处于显式关色状态（实时判定，不用 import 时快照）"""
+    return _NO_COLOR
+
+
+# ── 对外导出的颜色常量（活引用）────────────────────────────────────
+#
+# 每个常量都是一个 _LiveColor 实例：按值导入到别的模块后仍然是"活的"。
+# 组合写法（CYAN + BOLD）返回的也是活引用。
+RESET = _LiveColor("RESET", _COLOR_CODES['RESET'])
+BOLD = _LiveColor("BOLD", _COLOR_CODES['BOLD'])
+DIM = _LiveColor("DIM", _COLOR_CODES['DIM'])
+RED = _LiveColor("RED", _COLOR_CODES['RED'])
+GREEN = _LiveColor("GREEN", _COLOR_CODES['GREEN'])
+YELLOW = _LiveColor("YELLOW", _COLOR_CODES['YELLOW'])
+BLUE = _LiveColor("BLUE", _COLOR_CODES['BLUE'])
+MAGENTA = _LiveColor("MAGENTA", _COLOR_CODES['MAGENTA'])
+CYAN = _LiveColor("CYAN", _COLOR_CODES['CYAN'])
+WHITE = _LiveColor("WHITE", _COLOR_CODES['WHITE'])
+MAROON = _LiveColor("MAROON", _COLOR_CODES['MAROON'])
+GRAY = _LiveColor("GRAY", _COLOR_CODES['GRAY'])
+CODE_BG = _LiveColor("CODE_BG", _COLOR_CODES['CODE_BG'])
+CODE_FG = _LiveColor("CODE_FG", _COLOR_CODES['CODE_FG'])
 
 
 def reset_color() -> None:

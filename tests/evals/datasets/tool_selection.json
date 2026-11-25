@@ -1,0 +1,130 @@
+[
+  {
+    "id": "tool_select_write_file",
+    "user_input": "帮我把内容写到 a.txt",
+    "expect_tool": "write_file",
+    "expect_params": {"path": "a.txt", "content": "hello world"},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "最基础的写文件调用",
+    "script": [
+      "好的，我来把内容写进 a.txt。\n【调用：write_file({\"path\": \"a.txt\", \"content\": \"hello world\"})】"
+    ]
+  },
+  {
+    "id": "tool_select_read_file",
+    "user_input": "看一下 notes.md 里写了什么",
+    "expect_tool": "read_file",
+    "expect_params": {"path": "notes.md"},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "读已有文件",
+    "setup": {"files": {"notes.md": "# 笔记\nTODO: 修复登录\n"}},
+    "script": [
+      "我读一下 notes.md。\n【调用：read_file({\"path\": \"notes.md\"})】"
+    ]
+  },
+  {
+    "id": "tool_select_append_file",
+    "user_input": "往 log.txt 末尾追加一行 line2",
+    "expect_tool": "append_file",
+    "expect_params": {"path": "log.txt", "content": "line2"},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "追加而不是覆盖",
+    "setup": {"files": {"log.txt": "line1\n"}},
+    "script": [
+      "追加一行。\n【调用：append_file({\"path\": \"log.txt\", \"content\": \"line2\"})】"
+    ]
+  },
+  {
+    "id": "tool_select_list_files",
+    "user_input": "列出当前目录的文件",
+    "expect_tool": "list_files",
+    "expect_params": {},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "无参工具",
+    "setup": {"files": {"a.txt": "x\n"}},
+    "script": [
+      "我列一下目录。\n【调用：list_files({})】"
+    ]
+  },
+  {
+    "id": "tool_select_change_dir",
+    "user_input": "切换到 sub 目录",
+    "expect_tool": "change_dir",
+    "expect_params": {"path": "sub"},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "切换工作目录",
+    "setup": {"dirs": ["sub"]},
+    "script": [
+      "切目录。\n【调用：change_dir({\"path\": \"sub\"})】"
+    ]
+  },
+  {
+    "id": "tool_select_delete_file",
+    "user_input": "删掉 tmp.txt",
+    "expect_tool": "delete_file",
+    "expect_params": {"path": "tmp.txt"},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "删除文件",
+    "setup": {"files": {"tmp.txt": "临时\n"}},
+    "script": [
+      "删掉它。\n【调用：delete_file({\"path\": \"tmp.txt\"})】"
+    ]
+  },
+  {
+    "id": "tool_select_rename_file",
+    "user_input": "把 a.txt 改名成 b.txt",
+    "expect_tool": "rename_file",
+    "expect_params": {"old_path": "a.txt", "new_path": "b.txt"},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "重命名文件",
+    "setup": {"files": {"a.txt": "旧内容\n"}},
+    "script": [
+      "改名。\n【调用：rename_file({\"old_path\": \"a.txt\", \"new_path\": \"b.txt\"})】"
+    ]
+  },
+  {
+    "id": "tool_select_grep_text",
+    "user_input": "在 notes.md 里找 TODO",
+    "expect_tool": "grep_text",
+    "expect_params": {"path": "notes.md", "pattern": "TODO", "use_regex": false},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "文件内文本搜索 —— use_regex 是必填参数（schema 把所有 params 都当必填）",
+    "setup": {"files": {"notes.md": "# 笔记\nTODO: 修复登录\nDONE: 上线\n"}},
+    "script": [
+      "搜一下。\n【调用：grep_text({\"path\": \"notes.md\", \"pattern\": \"TODO\", \"use_regex\": false})】"
+    ]
+  },
+  {
+    "id": "tool_select_replace_text",
+    "user_input": "把 notes.md 里的 TODO 替换成 DONE",
+    "expect_tool": "replace_text",
+    "expect_params": {"path": "notes.md", "old_text": "TODO", "new_text": "DONE", "use_regex": false},
+    "max_steps": 3,
+    "tags": ["single", "fs"],
+    "notes": "文件内文本替换 —— use_regex 必填",
+    "setup": {"files": {"notes.md": "# 笔记\nTODO: 修复登录\n"}},
+    "script": [
+      "替换文本。\n【调用：replace_text({\"path\": \"notes.md\", \"old_text\": \"TODO\", \"new_text\": \"DONE\", \"use_regex\": false})】"
+    ]
+  },
+  {
+    "id": "tool_select_search_web",
+    "user_input": "搜一下 fr-cli 是什么",
+    "expect_tool": "search_web",
+    "expect_params": {"query": "fr-cli"},
+    "max_steps": 3,
+    "tags": ["single", "web"],
+    "notes": "web 桩件 —— 评测全程零网络",
+    "script": [
+      "我搜一下。\n【调用：search_web({\"query\": \"fr-cli\"})】"
+    ]
+  }
+]

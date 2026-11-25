@@ -9,7 +9,7 @@
 - executor.py:          本文件——CommandExecutor 组装 + __init__
 
 公共接口（保持向后兼容）：
-  - invoke_tool(tool_name, kwargs, msgs=None, client=None, model_name=None): 结构化工具调用
+  - invoke_tool(tool_name, kwargs, msgs=None, client=None, model_name=None, source=None): 结构化工具调用
   - execute(cmd_str, msgs=None, skip_security=False, client=None, model_name=None): 命令字符串调用
   - process_ai_commands(ai_response, msgs=None, client=None, model_name=None, skip_security=False): 解析并执行 AI 回复中的命令标记
 """
