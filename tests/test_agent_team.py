@@ -867,6 +867,103 @@ class TestCompleteText:
         assert err
 
 
+class TestThinkingLeakStrip:
+    """provider 偶发把 thinking 写进 content 时的兜底剥离。
+
+    实测症状：团队聚合的答案开头出现
+    ``We need answer user. They gave previous member outputs? ...``
+    之后才是真正的中文正文。
+    """
+
+    LEAK = (
+        "We need answer user. They gave previous member outputs? "
+        "They provided two outputs? The first is smartphone long partial; "
+        "second is watch partial. Now they ask synthesize all above, "
+        "deduplicate, complete, resolve conflicts, final conclusion. "
+        "Need not mention agents/team/summary. Need output final answer in Chinese. "
+        "Need cover task: 分别为智能手机和智能手表设计一条新品监控数据链路，"
+        "说明数据来源、采集方式、清洗规则、存储选型与告警指标. "
+        "Need include data source, collection, cleaning, storage, alert metrics. "
+        "Need thorough."
+    )
+
+    ANSWER = (
+        "# 新品监控数据链路设计\n\n"
+        "## 一、智能手机新品监控数据链路\n\n"
+        "数据来源包括电商与官方渠道。采集用爬虫加 API，存储用数据仓库。"
+    )
+
+    def test_strips_leading_thinking(self):
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        text = self.LEAK + "\n\n" + self.ANSWER
+        out = strip_thinking_leak(text)
+        assert out.startswith("# 新品监控数据链路设计")
+        for marker in ("We need answer user", "Need not mention",
+                       "Need cover task", "They provided two outputs"):
+            assert marker not in out, f"残留思考片段: {marker}"
+
+    def test_keeps_answer_body(self):
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        out = strip_thinking_leak(self.LEAK + "\n\n" + self.ANSWER)
+        assert "数据来源包括电商与官方渠道" in out
+        assert "采集用爬虫加 API" in out
+
+    def test_keeps_normal_chinese_answer(self):
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        text = "# 方案\n\n数据来源包括电商、媒体、官方渠道。采集用爬虫加 API。"
+        assert strip_thinking_leak(text) == text
+
+    def test_keeps_english_answer(self):
+        """纯英文场景不剥离（英文里 "We need to ..." 是正常表达）。"""
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        text = ("We need to design a pipeline that ingests data from official "
+                "sites and stores records in a warehouse for later analysis.")
+        assert strip_thinking_leak(text) == text
+
+    def test_keeps_marker_inside_body(self):
+        """正文中间的 "Need include ..." 是正常内容，不能删。"""
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        text = ("数据来源包括电商与媒体渠道，覆盖全部主流平台。\n\n"
+                "Need include price tracking as a first-class source.\n\n"
+                "采集环节由分布式爬虫集群负责，配合开放平台接口使用。")
+        assert strip_thinking_leak(text) == text
+
+    def test_keeps_english_answer_without_markers(self):
+        """英文正文即使较长，只要没有思考特征词也不该被剥离。"""
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        text = ("A complete data pipeline ingests from official sites, "
+                "cleanes records, stores them, and alerts on quality issues.")
+        assert strip_thinking_leak(text) == text
+
+    def test_all_thinking_is_kept(self):
+        """整段都是思考时不要剥成空串 —— 保留原文（宁可残留也不给空答案）。"""
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        out = strip_thinking_leak(self.LEAK)
+        assert out.strip() == self.LEAK.strip()
+
+    def test_empty_text(self):
+        from fr_cli.core.llm.completion import strip_thinking_leak
+
+        assert strip_thinking_leak("") == ""
+
+    def test_completion_path_applies_strip(self):
+        """complete_text 的返回值已剥离（团队聚合/成员产出都走这条路径）。"""
+        from fr_cli.core.llm.completion import complete_text
+
+        client = FakeClient([self.LEAK + "\n\n# 真正的答案\n\n正文。"])
+        text, err = complete_text(client, "m", [{"role": "user", "content": "hi"}])
+        assert err is None
+        assert text.startswith("# 真正的答案")
+        assert "We need answer user" not in text
+
+
 # ============================================================
 # 注册表工具
 # ============================================================

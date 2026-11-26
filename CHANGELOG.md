@@ -4,6 +4,35 @@
 
 ## [Unreleased]
 
+## [2.8.13] - 2026-11-26
+
+### 修复
+
+- **团队聚合的最终答案混入模型思考文本**（PyPI 实测抓到）：
+  推理模型（stepfun step-5 等）在思考较长时会把思考过程下发到 `delta.content`，
+  而 `core/llm/base.py` 按"同包时以 content 为准"的规则取 content ——
+  于是这段思考被当成正文进入最终答案。实测症状是答案开头出现：
+
+      We need answer user. They gave previous member outputs? They provided two
+      outputs? ... Need not mention agents/team/summary. Need output final answer
+      in Chinese. Need cover task: 分别为智能手机和智能手表设计……
+
+  之后才是真正的中文正文。新增 `core/llm/completion.py::strip_thinking_leak`：
+  逐句扫描，命中**元指令强特征**（`Need not mention` / `The user asks` /
+  `Need cover task` 等）即进入"思考模式"，删除该句及其后的英文碎片，
+  直到遇到 markdown 标题或普通中文句子。
+
+  **诚实边界**：这是**启发式**，不是协议层分离 —— provider 把 thinking 塞进
+  content 时没有任何标记可依。规则刻意收紧：只在**中文回答**场景启用
+  （中文字符数 ≥20）、只处理**开头**连续的一段、正文中间出现的
+  "Need include …" 属正常内容不会被动。宁可偶尔残留，也不误伤正常答案。
+
+### 测试
+
+- `tests/test_agent_team.py` 新增 `TestThinkingLeakStrip`（7 项）：真实泄漏样本
+  完整剥离、正文保留、正常中文答案不动、纯英文答案不动、正文中间的元指令
+  不被动、整段思考不清空、`complete_text` 路径已应用。
+
 ## [2.8.12] - 2026-11-26
 
 ### 修复

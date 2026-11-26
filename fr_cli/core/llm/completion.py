@@ -31,10 +31,129 @@
 """
 from __future__ import annotations
 
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 #: 默认单次生成上限（token）
 DEFAULT_MAX_TOKENS = 4096
+
+#: **强**思考特征：谈论"该怎么回答"的元指令 —— 正常答案里几乎不会出现。
+#: 命中即判定该句是思考残留。
+_STRONG_THINKING_MARKERS = (
+    "need not mention", "don't mention", "do not mention",
+    "the user asks", "the user wants", "the user is asking",
+    "need output", "need to output", "need cover", "need to cover",
+    "need include", "need to include", "need thorough", "need be thorough",
+    "final answer in", "answer in chinese", "answer in english",
+    "we need answer", "need to answer the", "must answer",
+)
+
+#: **弱**思考特征：单个出现不足以判定，需命中 ≥2 个。
+_WEAK_THINKING_MARKERS = (
+    "we need", "we should", "we must", "we have to",
+    "need to", "need for", "let's", "let me",
+    "i need to", "i should", "i will",
+    "now, ", "okay,", "first,", "second,", "third,",
+    "to answer", "to respond", "to provide", "to complete",
+    "the task is", "the request is", "here is", "here's",
+    "my plan",
+)
+
+#: 开头思考残留段落的最小长度（太短不剥离，避免误伤）
+_MIN_LEAK_LEN = 40
+
+#: 中文字符判定（用于划定"开头纯 ASCII 段"）
+_CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+
+#: 句子切分（保留句末标点与换行；英文句点后跟空白也算断句）
+_SENT_SPLIT_RE = re.compile(
+    r"[^。！？!?\n]+?(?:[。！？!?\n]|\.(?=\s))|[^。！？!?\n]+$"
+)
+
+#: 中文回答场景的中文字符数下限 —— 低于此值视为"纯英文场景"，不做剥离
+_MIN_CJK_CHARS = 20
+
+
+def _is_strong_thinking(sentence: str) -> bool:
+    """是否命中强思考特征（谈论"该怎么回答"的元指令）。"""
+    low = sentence.lower()
+    return any(m in low for m in _STRONG_THINKING_MARKERS)
+
+
+def strip_thinking_leak(text: str) -> str:
+    """剥离混入正文的模型思考段落（provider 偶发把 thinking 写进 content）。
+
+    背景：推理模型（stepfun step-5 等）在思考较长时会把思考过程下发到
+    ``delta.content``。``core/llm/base.py`` 按"同包时以 content 为准"的规则
+    取 content —— 于是这段思考被当成正文，进入最终答案（实测：聚合答案
+    开头出现 ``We need answer user. They gave previous member outputs? ...
+    Need not mention agents/team/summary.``，之后才是真正的中文正文）。
+
+    这里做一个**保守**的启发式修复（逐句删除 + 思考模式）：
+
+    * 只在**中文回答**场景启用（全文中文字符数 ≥ ``_MIN_CJK_CHARS``），
+      纯英文回答完全不动（英文里 "We need to ..." 是正常表达）；
+    * 逐句扫描：某句命中强特征（元指令）即**进入思考模式**并删除该句；
+    * 思考模式内：不含中文的句子一并删除（都是思考碎片）；含中文但仍命中
+      强特征的也删除（``Need cover task: 分别为智能手机…``）；
+      遇到 markdown 标题或普通中文句子则退出思考模式；
+    * 删除后若正文被清空，则**整段退回原文** —— 宁可残留也不给空答案。
+
+    诚实边界：这是**启发式**，不是协议层分离 —— provider 把 thinking 塞进
+    content 时没有任何标记可依。只有**开头**连续的思考会被剥离；夹在答案
+    中间的思考残留抓不到。宁可偶尔残留，也不误伤正常答案。
+    """
+    if not text:
+        return text
+    # 纯英文场景不做剥离
+    if len(_CJK_RE.findall(text)) < _MIN_CJK_CHARS:
+        return text
+
+    spans = [
+        m.span() for m in _SENT_SPLIT_RE.finditer(text) if m.group().strip()
+    ]
+    if not spans:
+        return text
+
+    kill: List[Tuple[int, int]] = []
+    in_thinking = False
+    finished = False          # 第一段思考结束后，后面一律不动
+    is_first = True           # 思考模式只允许由**第一句**触发
+    for start, end in spans:
+        sentence = text[start:end]
+        strong = _is_strong_thinking(sentence)
+        if finished:
+            continue
+        if not in_thinking:
+            # 只有**强特征**能触发思考模式（弱特征太容易误伤正常英文），
+            # 且只能由第一句触发 —— 正文中间出现的 "Need include ..." 是
+            # 正常内容，不能删
+            if is_first and strong:
+                in_thinking = True
+                kill.append((start, end))
+            is_first = False
+            continue
+        # 已在思考模式
+        if sentence.lstrip().startswith("#"):
+            in_thinking = False          # markdown 标题 → 答案开始
+            finished = True
+        elif strong or not _CJK_RE.search(sentence):
+            kill.append((start, end))    # 元指令句 / 英文碎片 → 都是思考
+        else:
+            in_thinking = False          # 普通中文句子 → 答案开始
+            finished = True
+    if not kill:
+        return text
+
+    pieces: List[str] = []
+    prev = 0
+    for start, end in kill:
+        if start > prev:
+            pieces.append(text[prev:start])
+        prev = end
+    pieces.append(text[prev:])
+    result = re.sub(r"\n{3,}", "\n\n", "".join(pieces)).strip()
+    return result if result else text
 
 
 def _key_ok(client: Any) -> bool:
@@ -140,7 +259,8 @@ def complete_text_ex(
 
     if not text or not text.strip():
         return None, "模型返回空内容", usage
-    return text, None, usage
+    # 剥离开头偶发混入的思考段落（provider 把 thinking 写进 content 时的兜底）
+    return strip_thinking_leak(text), None, usage
 
 
 def complete_text(
