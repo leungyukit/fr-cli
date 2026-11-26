@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fr-cli"
-version = "2.8.10"
+version = "2.8.11"
 description = "凡人打字机 - 自进化多模型终端 Agent：支持 Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo，含蜂群/MCP/梦境整理/消息推送"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -33,6 +33,10 @@ dependencies = [
     "openai>=1.0.0",
     "requests>=2.28.0",
     "mcp>=1.6.0",
+    "cryptography<47",  # mcp>=1.20 经 pyjwt[crypto] 拉入 cryptography；
+                        # ⚠️ cryptography>=47 只发 macOS arm64 轮子，Intel Mac 上
+                        # pip 会去源码编译（要 Rust 工具链，极慢且常失败）。
+                        # 46.x 同时有 macosx_10_9_universal2 / manylinux 轮子。
     "pyyaml>=6.0.0",
     "prompt_toolkit>=3.0.0",  # TUI 输入面板
     "Pillow>=10.0.0",  # 启动封面图片编码(Kitty / iTerm2 / Sixel)

@@ -4,6 +4,24 @@
 
 ## [Unreleased]
 
+## [2.8.11] - 2026-11-26
+
+### 修复
+
+- **Intel Mac 上 `pip install fr-cli` 还会去源码编译 cryptography**：
+  `mcp>=1.20` 经 `pyjwt[crypto]` 拉入 cryptography，而 **cryptography>=47
+  只发 macOS arm64 轮子**（≤46.0.3 还有 `macosx_10_9_universal2` 轮子）
+  —— pip 于是去编译 sdist，**要 Rust 工具链**，极慢且常失败。
+  现在显式声明 `cryptography<47`：46.x 同时有 universal2 / manylinux 轮子，
+  Intel 与 Apple Silicon 都能直接装轮子。
+
+> 2.8.10 已修掉同类问题的另一半（PyMuPDF 2.x 只有 arm64 轮子）；
+> 本次把 cryptography 这条链也补上 —— 两处都是"上游新版本砍掉 Intel 轮子"
+> 造成的**全新环境装不上**问题。
+
+> 实测环境：macOS 13.7.8 x86_64、Python 3.13.13、全新 venv 直连 PyPI 安装
+> fr-cli==2.8.10 → `/agent_team on|run|off` 回归实测。
+
 ## [2.8.10] - 2026-11-26
 
 ### 修复
