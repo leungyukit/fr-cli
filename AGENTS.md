@@ -1303,6 +1303,7 @@ MCP (Model Context Protocol) 允许连接外部服务器，将其工具纳入 AI
     # ---- v2.8.7 新增 ----
     "llm_timeout": 0,           # LLM 单次请求超时秒数（0 → 用客户端默认 60）
     "swarm_timeout": 60,        # 蜂群整体超时秒数（到 deadline 立即返回，未完成任务按部分失败语义上报）
+    "agent_team_timeout": 180,  # Agent Team 整体超时秒数（与 swarm_timeout 解耦；每个子任务都是一次完整 LLM 生成）
     "context_compress_threshold": 4000,  # 自动压缩阈值（0 = 关闭）
     "context_compress_keep_recent": 5,   # 压缩时保留最近几轮
     "context_compress_tiers": 3,         # 早期对话分层摘要的段数（1 = 单段合并的旧行为）

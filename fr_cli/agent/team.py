@@ -6,7 +6,7 @@ Agent Team —— 多 Agent 协作小组
 再由聚合器汇总成一份最终答案。
 
     ① 规划 Planner     LLM 读用户请求 + 成员清单 → 输出 N 个子任务（JSON）
-    ② 执行 Runner      子任务并行执行（ThreadPoolExecutor + 整体 deadline）
+    ② 执行 Runner      子任务并行执行（daemon 线程池 + 整体 deadline）
     ③ 聚合 Aggregator  LLM 综合各成员产出 → 最终答案
 
 成员（member）
@@ -32,19 +32,21 @@ pipeline）；Agent Team 是**自动拆解**用户请求 → 自动指派成员 
 诚实边界
 --------
 * 拆解与聚合各额外消耗 1 次 LLM 调用；只有 1 个子任务时跳过聚合。
-* Python 无法强杀线程：超时的子任务线程会继续跑完，但不再阻塞返回。
-* 总 deadline 复用 ``swarm_timeout``（默认 60 秒），成员并发上限 ``MAX_WORKERS``。
+* Python 无法强杀线程：超时的子任务线程会继续跑完，但不再阻塞返回，
+  也**不会阻塞进程退出**（worker 是 daemon 线程）。
+* 总 deadline 用独立的 ``agent_team_timeout``（默认 180 秒），与蜂群的
+  ``swarm_timeout`` 解耦；成员并发上限 ``MAX_WORKERS``。
 * 规划失败时**如实降级**为"单成员（main）直接做整件事"，不会编造结果。
 """
 from __future__ import annotations
 
-import concurrent.futures
 import json
 import re
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional, Tuple
 
+from fr_cli.core.parallel import run_with_deadline
 from fr_cli.core.result import Result
 
 #: 通用成员名 —— 用全局 LLM 直接完成子任务
@@ -59,8 +61,8 @@ MAX_WORKERS = 6
 #: 单个成员产出截断长度（防止超长文本把聚合 prompt 撑爆）
 MAX_MEMBER_OUTPUT = 4000
 
-#: 团队整体超时默认值（秒）；config.json 的 swarm_timeout 可覆盖
-DEFAULT_TEAM_TIMEOUT = 120
+#: 团队整体超时默认值（秒）；config.json 的 agent_team_timeout 可覆盖
+DEFAULT_TEAM_TIMEOUT = 180
 
 
 # ============================================================
@@ -95,7 +97,12 @@ def set_team_enabled(state, enabled: bool) -> bool:
 def resolve_team_timeout(state, override: Any = None) -> float:
     """解析团队整体超时（秒）。
 
-    优先级：显式入参 > config.json 的 ``swarm_timeout`` > ``DEFAULT_TEAM_TIMEOUT``。
+    优先级：显式入参 > config.json 的 ``agent_team_timeout`` > ``DEFAULT_TEAM_TIMEOUT``。
+
+    与蜂群的 ``swarm_timeout`` **刻意解耦**：蜂群是"用户点名、同一任务、尽快返回"，
+    团队是"自动拆解出的多个**完整**子任务"—— 每个子任务都是一次完整 LLM 生成，
+    reasoning 模型写中等长度内容常常要 60~120 秒。共用 60 秒会让整轮团队协作
+    必然超时（PyPI 实测：2 个子任务全部 60 秒超时，整轮失败）。
     """
     try:
         if override is not None:
@@ -107,7 +114,7 @@ def resolve_team_timeout(state, override: Any = None) -> float:
     cfg = getattr(state, "cfg", None)
     if isinstance(cfg, dict):
         try:
-            num = float(cfg.get("swarm_timeout"))
+            num = float(cfg.get("agent_team_timeout"))
             if num > 0:
                 return num
         except (TypeError, ValueError):
@@ -474,46 +481,45 @@ class AgentTeam:
         超时语义：到点立即返回，未完成任务以"带真实子任务名的超时条目"返回
         （部分失败），不让单个子任务拖垮整个团队。
 
-        诚实边界：Python 无法强杀线程，超时任务的线程会继续跑完，
-        但不再阻塞调用方返回。
+        诚实边界：Python 无法强杀线程 —— 超时子任务的线程会继续跑完。
+        但这里用 **daemon 线程**而不是 ``ThreadPoolExecutor``：标准库的 worker
+        是非 daemon 线程，解释器退出时会 join 它们，于是"超时后进程退不出去"
+        （批处理模式 ``fr-cli -c "/agent_team run ..."`` 直接挂死，实测挂住 15 分钟）。
+        daemon 线程不阻塞退出；代价是进程退出时它会被直接丢弃。
         """
         if not subtasks:
             return []
         workers = max(1, min(int(max_workers or 1), MAX_WORKERS))
 
         results: List[Dict[str, Any]] = []
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
-        try:
-            futures = {
-                executor.submit(self._run_subtask, st): st for st in subtasks
-            }
-            done, not_done = concurrent.futures.wait(futures, timeout=timeout)
-            for future in done:
-                st = futures[future]
-                try:
-                    results.append(future.result())
-                except Exception as e:
-                    results.append({
-                        "title": st.title,
-                        "member": st.member,
-                        "ok": False,
-                        "output": "",
-                        "error": str(e),
-                    })
-            for future in not_done:
-                st = futures[future]
+        done, timed_out = run_with_deadline(
+            subtasks,
+            self._run_subtask,
+            timeout=timeout,
+            max_workers=workers,
+        )
+        for st, out, err in done:
+            if err is not None:
                 results.append({
                     "title": st.title,
                     "member": st.member,
                     "ok": False,
                     "output": "",
-                    "error": f"子任务超时（{timeout:g}秒）",
+                    "error": str(err),
                 })
-        finally:
-            try:
-                executor.shutdown(wait=False, cancel_futures=True)
-            except TypeError:  # Python 3.8 不支持 cancel_futures
-                executor.shutdown(wait=False)
+            else:
+                results.append(out)
+        for st in timed_out:
+            results.append({
+                "title": st.title,
+                "member": st.member,
+                "ok": False,
+                "output": "",
+                "error": (
+                    f"子任务超时（{timeout:g}秒）；"
+                    "可调大 config.json 的 agent_team_timeout"
+                ),
+            })
 
         # 保持原始顺序（重名子任务以首次出现的位置为准）
         order: Dict[str, int] = {}

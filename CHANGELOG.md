@@ -4,6 +4,44 @@
 
 ## [Unreleased]
 
+## [2.8.12] - 2026-11-26
+
+### 修复
+
+- **Agent Team 超时后进程挂死不退出**（PyPI 实测抓到的最严重问题）：
+  `ThreadPoolExecutor` 的 worker 是**非 daemon** 线程，而 Python 在解释器退出时
+  会 join 它们。`shutdown(wait=False)` 只保证"本轮不等"，**保证不了进程能退出**
+  —— 于是 `/agent_team run` 打印完失败信息后进程一直挂着，
+  批处理模式（`fr-cli -c`）只能 kill -9（实测挂住 15 分钟）。
+  新增 `fr_cli/core/parallel.py`：**daemon 线程 + Future**，超时到点立即返回，
+  进程也能立即退出。
+
+- **团队整体超时不再复用蜂群的 60 秒**：
+  `resolve_team_timeout` 之前读 `config.json` 的 `swarm_timeout`（默认 60），
+  把代码里的 120 秒兜底盖掉了。而团队的每个子任务都是**一次完整 LLM 生成**，
+  reasoning 模型写中等长度内容常要 60~120 秒 —— 实测 2 个子任务**全部 60 秒超时**，
+  整轮协作失败。现在团队用独立配置项 `agent_team_timeout`（默认 180 秒），
+  与蜂群的 `swarm_timeout` **刻意解耦**（两者语义不同：蜂群是"尽快返回"，
+  团队是"多个完整子任务"）。`/agent_team` 状态里会显示当前超时值。
+
+- **蜂群（swarm）同一处挂死一并修掉**：
+  `_execute_parallel` / `_call_with_deadline` 用的也是 `ThreadPoolExecutor`，
+  同样会在超时后卡住进程（`fr-cli -c "/swarm parallel ..."`）。改用同一个
+  `run_with_deadline`。
+
+### 新增
+
+- `fr_cli/core/parallel.py`：`run_with_deadline(items, worker, timeout, max_workers)`
+  —— 带整体 deadline 的并行执行，结果按原始顺序装配、单项异常隔离、
+  并发上限可配、工作线程为 daemon。
+
+### 测试
+
+- `tests/test_core_parallel.py`（新增 15 项）：顺序 / deadline / 异常隔离 /
+  并发上限 / daemon 线程 / **子进程实测"超时后能退出"**。
+- `tests/test_agent_team.py`（+8 项）：超时策略优先级、超时报错给出调参入口、
+  worker 是 daemon 线程、**子进程实测"超时后能退出"**。
+
 ## [2.8.11] - 2026-11-26
 
 ### 修复

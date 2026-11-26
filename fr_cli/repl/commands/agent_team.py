@@ -92,7 +92,7 @@ def _cmd_agent_team(state, parts):
 
 def _print_members(state):
     """列出当前可指派的团队成员"""
-    from fr_cli.agent.team import discover_members
+    from fr_cli.agent.team import discover_members, resolve_team_timeout
 
     members = discover_members(state)
     header("可用成员")
@@ -105,3 +105,7 @@ def _print_members(state):
         mark = f"{CYAN}{m['name']}{RESET}" if ok else f"{DIM}{m['name']}{RESET}"
         print(f"  {mark} {DIM}[{kind}] {m.get('desc', '')}{RESET}")
     print(f"{DIM}  共 {len(members)} 位，其中 {usable} 位本轮可用 —— 规划器只会从可用成员里挑。{RESET}")
+    print(
+        f"{DIM}  整体超时 {resolve_team_timeout(state):g} 秒"
+        f"（config.json 的 agent_team_timeout 可调）。{RESET}"
+    )

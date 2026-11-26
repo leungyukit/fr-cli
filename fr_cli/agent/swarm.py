@@ -9,13 +9,20 @@ v3.1 变更：timeout 由"死代码"改为真正的整体 deadline
   到点立即返回，未完成任务以"带真实任务名的超时条目"返回（部分失败语义）；
 - 线程池改为显式 ``shutdown(wait=False)``，避免 ``with`` 退出时 join 挂起线程，
   导致"超时仍然不生效"。
+
+v2.8.12 变更：超时后**进程退不出去**的挂死修复
+- ``ThreadPoolExecutor`` 的 worker 是非 daemon 线程，解释器退出时会 join 它们；
+  ``shutdown(wait=False)`` 只保证"本轮不等"，**保证不了进程能退出** ——
+  命令跑完、结果也打印了，进程却一直挂着（批处理模式只能 kill -9）。
+- 改用 ``fr_cli.core.parallel.run_with_deadline``（daemon 线程 + Future）：
+  超时到点立即返回，进程也能立即退出。
 """
-import concurrent.futures
 import json
 import time
 from typing import Any, Dict, List, Optional
 
 from fr_cli.agent.swarm_resolver import SwarmTaskResolver
+from fr_cli.core.parallel import run_with_deadline
 
 # 蜂群整体 deadline 默认值（秒）；config.json 的 swarm_timeout 可覆盖
 DEFAULT_SWARM_TIMEOUT = 60
@@ -172,16 +179,20 @@ class SwarmEngine:
         """
         if timeout is None or timeout <= 0:
             return resolver.call(name, payload)
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=1)
-        try:
-            future = executor.submit(resolver.call, name, payload)
-            try:
-                return future.result(timeout=timeout)
-            except concurrent.futures.TimeoutError:
-                return None, _TIMEOUT_MARKER
-        finally:
-            # 不等待挂起线程（Python 无法强杀线程，诚实边界）
-            executor.shutdown(wait=False)
+        # daemon 线程 —— 超时后进程能立即退出（ThreadPoolExecutor 的非 daemon
+        # worker 会让解释器退出时 join，从而挂死整个命令）
+        done, timed_out = run_with_deadline(
+            [name],
+            lambda n: resolver.call(n, payload),
+            timeout=timeout,
+            max_workers=1,
+        )
+        if timed_out:
+            return None, _TIMEOUT_MARKER
+        _name, result, err = done[0]
+        if err is not None:
+            return None, str(err)
+        return result
 
     @staticmethod
     def _timeout_entry(resolver, name, timeout):
@@ -207,7 +218,7 @@ class SwarmEngine:
         整体 err 仍为 None（部分失败），不让单个任务超时拖垮整个蜂群。
 
         诚实边界：Python 无法强杀线程，超时任务的线程会继续跑完，
-        但不再阻塞调用方返回。
+        但不再阻塞调用方返回，也**不会阻塞进程退出**（worker 是 daemon 线程）。
         """
         workers = min(int(max_workers), self.MAX_WORKERS)
         workers = max(1, workers)
@@ -226,30 +237,23 @@ class SwarmEngine:
             except Exception as e:
                 return {"agent": name, "kind": "unknown", "target": name, "result": None, "error": str(e)}
 
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=workers)
-        try:
-            futures = {executor.submit(_call_one, name): name for name in names}
-            done, not_done = concurrent.futures.wait(futures, timeout=timeout)
-            for future in done:
-                try:
-                    results.append(future.result())
-                except Exception as e:  # 理论上 _call_one 已兜底，这里再兜一层
-                    failed_name = futures[future]
-                    results.append({
-                        "agent": failed_name,
-                        "kind": "unknown",
-                        "target": failed_name,
-                        "result": None,
-                        "error": str(e),
-                    })
-            for future in not_done:
-                results.append(self._timeout_entry(resolver, futures[future], timeout))
-        finally:
-            # 关键：不能等待挂起线程，否则"真超时"仍然不生效
-            try:
-                executor.shutdown(wait=False, cancel_futures=True)
-            except TypeError:  # Python 3.8 不支持 cancel_futures
-                executor.shutdown(wait=False)
+        done, timed_out = run_with_deadline(
+            names, _call_one, timeout=timeout, max_workers=workers
+        )
+        for _name, entry, err in done:
+            if err is not None:  # 理论上 _call_one 已兜底，这里再兜一层
+                failed_name = str(_name)
+                results.append({
+                    "agent": failed_name,
+                    "kind": "unknown",
+                    "target": failed_name,
+                    "result": None,
+                    "error": str(err),
+                })
+            else:
+                results.append(entry)
+        for name in timed_out:
+            results.append(self._timeout_entry(resolver, name, timeout))
 
         # 保持原始顺序（重名任务以首次出现的位置为准，避免互相覆盖）
         order_map: Dict[str, int] = {}

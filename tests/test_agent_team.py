@@ -15,6 +15,8 @@ import threading
 import time
 from types import SimpleNamespace
 
+import pytest
+
 from fr_cli.agent.team import (
     MAIN_MEMBER,
     MAX_SUBTASKS,
@@ -433,6 +435,108 @@ class TestExecution:
         assert err is None
         assert out == "代理产出"
         assert called == {"name": "coder", "input": "写个函数"}
+
+
+class TestTimeoutPolicy:
+    """团队整体超时：独立于蜂群的 swarm_timeout（实测 60 秒必然整轮超时）。"""
+
+    def test_agent_team_timeout_wins_over_swarm_timeout(self):
+        from fr_cli.agent.team import resolve_team_timeout
+
+        state = make_state(cfg={"swarm_timeout": 60, "agent_team_timeout": 240})
+        assert resolve_team_timeout(state) == 240
+
+    def test_ignores_swarm_timeout_when_team_key_absent(self):
+        """蜂群的 60 秒不该拖累团队 —— 团队子任务都是一次完整 LLM 生成。"""
+        from fr_cli.agent.team import resolve_team_timeout
+
+        state = make_state(cfg={"swarm_timeout": 60})
+        assert resolve_team_timeout(state) == 180.0
+
+    def test_default_is_180_seconds(self):
+        from fr_cli.agent.team import DEFAULT_TEAM_TIMEOUT, resolve_team_timeout
+
+        assert DEFAULT_TEAM_TIMEOUT == 180.0
+        assert resolve_team_timeout(make_state(cfg={})) == 180.0
+
+    def test_explicit_override_wins(self):
+        from fr_cli.agent.team import resolve_team_timeout
+
+        state = make_state(cfg={"agent_team_timeout": 240})
+        assert resolve_team_timeout(state, 15) == 15.0
+
+    def test_invalid_config_falls_back_to_default(self):
+        from fr_cli.agent.team import resolve_team_timeout
+
+        state = make_state(cfg={"agent_team_timeout": "不是数字"})
+        assert resolve_team_timeout(state) == 180.0
+
+    def test_timeout_error_points_at_config_key(self):
+        """超时报错要给出可操作的调参入口，而不是只说"超时"。"""
+        team = AgentTeam(make_state())
+
+        def slow(subtask):
+            time.sleep(3)
+            return {"title": subtask.title, "member": subtask.member,
+                    "ok": True, "output": "不该出现", "error": None}
+
+        team._run_subtask = slow
+        results = team._execute([Subtask("慢任务", MAIN_MEMBER, "a")],
+                                max_workers=2, timeout=0.3)
+        assert "agent_team_timeout" in results[0]["error"]
+
+
+class TestNoProcessHang:
+    """超时后进程必须能退出（daemon 线程）。
+
+    历史 bug：``ThreadPoolExecutor`` 的 worker 是**非 daemon** 线程，Python 在
+    解释器退出时会 join 它们 —— 于是 ``fr-cli -c "/agent_team run ..."``
+    打印完失败信息后**挂死不退出**（实测挂住 15 分钟，只能 kill -9）。
+    """
+
+    def test_worker_threads_are_daemon(self):
+        team = AgentTeam(make_state())
+        started = threading.Event()
+
+        def slow(subtask):
+            started.set()
+            time.sleep(2)
+            return {"title": subtask.title, "member": subtask.member,
+                    "ok": True, "output": "x", "error": None}
+
+        team._run_subtask = slow
+        team._execute([Subtask("慢", MAIN_MEMBER, "a")], max_workers=2, timeout=0.2)
+        assert started.wait(2)
+        live = [t for t in threading.enumerate() if t.name.startswith("fr-parallel")]
+        assert live, "找不到团队工作线程"
+        assert all(t.daemon for t in live), "工作线程必须是 daemon，否则进程退不出去"
+
+    def test_batch_process_exits_after_timeout(self):
+        """真实复现批处理模式：子进程超时后必须能自行退出。"""
+        import subprocess
+        import sys
+
+        script = """
+import time
+from types import SimpleNamespace
+from fr_cli.agent.team import AgentTeam, Subtask, MAIN_MEMBER
+team = AgentTeam(SimpleNamespace(cfg={}))
+def slow(subtask):
+    time.sleep(30)
+    return {"title": "慢", "member": MAIN_MEMBER, "ok": True, "output": "late", "error": None}
+team._run_subtask = slow
+res = team._execute([Subtask("慢", MAIN_MEMBER, "a")], max_workers=2, timeout=0.5)
+print("RETURNED", len(res))
+"""
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-c", script],
+                capture_output=True, text=True, timeout=25,
+            )
+        except subprocess.TimeoutExpired:
+            pytest.fail("超时后进程没有退出 —— 工作线程不是 daemon 线程")
+        assert proc.returncode == 0, proc.stderr
+        assert "RETURNED" in proc.stdout
 
 
 class TestAggregation:

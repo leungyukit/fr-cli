@@ -928,7 +928,9 @@ plugin:myplugin            # 自定义插件
 
 **注意**:
 - 拆解与聚合各**额外消耗 1 次 LLM 调用**;只有 1 个子任务时跳过聚合
-- 总超时复用 `swarm_timeout`(默认 60 秒),成员并发上限 6
+- 总超时用独立的 `agent_team_timeout`(默认 180 秒),**不复用**蜂群的 `swarm_timeout`
+  —— 团队的每个子任务都是一次完整 LLM 生成,reasoning 模型常要 60~120 秒;
+  成员并发上限 6
 - 需要干活的子任务(读写文件、执行命令)要指派给**具备工具的 Agent**,`main` 做不到
 - 规划失败时会**如实降级**为"单成员 `main` 直接做整件事",不会静默失败
 
@@ -1732,6 +1734,7 @@ AI 也可调:
   "aliases": {},
   "auto_confirm_forever": false,
   "agent_team_enabled": false,
+  "agent_team_timeout": 180,
   "swarm_timeout": 60,
   "mail": {},
   "disk": {},

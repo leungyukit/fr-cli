@@ -87,6 +87,10 @@ def _default_config():
         # v2.8.9 新增：Agent Team 协作模式开关（/agent_team on|off）
         # 开启后普通对话自动走「拆解 → 多成员并行 → 聚合」流程
         "agent_team_enabled": False,
+        # v2.8.12 新增：Agent Team 整体超时秒数（0/None → 用默认 180）
+        # 与蜂群的 swarm_timeout 解耦：团队的每个子任务都是一次完整 LLM 生成，
+        # reasoning 模型写中等长度内容常要 60~120 秒，用 60 秒必然整轮超时
+        "agent_team_timeout": 180,
         # v3 新增：是否跳过首次启动向导（手动配置后置位）
         "model_wizard_skipped": False,
         # v3.1 新增:/start 5 步向导完成标志(避免重复弹)
