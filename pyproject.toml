@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "fr-cli"
-version = "2.8.9"
+version = "2.8.10"
 description = "凡人打字机 - 自进化多模型终端 Agent：支持 Zhipu/DeepSeek/Kimi/Qwen/StepFun/MiniMax/Spark/Doubao/MiMo，含蜂群/MCP/梦境整理/消息推送"
 readme = "README.md"
 requires-python = ">=3.8"
@@ -36,7 +36,11 @@ dependencies = [
     "pyyaml>=6.0.0",
     "prompt_toolkit>=3.0.0",  # TUI 输入面板
     "Pillow>=10.0.0",  # 启动封面图片编码(Kitty / iTerm2 / Sixel)
-    "pymupdf>=1.23.0",  # PDF 渲染为图片，供 OCR 使用
+    "pymupdf>=1.23.0,<2",  # PDF 渲染为图片，供 OCR 使用
+                              # ⚠️ 必须卡 <2：PyMuPDF 2.x 重启版本号后**只发 macOS arm64
+                              # 轮子**，没有 macOS x86_64 轮子 —— Intel Mac 上 pip 会回退去
+                              # 编译 89MB 的 sdist（要装 MuPDF 工具链，极慢/常失败）。
+                              # 1.28.x 同时有 macosx_10_15_x86_64 / arm64 轮子。
     "croniter>=2.0.0",  # cron 表达式解析(凡人结界)
 ]
 

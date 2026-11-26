@@ -42,7 +42,7 @@ def _cmd_agent_team(state, parts):
         if failed:
             warning(
                 f"{len(failed)} 个成员未完成",
-                reason="; ".join(
+                detail="; ".join(
                     f"{r.get('member')}: {r.get('error')}" for r in failed
                 ),
             )
@@ -96,7 +96,12 @@ def _print_members(state):
 
     members = discover_members(state)
     header("可用成员")
+    usable = 0
     for m in members:
         kind = m.get("kind", "")
-        print(f"  {CYAN}{m['name']}{RESET} {DIM}[{kind}] {m.get('desc', '')}{RESET}")
-    print(f"{DIM}  共 {len(members)} 位 —— 规划器只会从中挑选。{RESET}")
+        ok = m.get("available", True)
+        if ok:
+            usable += 1
+        mark = f"{CYAN}{m['name']}{RESET}" if ok else f"{DIM}{m['name']}{RESET}"
+        print(f"  {mark} {DIM}[{kind}] {m.get('desc', '')}{RESET}")
+    print(f"{DIM}  共 {len(members)} 位，其中 {usable} 位本轮可用 —— 规划器只会从可用成员里挑。{RESET}")

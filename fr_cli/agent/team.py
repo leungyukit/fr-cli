@@ -129,17 +129,63 @@ _BUILTIN_DESC = {
     "stock": "内置 —— 股票行情",
 }
 
+#: 内置 Agent 的**可选依赖**（基础依赖里不含，缺了就跑不起来）。
+#: 每项是一组"任一即可"；所有组都要满足才算可用。
+_BUILTIN_DEPS = {
+    "spider": [["selenium"]],
+    "db": [["pymysql", "psycopg2", "pyodbc", "oracledb"]],
+    "RAG": [["chromadb"], ["sentence_transformers"]],
+    "stock": [["akshare", "tushare"]],
+    "remote": [["paramiko"]],
+}
+
+
+def _module_installed(name: str) -> bool:
+    """模块是否已安装（不真的 import —— 避免副作用）"""
+    try:
+        import importlib.util
+        return importlib.util.find_spec(name) is not None
+    except Exception:
+        return False
+
+
+def builtin_ready(name: str) -> bool:
+    """内置 Agent 的可选依赖是否齐备。
+
+    缺依赖的内置 Agent 派活给它必然失败 —— 与其让它在执行阶段炸掉，
+    不如在**规划之前**就告诉规划器"这个成员本轮不可用"。
+    """
+    groups = _BUILTIN_DEPS.get(name)
+    if not groups:
+        return True
+    for group in groups:
+        if not any(_module_installed(m) for m in group):
+            return False
+    return True
+
+
+def _builtin_missing(name: str) -> str:
+    """内置 Agent 缺哪些依赖（用于给出可执行的提示）。"""
+    groups = _BUILTIN_DEPS.get(name) or []
+    missing: List[str] = []
+    for group in groups:
+        if not any(_module_installed(m) for m in group):
+            missing.append("|".join(group))
+    return ", ".join(missing)
+
 
 def discover_members(state) -> List[Dict[str, str]]:
     """列出可指派的团队成员。
 
     Returns:
-        ``[{"name": str, "kind": "main|local|remote|builtin", "desc": str}, ...]``
+        ``[{"name": str, "kind": "main|local|remote|builtin", "desc": str,
+           "available": bool}, ...]``
     """
     members: List[Dict[str, str]] = [{
         "name": MAIN_MEMBER,
         "kind": "main",
         "desc": "通用成员 —— 用全局大模型完成子任务（纯文本，不调用工具）",
+        "available": True,
     }]
 
     # 本地分身
@@ -150,7 +196,9 @@ def discover_members(state) -> List[Dict[str, str]]:
             flags = [k for k in ("persona", "memory", "skills")
                      if a.get(f"has_{k}")]
             desc = f"本地分身（{'/'.join(flags) if flags else '无设定'}）"
-            members.append({"name": a["name"], "kind": "local", "desc": desc})
+            members.append({
+                "name": a["name"], "kind": "local", "desc": desc, "available": True,
+            })
     except Exception:
         pass
 
@@ -164,19 +212,23 @@ def discover_members(state) -> List[Dict[str, str]]:
             desc = c.get("description") or (
                 f"远程 Agent @ {c.get('host')}:{c.get('port')}"
             )
-            members.append({"name": name, "kind": "remote", "desc": desc})
+            members.append({
+                "name": name, "kind": "remote", "desc": desc, "available": True,
+            })
     except Exception:
         pass
 
-    # 内置 Agent
+    # 内置 Agent（可选依赖不齐的标成"本轮不可用"）
     try:
         from fr_cli.agent.dispatch import BUILTIN_AGENTS
 
         for name in BUILTIN_AGENTS:
+            ready = builtin_ready(name)
+            desc = _BUILTIN_DESC.get(name, "内置 Agent")
+            if not ready:
+                desc = f"{desc} —— ⚠️ 本轮不可用（缺 {_builtin_missing(name)}）"
             members.append({
-                "name": name,
-                "kind": "builtin",
-                "desc": _BUILTIN_DESC.get(name, "内置 Agent"),
+                "name": name, "kind": "builtin", "desc": desc, "available": ready,
             })
     except Exception:
         pass
@@ -270,7 +322,9 @@ class TeamPlanner:
 
     def _build_prompt(self, user_input: str, members: List[Dict[str, str]]) -> str:
         """构造拆解 prompt。"""
-        roster = "\n".join(f"- {m['name']}：{m['desc']}" for m in members)
+        roster = "\n".join(
+            f"- {m['name']}：{m['desc']}" for m in members
+        )
         recent = self._recent_context()
         history_block = (
             f"\n## 最近对话（用于理解“那第二点呢？”这类追问）\n{recent}\n"
@@ -285,7 +339,8 @@ class TeamPlanner:
             "只输出一个 JSON 对象，不要任何解释文字、不要 Markdown 围栏。格式：\n"
             '{"subtasks": [{"title": "子任务标题", "member": "成员名", "instruction": "交给该成员的完整指令"}]}\n\n'
             "规则：\n"
-            "1. member 必须是上面清单里的名字；拿不准就填 main。\n"
+            "1. member 必须是上面清单里的名字，且**不能是标注「本轮不可用」的那个**；"
+            "拿不准就填 main。\n"
             "2. 拆 2~5 个子任务；如果这个请求本来就该一个人干，就只给 1 个。\n"
             "3. 子任务之间互不依赖，可以同时跑。\n"
             "4. instruction 必须自包含 —— 成员看不到用户的原始请求，也看不到历史对话。\n"
@@ -327,6 +382,10 @@ class TeamPlanner:
             return []
 
         valid = {m["name"] for m in members}
+        # 本轮不可用的成员（可选依赖缺失）也不能派活 —— 否则必然执行失败
+        unavailable = {
+            m["name"] for m in members if m.get("available") is False
+        }
         out: List[Subtask] = []
         for item in raw[:MAX_SUBTASKS]:
             if not isinstance(item, dict):
@@ -334,7 +393,7 @@ class TeamPlanner:
             title = str(item.get("title") or "").strip() or "子任务"
             member = str(item.get("member") or item.get("agent") or "").strip()
             # 指派了不存在的成员 → 退回通用成员（不编造、也不让整轮失败）
-            if member not in valid:
+            if member not in valid or member in unavailable:
                 member = MAIN_MEMBER
             instruction = str(item.get("instruction") or item.get("task") or "").strip()
             if not instruction:
@@ -610,7 +669,7 @@ def handle_team_chat(state, u: str):
                 from fr_cli.ui.output import warning
                 warning(
                     f"{len(failed)} 个成员未完成",
-                    reason="; ".join(
+                    detail="; ".join(
                         f"{r.get('member')}: {r.get('error')}" for r in failed
                     ),
                 )

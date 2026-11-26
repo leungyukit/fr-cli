@@ -273,6 +273,81 @@ class TestMemberDiscovery:
         assert "local" in names
         assert "spider" in names
 
+    def test_unavailable_builtin_is_flagged(self, monkeypatch):
+        """可选依赖缺失的内置 Agent 必须标成"本轮不可用"。
+
+        否则规划器会把研究类子任务派给 spider（selenium 没装）→ 执行必炸。
+        """
+        import fr_cli.agent.team as team_mod
+
+        monkeypatch.setattr(team_mod, "_module_installed", lambda name: False)
+        members = discover_members(make_state())
+        by_name = {m["name"]: m for m in members}
+        assert by_name["spider"]["available"] is False
+        assert "不可用" in by_name["spider"]["desc"]
+        # 没有可选依赖的 local 始终可用
+        assert by_name["local"]["available"] is True
+
+    def test_unavailable_member_falls_back_to_main(self, monkeypatch):
+        """规划器仍派了不可用成员 → 退回 main，不让它执行失败。"""
+        import fr_cli.agent.team as team_mod
+
+        monkeypatch.setattr(team_mod, "_module_installed", lambda name: False)
+        planner = TeamPlanner(make_state())
+        members = discover_members(make_state())
+        out = planner._parse(json.dumps({"subtasks": [
+            {"title": "调研", "member": "spider", "instruction": "去网上查"},
+        ]}), members)
+        assert out[0].member == MAIN_MEMBER
+
+    def test_builtin_ready_reflects_installed_deps(self, monkeypatch):
+        import fr_cli.agent.team as team_mod
+
+        monkeypatch.setattr(team_mod, "_module_installed", lambda name: name == "selenium")
+        assert team_mod.builtin_ready("spider") is True
+        assert team_mod.builtin_ready("db") is False
+        assert team_mod.builtin_ready("local") is True
+
+
+class TestFailureReporting:
+    def test_warning_uses_detail_kwarg(self, monkeypatch):
+        """回归：`output.warning` 的参数名是 `detail`，不是 `reason`。
+
+        写成 `reason=` 会在成员失败的分支上抛 TypeError —— 整轮团队协作直接崩掉。
+        """
+        import fr_cli.agent.team as team_mod
+
+        seen = {}
+
+        class FakeWarning:
+            def __init__(self, *a, **k):
+                seen["args"] = a
+                seen["kwargs"] = k
+
+        monkeypatch.setattr("fr_cli.ui.output.warning", FakeWarning)
+        monkeypatch.setattr(
+            team_mod.AgentTeam, "run",
+            lambda self, *a, **k: __import__(
+                "fr_cli.core.result", fromlist=["Result"]
+            ).Result.ok({
+                "plan": [{"title": "甲", "member": MAIN_MEMBER}],
+                "results": [
+                    {"title": "甲", "member": MAIN_MEMBER, "ok": True,
+                     "output": "好", "error": None},
+                    {"title": "乙", "member": "spider", "ok": False,
+                     "output": "", "error": "缺 selenium"},
+                ],
+                "answer": "最终答案",
+                "usage": {},
+            }),
+        )
+        state = make_state()
+        team_mod.handle_team_chat(state, "做个东西")
+        assert seen, "失败成员应当触发 warning"
+        assert "reason" not in seen["kwargs"], "warning 不接受 reason 参数"
+        assert "detail" in seen["kwargs"]
+        assert "缺 selenium" in seen["kwargs"]["detail"]
+
 
 # ============================================================
 # 执行与聚合

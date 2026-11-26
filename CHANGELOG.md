@@ -4,6 +4,32 @@
 
 ## [Unreleased]
 
+## [2.8.10] - 2026-11-26
+
+### 修复
+
+- **Intel Mac 上 `pip install fr-cli` 会去源码编译 PyMuPDF**：
+  PyMuPDF 重启版本号后发布了 2.x，**2.x 只发 macOS arm64 轮子**，
+  没有 macOS x86_64 轮子 —— pip 于是回退到 89MB 的 sdist 源码编译
+  （要装 MuPDF 工具链，极慢且常失败）。
+  现在把依赖卡成 `pymupdf>=1.23.0,<2`：1.28.x 同时提供
+  `macosx_10_15_x86_64` 与 arm64 轮子，Intel / Apple Silicon 都能直接装轮子。
+
+- **成员失败时整轮团队协作崩掉**：`ui/output.py::warning` 的参数名是 `detail`，
+  Agent Team 却写成了 `reason=` → 成员一失败就抛
+  `TypeError: warning() got an unexpected keyword argument 'reason'`，
+  最终答案都出不来。
+
+- **不该把活派给跑不起来的成员**：内置 Agent 的可选依赖（selenium /
+  chromadb / akshare / paramiko 等）不在基础依赖里。规划器此前会把
+  "去网上查资料" 这类子任务派给 `spider`，而 selenium 没装 → 执行必炸。
+  现在成员清单会标注「⚠️ 本轮不可用（缺 xxx）」，规划器只从**可用**成员里挑，
+  万一仍派了不可用成员则退回 `main`。
+
+> 实测环境：macOS 13.7.8 x86_64、Python 3.13.13、全新 venv 从 PyPI 安装
+> fr-cli 2.8.9（SHA256 与 PyPI 公布值一致）→ `/agent_team on|run|off` 实测，
+> 并据此修复以上问题。
+
 ## [2.8.9] - 2026-11-26
 
 ### 新增功能
